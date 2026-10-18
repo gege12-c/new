@@ -108,6 +108,13 @@ test("une activité Strava arrive par webhook, sans doublon, rattachée à la bo
   // Connexion OAuth (le faux Strava autorise aussitôt l'athlète désigné).
   const athlete = await signedIn(browser, "athlete");
   await athlete.goto("/athlete/profile");
+  // Nouvel essai après un échec : l'athlète est peut-être déjà relié, on repart de zéro.
+  await expect(athlete.getByRole("link", { name: "Connecter Strava" }).or(athlete.getByRole("button", { name: "Déconnecter Strava" }))).toBeVisible();
+  if (await athlete.getByRole("button", { name: "Déconnecter Strava" }).isVisible()) {
+    await athlete.getByRole("button", { name: "Déconnecter Strava" }).click();
+    await athlete.getByRole("dialog").getByRole("button", { name: "Déconnecter" }).click();
+    await expect(athlete.getByRole("link", { name: "Connecter Strava" })).toBeVisible();
+  }
   await athlete.getByRole("link", { name: "Connecter Strava" }).click();
   await expect(athlete).toHaveURL(/strava=connected/);
   await expect(athlete.getByText(/Strava est connecté/)).toBeVisible();
@@ -189,7 +196,8 @@ test("un fichier FIT importé par l'athlète est visible de son coach", async ({
   const athlete = await signedIn(browser, "athlete");
   await athlete.goto("/athlete/profile#connexions");
   await athlete.locator('input[type="file"]').setInputFiles(file);
-  await expect(athlete.getByText(/1 activité importée/)).toBeVisible();
+  // Le message affiché (succès ou erreur) apparaît dans l'échec éventuel du test.
+  await expect(athlete.locator('ul[aria-live="polite"] li').first()).toContainText("1 activité importée", { timeout: 20_000 });
 
   const { athlete: who } = accounts();
   const coach = await signedIn(browser, "coach");
