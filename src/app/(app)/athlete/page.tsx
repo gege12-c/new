@@ -1,8 +1,9 @@
-import { ArrowRight, Flag } from "lucide-react";
+import { ArrowRight, ChevronRight, Flag } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { MiniProfile } from "@/components/calendar/session-chip";
+import { StatusGlyph } from "@/components/calendar/status-glyph";
 import { PageContainer } from "@/components/layout/page";
 import { PlanningLive } from "@/components/realtime/planning-live";
 import { PriorityBadge, SPORT_STYLES, SportBadge, SportDot } from "@/components/sport";
@@ -11,9 +12,12 @@ import { Panel } from "@/components/ui/panel";
 import { WorkoutProfile } from "@/components/workout/workout-profile";
 import { getProfile, requireSession } from "@/lib/auth/dal";
 import { getEvents, getMyCoaches, getThresholds } from "@/lib/data/athlete";
+import { unattachedActivities, withRealization } from "@/lib/activities/realization";
+import { getRealizedInRange } from "@/lib/data/activities";
 import { getSessionsInRange, type CalendarSession } from "@/lib/data/planning";
 import { calendarHref } from "@/lib/planning/calendar-query";
 import { addDays, dateRange, daysBetween, formatDayMonthLong, formatFullDate, formatWeekdayShort, relativeDay, startOfWeek } from "@/lib/planning/dates";
+import { sessionStatus, STATUS_LABELS } from "@/lib/planning/status";
 import { plannedVolume } from "@/lib/planning/volume";
 import { THRESHOLD_DEFS, currentThresholds, formatThresholdValue, toAthleteThresholds } from "@/lib/thresholds";
 import { todayIn } from "@/lib/time";
@@ -38,15 +42,25 @@ export default function AthleteHomePage({ searchParams }: PageProps<"/athlete">)
 
 const sessionHref = (session: CalendarSession) => calendarHref("/athlete/calendar", { view: "day", date: session.scheduled_date, session: session.id });
 
-function TodayCard({ session, thresholds }: { session: CalendarSession; thresholds: AthleteThresholds }) {
+function TodayCard({ session, thresholds, today }: { session: CalendarSession; thresholds: AthleteThresholds; today: string }) {
   const totals = computeTotals(session.content, thresholds);
   const block = mainBlock(session.content, thresholds);
   const cancelled = session.state === "cancelled";
+  const status = sessionStatus(session, today);
+  const realized = status === "done" || status === "partial" || status === "missed";
   return (
     <Link href={sessionHref(session)} className="group block rounded-[18px] bg-night p-5 text-night-ink sm:p-6">
       <div className="flex items-center justify-between gap-3">
         <SportBadge sport={session.sport} className="bg-white/10 text-night-ink" />
-        {session.start_time ? <span className="figure text-[15px] text-night-muted">{formatTimeOfDay(session.start_time)}</span> : null}
+        <span className="flex items-center gap-3">
+          {realized ? (
+            <span className="flex items-center gap-1.5 text-[13px] font-semibold text-night-ink">
+              <StatusGlyph status={status} />
+              {STATUS_LABELS[status]}
+            </span>
+          ) : null}
+          {session.start_time ? <span className="figure text-[15px] text-night-muted">{formatTimeOfDay(session.start_time)}</span> : null}
+        </span>
       </div>
       <h2 className={cn("display mt-4 text-[30px] sm:text-[36px]", cancelled && "line-through opacity-60")}>{session.title}</h2>
       {cancelled ? <p className="mt-1 text-[14px] text-night-muted">Séance annulée</p> : null}
@@ -81,12 +95,57 @@ async function AthleteHome({ searchParams }: Pick<PageProps<"/athlete">, "search
   const [{ supabase, userId }, profile, params] = await Promise.all([requireSession("/athlete"), getProfile(), searchParams]);
   const today = await todayIn(profile.timezone);
   const monday = startOfWeek(today);
-  const [sessions, events, coaches, thresholdRows] = await Promise.all([
-    getSessionsInRange(supabase, userId, monday, addDays(monday, 13)),
+  const weekAgo = addDays(today, -7);
+  const from = weekAgo < monday ? weekAgo : monday;
+  const [planned, realized, events, coaches, thresholdRows, connection] = await Promise.all([
+    getSessionsInRange(supabase, userId, from, addDays(monday, 13)),
+    getRealizedInRange(supabase, userId, from, addDays(monday, 13)),
     getEvents(supabase, userId),
     getMyCoaches(supabase, userId),
     getThresholds(supabase, userId),
+    supabase.from("external_connections").select("status").eq("provider", "strava").maybeSingle(),
   ]);
+  const all = withRealization(planned, realized);
+  const sessions = all.filter((s) => s.scheduled_date >= monday);
+  // À traiter : la semaine écoulée.
+  const recent = all.filter((s) => s.state === "published" && s.scheduled_date >= weekAgo && s.scheduled_date <= today);
+  const toValidate = recent.filter((s) => s.realization.proposals.length && !s.realization.attached.length);
+  const withoutFeedback = recent.filter((s) => s.scheduled_date < today && sessionStatus(s, today) === "unreconciled");
+  const loose = unattachedActivities(realized).filter((a) => a.local_date >= weekAgo && a.local_date <= today);
+  const reauth = connection.data?.status === "reauth_required";
+  const todo = [
+    reauth ? { key: "reauth", tone: "warning" as const, text: "Strava demande une reconnexion : vos activités n’arrivent plus.", action: "Reconnecter", href: "/athlete/profile#connexions" } : null,
+    toValidate.length
+      ? {
+          key: "validate",
+          tone: "warning" as const,
+          text: toValidate.length > 1 ? `${toValidate.length} activités à valider pour vos séances.` : `Une activité à valider pour « ${toValidate[0].title} ».`,
+          action: "Valider",
+          href: sessionHref(toValidate[0]),
+        }
+      : null,
+    loose.length
+      ? {
+          key: "loose",
+          tone: "info" as const,
+          text: loose.length > 1 ? `${loose.length} activités des 7 derniers jours n’ont pas de séance.` : "Une activité des 7 derniers jours n’a pas de séance.",
+          action: "Voir",
+          href: calendarHref("/athlete/calendar", { view: "day", date: loose[0].local_date, activity: loose[0].id }),
+        }
+      : null,
+    withoutFeedback.length
+      ? {
+          key: "feedback",
+          tone: "info" as const,
+          text: withoutFeedback.length > 1 ? `${withoutFeedback.length} séances passées sans retour à votre coach.` : `« ${withoutFeedback[0].title} » attend votre retour.`,
+          action: "Donner mon retour",
+          href:
+            withoutFeedback.length > 1
+              ? calendarHref("/athlete/calendar", { view: "agenda", date: weekAgo, statuses: ["unreconciled"] })
+              : sessionHref(withoutFeedback[0]),
+        }
+      : null,
+  ].filter((item): item is NonNullable<typeof item> => item !== null);
   const thresholds = toAthleteThresholds(currentThresholds(thresholdRows, today));
   const todays = sessions.filter((s) => s.scheduled_date === today);
   const next = sessions.find((s) => s.scheduled_date > today && s.state !== "cancelled");
@@ -105,7 +164,7 @@ async function AthleteHome({ searchParams }: Pick<PageProps<"/athlete">, "search
           <p className="text-[14px] font-medium text-muted first-letter:uppercase">{formatFullDate(today)}</p>
           <h1 className="display text-[34px] sm:text-[40px]">Aujourd’hui</h1>
         </div>
-        <PlanningLive athleteId={userId} />
+        <PlanningLive athleteId={userId} self />
       </header>
 
       {params.joined === "1" ? <Notice tone="success">Invitation acceptée : votre coach peut désormais suivre et planifier votre entraînement.</Notice> : null}
@@ -113,7 +172,7 @@ async function AthleteHome({ searchParams }: Pick<PageProps<"/athlete">, "search
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(300px,1fr)]">
         <div className="min-w-0 space-y-4">
           {todays.length ? (
-            todays.map((session) => <TodayCard key={session.id} session={session} thresholds={thresholds} />)
+            todays.map((session) => <TodayCard key={session.id} session={session} thresholds={thresholds} today={today} />)
           ) : (
             <div className="rounded-[18px] border border-line bg-surface p-6">
               <p className="display text-[30px]">Repos</p>
@@ -141,6 +200,25 @@ async function AthleteHome({ searchParams }: Pick<PageProps<"/athlete">, "search
         </div>
 
         <div className="min-w-0 space-y-6">
+          {todo.length ? (
+            <Panel title="À traiter">
+              <ul className="-my-2 divide-y divide-line">
+                {todo.map((item) => (
+                  <li key={item.key}>
+                    <Link href={item.href} className="group flex items-center gap-3 py-2.5">
+                      <span aria-hidden className={cn("size-2 shrink-0 rounded-full", item.tone === "warning" ? "bg-warning" : "bg-line-strong")} />
+                      <span className="min-w-0 flex-1 text-[14px] leading-snug text-ink">{item.text}</span>
+                      <span className="flex shrink-0 items-center gap-0.5 text-[13px] font-semibold text-ink-soft group-hover:text-ink">
+                        {item.action}
+                        <ChevronRight className="size-4" aria-hidden />
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </Panel>
+          ) : null}
+
           <Panel
             title="Cette semaine"
             actions={

@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 
 /** Bloc de page titré. Les listes à l’intérieur utilisent des séparateurs, pas des cartes empilées. */
 export function Panel({
+  id,
   title,
   description,
   actions,
@@ -10,6 +11,7 @@ export function Panel({
   className,
   bodyClassName,
 }: {
+  id?: string;
   title: ReactNode;
   description?: ReactNode;
   actions?: ReactNode;
@@ -18,7 +20,7 @@ export function Panel({
   bodyClassName?: string;
 }) {
   return (
-    <section className={cn("rounded-[14px] border border-line bg-surface", className)}>
+    <section id={id} className={cn("rounded-[14px] border border-line bg-surface", className)}>
       <header className="flex flex-wrap items-start justify-between gap-3 px-4 pt-4 sm:px-5">
         <div className="min-w-0">
           <h2 className="heading text-[17px]">{title}</h2>

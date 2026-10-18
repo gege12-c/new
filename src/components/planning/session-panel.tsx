@@ -1,6 +1,8 @@
 import { History, MessageSquareText, Soup } from "lucide-react";
+import { RealizationSection } from "@/components/activities/realization-section";
 import { SportBadge } from "@/components/sport";
 import { WorkoutProfile } from "@/components/workout/workout-profile";
+import { getSessionRealization } from "@/lib/data/activities";
 import { getSessionComments, getSessionDetail, getSessionHistory } from "@/lib/data/planning";
 import type { HistoryEntry } from "@/lib/data/planning-types";
 import { formatFullDate } from "@/lib/planning/dates";
@@ -20,7 +22,10 @@ import { Prescription } from "./prescription";
 const STATUS_TONE: Record<string, string> = {
   draft: "border border-dashed border-line-strong text-ink-soft",
   planned: "bg-surface-3 text-ink",
-  unreconciled: "bg-warning-soft text-warning",
+  done: "bg-success-soft text-success",
+  partial: "bg-warning-soft text-warning",
+  missed: "bg-danger-soft text-danger",
+  unreconciled: "bg-surface-3 text-ink-soft",
   cancelled: "bg-surface-3 text-muted line-through",
 };
 
@@ -80,8 +85,12 @@ export async function SessionPanel({
       </PanelFrame>
     );
   }
-  const [comments, history] = await Promise.all([getSessionComments(supabase, sessionId), getSessionHistory(supabase, sessionId)]);
-  const status = sessionStatus(detail, today);
+  const [comments, history, realization] = await Promise.all([
+    getSessionComments(supabase, sessionId),
+    getSessionHistory(supabase, sessionId),
+    getSessionRealization(supabase, detail),
+  ]);
+  const status = sessionStatus({ ...detail, realization }, today);
   const totals = computeTotals(detail.content, thresholds);
   const ownSession = detail.created_by === viewerId;
   const canMove = canPlan || (viewer === "athlete" && detail.state !== "cancelled");
@@ -167,14 +176,15 @@ export async function SessionPanel({
           </section>
         ) : null}
 
-        <section aria-labelledby="done-title" className="rounded-[12px] border border-dashed border-line-strong p-3">
-          <h3 id="done-title" className="text-[14px] font-semibold">
-            Prévu et réalisé
-          </h3>
-          <p className="mt-1 text-[13px] text-muted">
-            La comparaison avec l’activité réalisée arrivera avec l’import Strava. Aucune réalisation n’est enregistrée pour l’instant.
-          </p>
-        </section>
+        <RealizationSection
+          session={detail}
+          realization={realization}
+          status={status}
+          viewer={viewer}
+          canPlan={canPlan}
+          today={today}
+          timeZone={timeZone}
+        />
 
         <section aria-labelledby="comments-title">
           <h3 id="comments-title" className="heading mb-3 flex items-center gap-2 text-[16px]">

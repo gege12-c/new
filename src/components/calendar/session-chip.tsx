@@ -4,11 +4,13 @@ import Link from "next/link";
 import type { CSSProperties, DragEvent } from "react";
 import { SPORT_ICONS } from "@/components/sport";
 import { profileBars, zoneClass } from "@/components/workout/workout-profile";
+import { completionRatio, realizedTotals } from "@/lib/activities/compare";
 import type { CalendarSession } from "@/lib/data/planning-types";
-import { sessionStatus, STATUS_LABELS } from "@/lib/planning/status";
+import { sessionStatus, STATUS_LABELS, type SessionStatus } from "@/lib/planning/status";
 import { formatDistance, formatDurationShort, formatTimeOfDay } from "@/lib/workout/format";
 import type { AthleteThresholds } from "@/lib/workout/zones";
 import { cn } from "@/lib/utils";
+import { StatusGlyph } from "./status-glyph";
 
 const SPORT_EDGE: Record<string, string> = {
   swim: "before:bg-swim",
@@ -45,6 +47,27 @@ export function durationLabel(session: Pick<CalendarSession, "planned_duration_s
   return session.planned_duration_s ? formatDurationShort(session.planned_duration_s) : null;
 }
 
+const REALIZED_TONE: Partial<Record<SessionStatus, string>> = { done: "text-success", partial: "text-warning", missed: "text-danger" };
+
+/** Ligne « réalisé » d’une séance : durée et part du prévu, ou déclaration de l’athlète. */
+export function realizedLabel(session: CalendarSession, status: SessionStatus): { text: string; tone: string } | null {
+  const realization = session.realization;
+  if (!realization) return null;
+  if (realization.attached.length) {
+    const totals = realizedTotals(realization.attached);
+    const ratio = completionRatio(session, totals);
+    const amount = totals.durationS !== null ? formatDurationShort(totals.durationS) : totals.distanceM !== null ? formatDistance(totals.distanceM, session.sport === "swim" ? "swim" : undefined) : null;
+    const text = amount ? `Réalisé ${amount}${ratio !== null ? ` (${Math.round(ratio * 100)} %)` : ""}` : "Réalisé";
+    return { text, tone: REALIZED_TONE[status] ?? "text-ink-soft" };
+  }
+  if (realization.completion) {
+    const rpe = realization.completion.rpe ? `, RPE ${realization.completion.rpe}` : "";
+    return { text: `${STATUS_LABELS[status]}${rpe}`, tone: REALIZED_TONE[status] ?? "text-ink-soft" };
+  }
+  if (realization.proposals.length) return { text: "Activité à valider", tone: "text-warning" };
+  return null;
+}
+
 interface ChipProps {
   session: CalendarSession;
   href: string;
@@ -64,6 +87,7 @@ export function SessionChip({ session, href, today, thresholds, size = "regular"
   const duration = durationLabel(session);
   const distance = session.planned_distance_m ? formatDistance(session.planned_distance_m, session.sport === "swim" ? "swim" : undefined) : null;
   const time = session.start_time ? formatTimeOfDay(session.start_time) : null;
+  const realized = size === "compact" ? null : realizedLabel(session, status);
   return (
     <Link
       href={href}
@@ -95,6 +119,7 @@ export function SessionChip({ session, href, today, thresholds, size = "regular"
           {session.title}
         </span>
         {session.pending ? <span title="Modifications non publiées" className="mt-1 size-1.5 shrink-0 rounded-full bg-warning" /> : null}
+        <StatusGlyph status={status} className={size === "compact" ? "mt-[1px]" : "mt-[2px]"} />
       </span>
       {size === "compact" ? (
         <span className="mt-1 flex items-center gap-2">
@@ -109,6 +134,7 @@ export function SessionChip({ session, href, today, thresholds, size = "regular"
             {time ? <span className="figure text-[12px] text-muted">{time}</span> : null}
           </span>
           <MiniProfile session={session} thresholds={thresholds} height={size === "large" ? 30 : 16} className="mt-1.5" />
+          {realized ? <span className={cn("figure mt-1.5 block text-[12px] font-semibold", realized.tone)}>{realized.text}</span> : null}
         </>
       )}
       {status === "draft" || status === "cancelled" ? (

@@ -1,11 +1,11 @@
 "use client";
 
-import { CalendarDays, Gauge, LibraryBig, Settings, Sunrise, UsersRound, type LucideIcon } from "lucide-react";
+import { CalendarDays, Gauge, LibraryBig, Settings, ShieldCheck, Sunrise, UsersRound, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
-export type NavKey = "today" | "calendar" | "profile" | "athletes" | "library" | "settings";
+export type NavKey = "today" | "calendar" | "profile" | "athletes" | "library" | "settings" | "admin";
 
 const ITEMS: Record<NavKey, { href: string; label: string; short: string; icon: LucideIcon }> = {
   athletes: { href: "/coach", label: "Athlètes", short: "Athlètes", icon: UsersRound },
@@ -14,6 +14,7 @@ const ITEMS: Record<NavKey, { href: string; label: string; short: string; icon: 
   calendar: { href: "/athlete/calendar", label: "Calendrier", short: "Calendrier", icon: CalendarDays },
   profile: { href: "/athlete/profile", label: "Profil sportif", short: "Profil", icon: Gauge },
   settings: { href: "/settings", label: "Réglages", short: "Réglages", icon: Settings },
+  admin: { href: "/admin", label: "Administration", short: "Admin", icon: ShieldCheck },
 };
 
 function isActive(pathname: string, key: NavKey) {

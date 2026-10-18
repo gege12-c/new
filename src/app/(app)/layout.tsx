@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { BottomNav, MobileSettingsLink, SidebarNav, type NavGroup, type NavKey } from "@/components/app-nav";
 import { Brand } from "@/components/brand";
 import { Skeleton } from "@/components/ui/feedback";
-import { getProfile } from "@/lib/auth/dal";
+import { getIsAdmin, getProfile } from "@/lib/auth/dal";
 import { initials } from "@/lib/utils";
 import { signOut } from "../(auth)/actions";
 
@@ -47,13 +47,14 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 }
 
 async function navGroups(): Promise<NavGroup[]> {
-  const profile = await getProfile();
+  const [profile, isAdmin] = await Promise.all([getProfile(), getIsAdmin()]);
   const training: NavKey[] = ["today", "calendar", "profile"];
-  if (!profile.is_coach) return [{ keys: [...training, "settings"] }];
+  const account: NavKey[] = isAdmin ? ["settings", "admin"] : ["settings"];
+  if (!profile.is_coach) return [{ keys: [...training, ...account] }];
   return [
     { keys: ["athletes", "library"] },
     { label: "Mon entraînement", keys: training },
-    { keys: ["settings"] },
+    { keys: account },
   ];
 }
 

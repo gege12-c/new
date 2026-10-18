@@ -9,6 +9,7 @@ import { Button, ButtonLink } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Notice } from "@/components/ui/feedback";
 import { controlClasses } from "@/components/ui/field";
+import type { LinkedActivity } from "@/lib/activities/realization";
 import type { CalendarEvent, CalendarSession, TemplateSummary } from "@/lib/data/planning-types";
 import { calendarHref, type CalendarQuery } from "@/lib/planning/calendar-query";
 import {
@@ -30,12 +31,13 @@ import {
   viewTitle,
   type ISODate,
 } from "@/lib/planning/dates";
-import { sessionStatus, STATUS_LABELS, type SessionStatus } from "@/lib/planning/status";
+import { ATHLETE_STATUS_FILTERS, sessionStatus, STATUS_LABELS } from "@/lib/planning/status";
 import { plannedVolume } from "@/lib/planning/volume";
 import { formatDurationShort as formatDuration } from "@/lib/workout/format";
 import { SPORT_LABELS, type SessionSport } from "@/lib/workout/schema";
 import type { AthleteThresholds } from "@/lib/workout/zones";
 import { cn } from "@/lib/utils";
+import { ActivityChip } from "./activity-chip";
 import { SessionChip } from "./session-chip";
 
 type Optimistic = { type: "move"; id: string; date: ISODate } | { type: "copy"; id: string; date: ISODate } | { type: "template"; template: TemplateSummary; date: ISODate };
@@ -50,6 +52,7 @@ export function PlanningCalendar({
   query,
   today,
   sessions,
+  activities = [],
   events,
   thresholds,
   canMove,
@@ -64,6 +67,8 @@ export function PlanningCalendar({
   query: CalendarQuery;
   today: ISODate;
   sessions: CalendarSession[];
+  /** Activités réalisées sans séance rattachée. */
+  activities?: LinkedActivity[];
   events: CalendarEvent[];
   thresholds?: AthleteThresholds;
   canMove: boolean;
@@ -113,10 +118,19 @@ export function PlanningCalendar({
   });
   const byDate = new Map<ISODate, CalendarSession[]>();
   for (const session of visible) byDate.set(session.scheduled_date, [...(byDate.get(session.scheduled_date) ?? []), session]);
+  // Un filtre de statut ne concerne que les séances : les activités sans séance sont alors masquées.
+  const activitiesByDate = new Map<ISODate, LinkedActivity[]>();
+  if (!query.statuses?.length) {
+    for (const activity of activities) {
+      if (query.sports?.length && !query.sports.includes(activity.sport)) continue;
+      activitiesByDate.set(activity.local_date, [...(activitiesByDate.get(activity.local_date) ?? []), activity]);
+    }
+  }
   const eventsByDate = new Map<ISODate, CalendarEvent[]>();
   for (const event of events) eventsByDate.set(event.event_date, [...(eventsByDate.get(event.event_date) ?? []), event]);
 
   const sessionHref = (session: CalendarSession) => calendarHref(basePath, query, { session: session.id });
+  const activityHref = (activity: LinkedActivity) => calendarHref(basePath, query, { session: null, activity: activity.id });
   const newHref = (date: ISODate) => (newSessionPath ? `${newSessionPath}?date=${date}` : null);
 
   const drop = (event: DragEvent, date: ISODate) => {
@@ -187,7 +201,7 @@ export function PlanningCalendar({
       }
     : {};
 
-  const shared = { basePath, byDate, eventsByDate, today, query, thresholds, sessionHref, newHref, dropTarget, chipDrag, over, canCreate };
+  const shared = { basePath, byDate, activitiesByDate, eventsByDate, today, query, thresholds, sessionHref, activityHref, newHref, dropTarget, chipDrag, over, canCreate };
 
   return (
     <div className={cn(dragging && "select-none")}>
@@ -341,11 +355,13 @@ function Toolbar({
 interface ViewProps {
   basePath: string;
   byDate: Map<ISODate, CalendarSession[]>;
+  activitiesByDate: Map<ISODate, LinkedActivity[]>;
   eventsByDate: Map<ISODate, CalendarEvent[]>;
   today: ISODate;
   query: CalendarQuery;
   thresholds?: AthleteThresholds;
   sessionHref: (session: CalendarSession) => string;
+  activityHref: (activity: LinkedActivity) => string;
   newHref: (date: ISODate) => string | null;
   dropTarget: (date: ISODate) => Record<string, unknown>;
   chipDrag: Partial<Pick<Parameters<typeof SessionChip>[0], "draggable" | "onDragStart" | "onDragEnd">>;
@@ -406,7 +422,7 @@ function WeekSummary({ sessions, monday }: { sessions: CalendarSession[]; monday
 }
 
 function MonthView(props: ViewProps) {
-  const { byDate, eventsByDate, today, query, thresholds, sessionHref, newHref, dropTarget, chipDrag, over } = props;
+  const { byDate, activitiesByDate, eventsByDate, today, query, thresholds, sessionHref, activityHref, newHref, dropTarget, chipDrag, over } = props;
   const weeks = monthWeeks(query.date);
   const month = query.date.slice(0, 7);
   return (
@@ -465,6 +481,9 @@ function MonthView(props: ViewProps) {
                       {...chipDrag}
                     />
                   ))}
+                  {(activitiesByDate.get(day) ?? []).map((activity) => (
+                    <ActivityChip key={activity.id} activity={activity} href={activityHref(activity)} size="compact" selected={query.activity === activity.id} />
+                  ))}
                 </div>
               </div>
             );
@@ -479,8 +498,9 @@ function MonthView(props: ViewProps) {
 }
 
 function DayColumn({ day, props, size }: { day: ISODate; props: ViewProps; size: "regular" | "large" }) {
-  const { byDate, eventsByDate, today, query, thresholds, sessionHref, newHref, dropTarget, chipDrag, over } = props;
+  const { byDate, activitiesByDate, eventsByDate, today, query, thresholds, sessionHref, activityHref, newHref, dropTarget, chipDrag, over } = props;
   const sessions = byDate.get(day) ?? [];
+  const dayActivities = activitiesByDate.get(day) ?? [];
   const relative = relativeDay(day, today);
   return (
     <section
@@ -512,7 +532,10 @@ function DayColumn({ day, props, size }: { day: ISODate; props: ViewProps; size:
             {...chipDrag}
           />
         ))}
-        {!sessions.length && !(eventsByDate.get(day) ?? []).length ? <p className="px-1 py-2 text-[12px] text-muted/80">Repos</p> : null}
+        {dayActivities.map((activity) => (
+          <ActivityChip key={activity.id} activity={activity} href={activityHref(activity)} size={size} selected={query.activity === activity.id} />
+        ))}
+        {!sessions.length && !dayActivities.length && !(eventsByDate.get(day) ?? []).length ? <p className="px-1 py-2 text-[12px] text-muted/80">Repos</p> : null}
       </div>
     </section>
   );
@@ -580,7 +603,9 @@ function DayView(props: ViewProps) {
 
 function AgendaView(props: ViewProps) {
   const { from, to } = viewRange("agenda", props.query.date);
-  const days = dateRange(from, to).filter((d) => (props.byDate.get(d)?.length ?? 0) > 0 || (props.eventsByDate.get(d)?.length ?? 0) > 0);
+  const days = dateRange(from, to).filter(
+    (d) => (props.byDate.get(d)?.length ?? 0) > 0 || (props.eventsByDate.get(d)?.length ?? 0) > 0 || (props.activitiesByDate.get(d)?.length ?? 0) > 0,
+  );
   if (!days.length) {
     return (
       <div className="rounded-[14px] border border-dashed border-line-strong px-5 py-10 text-center text-[14px] text-muted">
@@ -729,7 +754,7 @@ export function SportStatusFilters({ basePath, query, sports }: { basePath: stri
     else set.add(value);
     return [...set];
   };
-  const statuses: SessionStatus[] = ["planned", "unreconciled", "cancelled"];
+  const statuses = ATHLETE_STATUS_FILTERS;
   return (
     <div
       className="-mx-4 mb-4 flex items-center gap-1.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 [&::-webkit-scrollbar]:hidden"
@@ -745,7 +770,7 @@ export function SportStatusFilters({ basePath, query, sports }: { basePath: stri
             scroll={false}
             aria-pressed={active}
             className={cn(
-              "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[13px] font-medium",
+              "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[13px] font-medium xl:px-2.5 xl:text-[12.5px]",
               active ? cn("border-transparent", SPORT_STYLES[sport].soft, SPORT_STYLES[sport].ink, "font-semibold") : "border-line-strong bg-surface text-ink-soft",
             )}
           >
@@ -764,7 +789,7 @@ export function SportStatusFilters({ basePath, query, sports }: { basePath: stri
             scroll={false}
             aria-pressed={active}
             className={cn(
-              "inline-flex h-8 shrink-0 items-center rounded-full border px-3 text-[13px] font-medium",
+              "inline-flex h-8 shrink-0 items-center rounded-full border px-3 text-[13px] font-medium xl:px-2.5 xl:text-[12.5px]",
               active ? "border-ink bg-ink text-canvas" : "border-line-strong bg-surface text-ink-soft",
             )}
           >

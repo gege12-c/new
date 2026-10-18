@@ -29,8 +29,8 @@ export function CoachPermissionsForm({
       <Checkbox
         name="can_view_activities"
         defaultChecked={canViewActivities}
-        label="Peut voir mes activités réalisées"
-        hint="S’appliquera aux activités importées de Strava, dès leur arrivée."
+        label="Peut voir mes activités importées"
+        hint="Les fichiers FIT que vous importez. Vos activités Strava restent visibles de vous seul (règles de Strava) ; vos retours de séance sont toujours partagés."
       />
       <FormMessage state={state} />
       <SubmitButton size="sm" variant="secondary">

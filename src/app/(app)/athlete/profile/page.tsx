@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { revokeCoachLink } from "@/app/(app)/actions";
 import { AthleteProfileForm } from "@/components/athlete/athlete-profile-form";
+import { ConnectionsPanel } from "@/components/athlete/connections-panel";
 import { CoachPermissionsForm } from "@/components/athlete/coach-permissions-form";
 import { ConfirmSubmit } from "@/components/ui/confirm-submit";
 import { EventsPanel } from "@/components/athlete/events-panel";
@@ -16,19 +17,19 @@ import { formatLocalDate, localDate } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Profil sportif" };
 
-export default function AthleteProfilePage() {
+export default function AthleteProfilePage({ searchParams }: PageProps<"/athlete/profile">) {
   return (
     <PageContainer wide>
-      <PageHeader title="Profil sportif" description="Vos objectifs, vos seuils et vos compétitions, partagés avec votre coach." />
+      <PageHeader title="Profil sportif" description="Vos objectifs, vos seuils, vos compétitions et vos activités, partagés avec votre coach." />
       <Suspense fallback={<SectionSkeleton />}>
-        <ProfileContent />
+        <ProfileContent searchParams={searchParams} />
       </Suspense>
     </PageContainer>
   );
 }
 
-async function ProfileContent() {
-  const [{ supabase, userId }, profile] = await Promise.all([requireSession("/athlete/profile"), getProfile()]);
+async function ProfileContent({ searchParams }: Pick<PageProps<"/athlete/profile">, "searchParams">) {
+  const [{ supabase, userId }, profile, params] = await Promise.all([requireSession("/athlete/profile"), getProfile(), searchParams]);
   const today = await todayIn(profile.timezone);
   const [athleteProfile, thresholds, events, coaches] = await Promise.all([
     getAthleteProfile(supabase, userId),
@@ -54,6 +55,7 @@ async function ProfileContent() {
       </div>
       <div className="space-y-6">
       <ThresholdsPanel athleteId={userId} rows={thresholds} today={today} canEdit />
+      <ConnectionsPanel supabase={supabase} timeZone={profile.timezone} callbackStatus={typeof params.strava === "string" ? params.strava : undefined} />
       <Panel title="Mon coach" description="Vous choisissez ce que chaque coach peut faire, et vous pouvez retirer son accès à tout moment.">
         {coaches.length === 0 ? (
           <EmptyState title="Pas encore de coach">Demandez à votre coach un lien d’invitation : il suffit de l’ouvrir pour lui donner accès.</EmptyState>

@@ -50,3 +50,10 @@ export const getProfile = cache(async (): Promise<Profile> => {
   if (error || !data) throw new Error("Profil introuvable pour ce compte.");
   return data;
 });
+
+/** L’utilisateur est-il administrateur ? (table admin_users, écrite seulement avec la clé de service). */
+export const getIsAdmin = cache(async (): Promise<boolean> => {
+  const { supabase } = await requireSession();
+  const { data, error } = await supabase.rpc("current_user_is_admin");
+  return !error && data === true;
+});

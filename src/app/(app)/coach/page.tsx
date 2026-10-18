@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { revokeInvitation } from "@/app/(app)/actions";
+import { StatusGlyph } from "@/components/calendar/status-glyph";
 import { InvitationForm } from "@/components/coach/invitation-form";
 import { PageContainer } from "@/components/layout/page";
 import { PriorityBadge, SPORT_STYLES, SportDot } from "@/components/sport";
@@ -10,8 +11,11 @@ import { ConfirmSubmit } from "@/components/ui/confirm-submit";
 import { EmptyState, SectionSkeleton } from "@/components/ui/feedback";
 import { PageHeader, Panel } from "@/components/ui/panel";
 import { getProfile, requireSession } from "@/lib/auth/dal";
-import { getAthletesOverview, getCoachDashboard, getCoachedAthletes, getPendingInvitations } from "@/lib/data/coach";
+import { withRealization } from "@/lib/activities/realization";
+import { getRealizedInRange } from "@/lib/data/activities";
+import { getAthletesOverview, getCoachDashboard, getCoachedAthletes, getPendingInvitations, getSyncStatuses, type SyncStatus } from "@/lib/data/coach";
 import { addDays, daysBetween, formatDayMonth, formatWeekRange, formatWeekdayShort, relativeDay, startOfWeek } from "@/lib/planning/dates";
+import { sessionStatus, STATUS_LABELS, type SessionState, type SessionStatus } from "@/lib/planning/status";
 import { plannedVolume } from "@/lib/planning/volume";
 import { todayIn } from "@/lib/time";
 import { formatDurationShort } from "@/lib/workout/format";
@@ -33,6 +37,22 @@ export default function CoachPage() {
 const relativeTime = (iso: string, timeZone: string) =>
   new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone }).format(new Date(iso));
 
+const COMPLETION_TEXT = { done: "faite", partial: "faite en partie", skipped: "pas faite" } as const;
+const RECENT_STATUSES: SessionStatus[] = ["done", "partial", "missed", "unreconciled"];
+
+function SyncPill({ status }: { status: SyncStatus | undefined }) {
+  if (!status) return null;
+  const reauth = status.status === "reauth_required";
+  return (
+    <span
+      className={cn("shrink-0 rounded-[6px] px-1.5 py-0.5 text-[11px] font-semibold", reauth ? "bg-warning-soft text-warning" : "bg-surface-3 text-muted")}
+      title={reauth ? "L’athlète doit reconnecter Strava : ses activités n’arrivent plus." : "Strava relié : ses activités lui sont rapprochées de vos séances."}
+    >
+      {reauth ? "Strava à reconnecter" : "Strava relié"}
+    </span>
+  );
+}
+
 async function CoachContent() {
   const [{ supabase, userId }, profile] = await Promise.all([requireSession("/coach"), getProfile()]);
 
@@ -51,11 +71,16 @@ async function CoachContent() {
   const monday = startOfWeek(today);
   const [links, pending] = await Promise.all([getCoachedAthletes(supabase, userId), getPendingInvitations(supabase, userId)]);
   const ids = links.map((l) => l.athlete_id);
-  const [overview, dashboard] = await Promise.all([
+  // Sept derniers jours (retours de l’athlète) et deux semaines à venir.
+  const recentFrom = addDays(today, -7) < monday ? addDays(today, -7) : monday;
+  const [overview, dashboard, realized, syncStatuses] = await Promise.all([
     getAthletesOverview(supabase, ids, today),
-    getCoachDashboard(supabase, ids, monday, addDays(monday, 13)),
+    getCoachDashboard(supabase, ids, recentFrom, addDays(monday, 13)),
+    getRealizedInRange(supabase, ids, addDays(today, -7), today),
+    getSyncStatuses(supabase, ids),
   ]);
-  const drafts = dashboard.sessions.filter((s) => s.state === "draft").length;
+  const allSessions = withRealization(dashboard.sessions, realized);
+  const drafts = allSessions.filter((s) => s.state === "draft" && s.scheduled_date >= monday).length;
 
   return (
     <>
@@ -83,8 +108,20 @@ async function CoachContent() {
                 const name = link.athlete?.display_name ?? "Athlète";
                 const athleteProfile = overview.profiles.find((p) => p.user_id === link.athlete_id);
                 const nextEvent = overview.events.find((e) => e.athlete_id === link.athlete_id);
-                const sessions = dashboard.sessions.filter((s) => s.athlete_id === link.athlete_id);
+                const athleteSessions = allSessions.filter((s) => s.athlete_id === link.athlete_id);
+                const sessions = athleteSessions.filter((s) => s.scheduled_date >= monday);
                 const thisWeek = sessions.filter((s) => s.scheduled_date <= addDays(monday, 6));
+                // Séances des 7 derniers jours (aujourd’hui compris si déjà réalisée ou déclarée).
+                const recent = athleteSessions.filter((s) => s.state === "published" && s.scheduled_date >= addDays(today, -7) && s.scheduled_date <= today);
+                const recentCounts = RECENT_STATUSES.map((status) => ({
+                  status,
+                  count: recent.filter((s) => sessionStatus({ ...s, state: s.state as SessionState }, today) === status).length,
+                })).filter((c) => c.count > 0);
+                const lastFeedback = realized.completions
+                  .filter((c) => c.athlete_id === link.athlete_id)
+                  .sort((a, b) => b.updated_at.localeCompare(a.updated_at))[0];
+                const feedbackSession = lastFeedback ? athleteSessions.find((s) => s.id === lastFeedback.session_id) : undefined;
+                const sync = syncStatuses.find((st) => st.athlete_id === link.athlete_id && st.provider === "strava");
                 const volume = plannedVolume(thisWeek);
                 const total = Math.max(1, volume.totalSeconds);
                 const upcoming = sessions.filter((s) => s.scheduled_date >= today && s.state !== "cancelled").slice(0, 3);
@@ -109,6 +146,9 @@ async function CoachContent() {
                             )}
                           </p>
                           <p className="truncate text-[13px] text-muted">{athleteProfile?.main_goal ?? "Objectif non renseigné"}</p>
+                          <p className="mt-1 flex flex-wrap gap-1.5">
+                            <SyncPill status={sync} />
+                          </p>
                         </div>
                       </div>
 
@@ -126,6 +166,20 @@ async function CoachContent() {
                             <span key={v.sport} className={cn("h-full", SPORT_STYLES[v.sport].solid)} style={{ width: `${(v.seconds / Math.max(total, target ?? 0)) * 100}%` }} />
                           ))}
                         </span>
+                        <p className="mt-2.5 text-[12px] font-semibold text-muted">7 derniers jours</p>
+                        {recentCounts.length ? (
+                          <ul className="mt-1 flex flex-wrap gap-x-3 gap-y-1" aria-label="Séances des 7 derniers jours">
+                            {recentCounts.map((c) => (
+                              <li key={c.status} className="flex items-center gap-1 text-[12.5px] text-ink-soft" title={STATUS_LABELS[c.status]}>
+                                <StatusGlyph status={c.status} />
+                                <span className="figure text-ink">{c.count}</span>
+                                <span>{c.status === "unreconciled" ? "sans retour" : STATUS_LABELS[c.status].toLowerCase()}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="mt-0.5 text-[12.5px] text-muted">Aucune séance passée</p>
+                        )}
                       </div>
 
                       <div className="min-w-0">
@@ -157,6 +211,16 @@ async function CoachContent() {
                         ) : (
                           <p className="text-[13px] text-muted">Pas de compétition prévue</p>
                         )}
+                        {lastFeedback && feedbackSession ? (
+                          <p className="text-[13px] leading-snug">
+                            <span className="text-muted">Dernier retour : </span>
+                            <span className="text-ink">{feedbackSession.title}</span>
+                            <span className="text-ink-soft">
+                              , {COMPLETION_TEXT[lastFeedback.status]}
+                              {lastFeedback.rpe ? `, RPE ${lastFeedback.rpe}` : ""}
+                            </span>
+                          </p>
+                        ) : null}
                         {lastComment ? (
                           <div className="text-[13px] leading-snug">
                             <p className="flex gap-2">
@@ -175,8 +239,9 @@ async function CoachContent() {
               })}
             </ul>
           )}
-          <p className="mt-3 text-[12px] text-muted">
-            Charge d’entraînement, dernières activités et état des synchronisations apparaîtront ici avec l’import Strava.
+          <p className="mt-3 max-w-3xl text-[12px] leading-snug text-muted">
+            Les activités Strava restent visibles de l’athlète seul (règles de Strava). Vous voyez ses retours de séance (faite, ressenti, note) et les fichiers
+            FIT qu’il importe, s’il vous y autorise.
           </p>
         </section>
 

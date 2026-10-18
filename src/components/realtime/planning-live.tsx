@@ -12,17 +12,19 @@ type LiveState = "connecting" | "live" | "offline";
 const FALLBACK_INTERVAL_MS = 30_000;
 
 /**
- * Écoute le canal privé « athlete:<id> » (Supabase Realtime, autorisé par la RLS de realtime.messages).
+ * Écoute le canal privé « athlete:<id> » (Supabase Realtime, autorisé par la RLS de realtime.messages),
+ * et pour l’athlète lui-même « self:<id> », qui signale ses activités Strava.
  * Chaque signal relance le rendu serveur de la page : les données sont relues sous les droits
  * de l’utilisateur, le message ne transporte que des identifiants.
  */
-export function PlanningLive({ athleteId, className }: { athleteId: string; className?: string }) {
+export function PlanningLive({ athleteId, self = false, className }: { athleteId: string; self?: boolean; className?: string }) {
   const router = useRouter();
   const [state, setState] = useState<LiveState>("connecting");
 
   useEffect(() => {
     const supabase = createClient();
-    let channel: RealtimeChannel | null = null;
+    const channels: RealtimeChannel[] = [];
+    const statuses = new Map<string, string>();
     let cancelled = false;
     let debounce: ReturnType<typeof setTimeout> | null = null;
     let fallback: ReturnType<typeof setInterval> | null = null;
@@ -49,19 +51,25 @@ export function PlanningLive({ athleteId, className }: { athleteId: string; clas
         // Pas de jeton : la souscription échouera et le mode de secours prendra le relais.
       }
       if (cancelled) return;
-      channel = supabase
-        .channel(`athlete:${athleteId}`, { config: { private: true } })
-        .on("broadcast", { event: "planning_changed" }, refreshSoon)
-        .subscribe((status) => {
-          if (cancelled) return;
-          if (status === "SUBSCRIBED") {
-            setState("live");
-            stopFallback();
-          } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
-            setState("offline");
-            startFallback();
-          }
-        });
+      // « self:<id> » : ce qui vient de Strava, réservé à l’athlète lui-même.
+      const topics = self ? [`athlete:${athleteId}`, `self:${athleteId}`] : [`athlete:${athleteId}`];
+      for (const topic of topics) {
+        const channel = supabase
+          .channel(topic, { config: { private: true } })
+          .on("broadcast", { event: "planning_changed" }, refreshSoon)
+          .subscribe((status) => {
+            if (cancelled) return;
+            statuses.set(topic, status);
+            if ([...statuses.values()].some((s) => s === "CHANNEL_ERROR" || s === "TIMED_OUT" || s === "CLOSED")) {
+              setState("offline");
+              startFallback();
+            } else if (topics.every((t) => statuses.get(t) === "SUBSCRIBED")) {
+              setState("live");
+              stopFallback();
+            }
+          });
+        channels.push(channel);
+      }
     })();
 
     // Au retour sur l’onglet (téléphone sorti de veille…), on relit les données.
@@ -75,9 +83,9 @@ export function PlanningLive({ athleteId, className }: { athleteId: string; clas
       document.removeEventListener("visibilitychange", onVisible);
       if (debounce) clearTimeout(debounce);
       stopFallback();
-      if (channel) void supabase.removeChannel(channel);
+      for (const channel of channels) void supabase.removeChannel(channel);
     };
-  }, [athleteId, router]);
+  }, [athleteId, self, router]);
 
   const label = state === "live" ? "En direct" : state === "connecting" ? "Connexion…" : "Actualisation toutes les 30 s";
   const title =
