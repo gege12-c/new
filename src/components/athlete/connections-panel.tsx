@@ -8,6 +8,7 @@ import { activityTitle } from "@/lib/activities/labels";
 import type { ActivitySport } from "@/lib/activities/schema";
 import { formatDayMonth } from "@/lib/planning/dates";
 import { isStravaReady } from "@/lib/strava/config";
+import { isMissingSchema, SCHEMA_PENDING_MESSAGE } from "@/lib/supabase/schema";
 import type { ServerSupabase } from "@/lib/supabase/server";
 import { formatDurationShort } from "@/lib/workout/format";
 import { DeleteImportedButton } from "@/components/activities/realization-actions";
@@ -41,6 +42,13 @@ export async function ConnectionsPanel({ supabase, timeZone, callbackStatus }: {
       .order("created_at", { ascending: false })
       .limit(6),
   ]);
+  if (isMissingSchema(connectionResult.error) || isMissingSchema(importsResult.error)) {
+    return (
+      <Panel id="connexions" title="Activités réalisées" description="Elles seront rapprochées de vos séances pour comparer le prévu et le réalisé.">
+        <Notice tone="info">{SCHEMA_PENDING_MESSAGE}</Notice>
+      </Panel>
+    );
+  }
   if (connectionResult.error) throw connectionResult.error;
   if (importsResult.error) throw importsResult.error;
   const connection = connectionResult.data;

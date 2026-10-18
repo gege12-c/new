@@ -5,6 +5,7 @@
 import "server-only";
 import { addDays } from "@/lib/planning/dates";
 import type { RealizedRange } from "@/lib/activities/realization";
+import { isMissingSchema } from "@/lib/supabase/schema";
 import type { ServerSupabase } from "@/lib/supabase/server";
 import type { ActivityMatch, CalendarActivity, MatchStatus, SessionCompletion } from "./planning-types";
 
@@ -61,6 +62,9 @@ export async function getRealizedInRange(supabase: ServerSupabase, athlete: stri
       .gte("session.scheduled_date", from)
       .lte("session.scheduled_date", to),
   ]);
+  if ([activities.error, matches.error, completions.error].some(isMissingSchema)) {
+    return { unavailable: true, activities: [], matches: [], completions: [] };
+  }
   if (activities.error) throw activities.error;
   if (matches.error) throw matches.error;
   if (completions.error) throw completions.error;
@@ -103,11 +107,11 @@ export interface SessionRealizationDetail {
   completion: SessionCompletion | null;
 }
 
-/** Réalisation d’une séance, pour son panneau de détail. */
+/** Réalisation d’une séance, pour son panneau de détail (null si la base n’a pas encore ces tables). */
 export async function getSessionRealization(
   supabase: ServerSupabase,
   session: { id: string; athlete_id: string; scheduled_date: string },
-): Promise<SessionRealizationDetail> {
+): Promise<SessionRealizationDetail | null> {
   const [matches, nearby, completion] = await Promise.all([
     supabase
       .from("session_activity_matches")
@@ -123,6 +127,7 @@ export async function getSessionRealization(
       .order("start_time", { ascending: true }),
     supabase.from("session_completions").select("session_id, athlete_id, status, rpe, note, updated_at").eq("session_id", session.id).maybeSingle(),
   ]);
+  if ([matches.error, nearby.error, completion.error].some(isMissingSchema)) return null;
   if (matches.error) throw matches.error;
   if (nearby.error) throw nearby.error;
   if (completion.error) throw completion.error;
@@ -173,6 +178,7 @@ export async function getActivityDetail(supabase: ServerSupabase, activityId: st
     .select(`${ACTIVITY_COLUMNS}, athlete_id, links:session_activity_matches(session_id, status, session:planned_sessions(title, scheduled_date, sport))`)
     .eq("id", activityId)
     .maybeSingle();
+  if (isMissingSchema(error)) return null;
   if (error) throw error;
   if (!data) return null;
   const row = data as unknown as ActivityRow & {

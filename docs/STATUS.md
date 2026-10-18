@@ -70,6 +70,7 @@ Livré :
 | Statut d'une séance | retour de l'athlète, sinon activité rattachée (terminée à 80 % du prévu, partielle en deçà), sinon « à rapprocher » ; jamais « manquée » par supposition | rien de simulé ; le coach voit un statut fondé sur ce qu'il a le droit de voir |
 | Import FIT | lu dans le navigateur avec le SDK FIT officiel de Garmin ; seul le résumé part au serveur (pas de trace GPS) ; .zip de Garmin Connect et .fit.gz décompressés sans dépendance ; identifiant = empreinte SHA-256 du fichier et numéro de segment | dédoublonnage naturel, limite de 1 Mo des Server Actions évitée |
 | Temps réel des activités | canal `self:<id>` réservé à l'athlète pour tout ce qui touche Strava ; `athlete:<id>` pour les retours et les fichiers FIT | aucun signal lié à Strava n'atteint le coach |
+| Mise en ligne avant la migration | le code détecte une table ou une fonction absente (codes `PGRST205`, `PGRST202`, `42P01`…) et affiche « disponible après la mise à jour de la base » | le déploiement ne dépend plus de l'ordre code/base ; rien n'est simulé |
 | `pg_safeupdate` | aucune instruction DELETE ou UPDATE sans WHERE dans les migrations, contrôlé par un test statique (`tests/db/migrations-lint.test.ts`) | Supabase refuse ces instructions pour l'API, même dans une fonction ou un trigger ; la CI l'a révélé (la création de séances aurait échoué en production), les bases de test locales n'ont pas cette extension |
 | Administration | page `/admin` : configuration (présente ou non, jamais les valeurs), abonnement webhook, file, quotas, journal ; génération des valeurs secrètes dans le navigateur | vous saisissez les secrets vous-même, sans les écrire dans une conversation |
 
@@ -82,8 +83,8 @@ Livré :
 
 | Élément | État |
 | --- | --- |
-| Base Supabase `supabase-rose-candle` (`ugqtfkuisaqjdnwxvogm`, Zurich, PostgreSQL 17) | phases 1 et 2 à jour (5 migrations, contrôlées le 18 octobre). **Migration de la phase 3 `20261019000000_activities.sql` à appliquer** avant la mise en ligne du code (voir « À faire de votre côté ») ; elle n'ajoute que des tables, fonctions et triggers : l'application actuelle continue de fonctionner une fois la base à jour |
-| Code de la phase 3 | branche `phase-3-strava` ; fusionné dans `main` (donc déployé par Vercel) seulement une fois la base à jour, sinon les pages qui lisent les activités échoueraient |
+| Base Supabase `supabase-rose-candle` (`ugqtfkuisaqjdnwxvogm`, Zurich, PostgreSQL 17) | phases 1 et 2 à jour. **Migration de la phase 3 `20261019000000_activities.sql` en attente** : le connecteur Supabase a refusé de l'appliquer cette nuit (demande de confirmation impossible à afficher, comme en phase 2), elle se colle dans l'éditeur SQL (voir « À faire de votre côté »). Elle n'ajoute que des tables, fonctions et triggers |
+| Code de la phase 3 | fusionné dans `main` et déployé : en attendant la migration, les écrans concernés l'indiquent (« disponible après la mise à jour de la base ») au lieu d'échouer, et tout le reste fonctionne comme avant ; dès la migration appliquée, tout s'active sans nouveau déploiement. Vérifié en local en masquant les tables de la phase 3 |
 | Projet Vercel `new` | en ligne sur https://new-bay-one-76.vercel.app (phase 2) ; variables de la phase 3 à ajouter (voir le README, « Activer Strava ») |
 | Réglages d'authentification Supabase | faits le 18 octobre (Site URL, Redirect URLs, confirmation d'email désactivée en attendant un SMTP) |
 | Realtime en production | contrôlé le 18 octobre ; le canal `self:<id>` de la phase 3 utilise la même politique |
@@ -112,7 +113,7 @@ Critère de fin : une même séance produit un .zwo et un FIT valides, avec la p
 
 Dépôt GitHub : `gege12-c/new`.
 
-1. Mettre la base à jour : dans Supabase, SQL Editor, « New query », collez tout le contenu de https://raw.githubusercontent.com/gege12-c/new/phase-3-strava/supabase/migrations/20261019000000_activities.sql puis « Run » (résultat attendu : « Success. No rows returned »). Dites-le-moi : je vérifie la base, je l'inscris à l'historique et je mets le code en ligne.
+1. Mettre la base à jour (2 minutes) : ouvrez https://raw.githubusercontent.com/gege12-c/new/main/supabase/migrations/20261019000000_activities.sql, sélectionnez tout le texte (Ctrl+A puis Ctrl+C) ; dans Supabase, SQL Editor, « New query », collez, puis « Run ». Résultat attendu : « Success. No rows returned ». Le site se met à jour tout seul (la page Administration n'affiche plus d'avertissement). Dites-le-moi ensuite : je vérifie la base et je l'inscris à l'historique des migrations.
 2. Créer l'application Strava et saisir les variables dans Vercel : README, sections « Projet Vercel » (variables serveur) et « Activer Strava ». Ne me communiquez aucune de ces valeurs.
 3. Vous déclarer administrateur (README, « Devenir administrateur »), puis ouvrir la page Administration de TriCoach et cliquer sur « Activer la réception des activités ».
 4. Tester en vrai : connectez votre compte Strava depuis votre profil (compte athlète), faites ou importez une activité qui correspond à une séance du jour, et vérifiez qu'elle s'affiche rattachée en quelques minutes.

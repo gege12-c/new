@@ -1,5 +1,6 @@
 /** Lectures de l’espace coach. */
 import "server-only";
+import { isMissingSchema } from "@/lib/supabase/schema";
 import type { ServerSupabase } from "@/lib/supabase/server";
 import { nowIso } from "@/lib/time";
 
@@ -118,6 +119,7 @@ export interface SyncStatus {
 export async function getSyncStatuses(supabase: ServerSupabase, athleteIds: string[]): Promise<SyncStatus[]> {
   if (athleteIds.length === 0) return [];
   const { data, error } = await supabase.rpc("athlete_sync_status", { p_athletes: athleteIds });
+  if (isMissingSchema(error)) return [];
   if (error) throw error;
   return (data ?? []).map((row) => ({ ...row, status: row.status as SyncStatus["status"] }));
 }

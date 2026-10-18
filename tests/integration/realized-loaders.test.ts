@@ -119,8 +119,8 @@ describe.skipIf(!url || !anonKey || !serviceKey)("lectures du réalisé (API et 
     expect(realized.completions).toMatchObject([{ session_id: sessionId, status: "done", note: "Facile" }]);
 
     const detail = await getSessionRealization(coach as unknown as ServerSupabase, { id: sessionId, athlete_id: athleteId, scheduled_date: day });
-    expect(detail.attached).toEqual([]);
-    expect(detail.candidates.map((a) => a.id)).toEqual([fitActivity]);
+    expect(detail?.attached).toEqual([]);
+    expect(detail?.candidates.map((a) => a.id)).toEqual([fitActivity]);
     expect(await getActivityDetail(coach as unknown as ServerSupabase, stravaActivity)).toBeNull();
   });
 
@@ -129,8 +129,8 @@ describe.skipIf(!url || !anonKey || !serviceKey)("lectures du réalisé (API et 
     expect(detail?.links).toMatchObject([{ session_id: sessionId, status: "auto", title: "Footing" }]);
     expect(detail?.candidates.map((c) => c.id)).toEqual([sessionId]);
     const own = await getSessionRealization(athlete as unknown as ServerSupabase, { id: sessionId, athlete_id: athleteId, scheduled_date: day });
-    expect(own.attached.map((a) => a.id)).toEqual([stravaActivity]);
-    expect(own.candidates).toMatchObject([{ id: fitActivity, attachedElsewhere: false }]);
-    expect(own.completion?.status).toBe("done");
+    expect(own?.attached.map((a) => a.id)).toEqual([stravaActivity]);
+    expect(own?.candidates).toMatchObject([{ id: fitActivity, attachedElsewhere: false }]);
+    expect(own?.completion?.status).toBe("done");
   });
 });

@@ -10,6 +10,8 @@ export interface LinkedActivity extends CalendarActivity {
 }
 
 export interface RealizedRange {
+  /** La base n'a pas encore les tables du réalisé (migration en attente) : rien à montrer. */
+  unavailable?: boolean;
   /** Activités dont la date locale tombe dans la période. */
   activities: LinkedActivity[];
   /** Associations et propositions des séances de la période (l’activité peut tomber hors période). */

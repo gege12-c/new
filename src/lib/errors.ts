@@ -1,4 +1,5 @@
 /** Traduit les erreurs de la base et de l’authentification en messages compréhensibles. */
+import { isMissingSchema, SCHEMA_PENDING_MESSAGE } from "@/lib/supabase/schema";
 
 const DB_MESSAGES: Record<string, string> = {
   not_authenticated: "Votre session a expiré : reconnectez-vous.",
@@ -54,6 +55,7 @@ export function friendlyError(error: ErrorLike, fallback = "L’opération n’a
   if (!error) return fallback;
   const message = error.message ?? "";
   const code = String(error.code ?? "");
+  if (isMissingSchema(error)) return SCHEMA_PENDING_MESSAGE;
   for (const [key, text] of Object.entries(DB_MESSAGES)) if (message.includes(key)) return text;
   if (AUTH_MESSAGES[code]) return AUTH_MESSAGES[code];
   if (EMAIL_SENDING_FAILED.test(message)) return AUTH_MESSAGES.email_address_not_authorized;

@@ -113,7 +113,8 @@ async function AthleteHome({ searchParams }: Pick<PageProps<"/athlete">, "search
   const withoutFeedback = recent.filter((s) => s.scheduled_date < today && sessionStatus(s, today) === "unreconciled");
   const loose = unattachedActivities(realized).filter((a) => a.local_date >= weekAgo && a.local_date <= today);
   const reauth = connection.data?.status === "reauth_required";
-  const todo = [
+  // Base pas encore à jour (migration en attente) : rien à traiter, plutôt que des invitations impossibles.
+  const todo = (realized.unavailable ? [] : [
     reauth ? { key: "reauth", tone: "warning" as const, text: "Strava demande une reconnexion : vos activités n’arrivent plus.", action: "Reconnecter", href: "/athlete/profile#connexions" } : null,
     toValidate.length
       ? {
@@ -145,7 +146,7 @@ async function AthleteHome({ searchParams }: Pick<PageProps<"/athlete">, "search
               : sessionHref(withoutFeedback[0]),
         }
       : null,
-  ].filter((item): item is NonNullable<typeof item> => item !== null);
+  ]).filter((item): item is NonNullable<typeof item> => item !== null);
   const thresholds = toAthleteThresholds(currentThresholds(thresholdRows, today));
   const todays = sessions.filter((s) => s.scheduled_date === today);
   const next = sessions.find((s) => s.scheduled_date > today && s.state !== "cancelled");

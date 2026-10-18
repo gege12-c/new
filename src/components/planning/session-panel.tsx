@@ -8,6 +8,7 @@ import type { HistoryEntry } from "@/lib/data/planning-types";
 import { formatFullDate } from "@/lib/planning/dates";
 import { FIELD_LABELS, type EditableField } from "@/lib/planning/snapshot";
 import { sessionStatus, STATUS_HINTS, STATUS_LABELS } from "@/lib/planning/status";
+import { SCHEMA_PENDING_MESSAGE } from "@/lib/supabase/schema";
 import type { ServerSupabase } from "@/lib/supabase/server";
 import { computeTotals } from "@/lib/workout/compute";
 import { formatDistance, formatDuration } from "@/lib/workout/format";
@@ -90,7 +91,7 @@ export async function SessionPanel({
     getSessionHistory(supabase, sessionId),
     getSessionRealization(supabase, detail),
   ]);
-  const status = sessionStatus({ ...detail, realization }, today);
+  const status = sessionStatus({ ...detail, realization: realization ?? undefined }, today);
   const totals = computeTotals(detail.content, thresholds);
   const ownSession = detail.created_by === viewerId;
   const canMove = canPlan || (viewer === "athlete" && detail.state !== "cancelled");
@@ -176,15 +177,24 @@ export async function SessionPanel({
           </section>
         ) : null}
 
-        <RealizationSection
-          session={detail}
-          realization={realization}
-          status={status}
-          viewer={viewer}
-          canPlan={canPlan}
-          today={today}
-          timeZone={timeZone}
-        />
+        {realization ? (
+          <RealizationSection
+            session={detail}
+            realization={realization}
+            status={status}
+            viewer={viewer}
+            canPlan={canPlan}
+            today={today}
+            timeZone={timeZone}
+          />
+        ) : (
+          <section aria-labelledby="done-title">
+            <h3 id="done-title" className="heading text-[16px]">
+              Prévu et réalisé
+            </h3>
+            <p className="mt-1.5 text-[13.5px] text-muted">{SCHEMA_PENDING_MESSAGE}</p>
+          </section>
+        )}
 
         <section aria-labelledby="comments-title">
           <h3 id="comments-title" className="heading mb-3 flex items-center gap-2 text-[16px]">

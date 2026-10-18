@@ -166,8 +166,8 @@ async function CoachContent() {
                             <span key={v.sport} className={cn("h-full", SPORT_STYLES[v.sport].solid)} style={{ width: `${(v.seconds / Math.max(total, target ?? 0)) * 100}%` }} />
                           ))}
                         </span>
-                        <p className="mt-2.5 text-[12px] font-semibold text-muted">7 derniers jours</p>
-                        {recentCounts.length ? (
+                        {realized.unavailable ? null : <p className="mt-2.5 text-[12px] font-semibold text-muted">7 derniers jours</p>}
+                        {realized.unavailable ? null : recentCounts.length ? (
                           <ul className="mt-1 flex flex-wrap gap-x-3 gap-y-1" aria-label="Séances des 7 derniers jours">
                             {recentCounts.map((c) => (
                               <li key={c.status} className="flex items-center gap-1 text-[12.5px] text-ink-soft" title={STATUS_LABELS[c.status]}>
