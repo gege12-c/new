@@ -35,3 +35,58 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+
+  # Parcours clés dans un vrai navigateur, contre la pile Supabase officielle (Docker) :
+  # c'est ici que se vérifie le critère de la phase 2 (une séance publiée apparaît chez
+  # l'athlète en quelques secondes, sans rechargement) grâce à Supabase Realtime.
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.121.0
+      - run: npm ci
+      - name: Start Supabase (Postgres, Auth, REST, Realtime)
+        run: supabase start -x storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+      - name: Point the app at the local stack
+        run: |
+          supabase status -o env --agent no > "$RUNNER_TEMP/supabase.env"
+          set -a; . "$RUNNER_TEMP/supabase.env"; set +a
+          echo "NEXT_PUBLIC_SUPABASE_URL=$API_URL" >> "$GITHUB_ENV"
+          echo "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$ANON_KEY" >> "$GITHUB_ENV"
+      - run: npm run build
+      - name: Start the app
+        run: |
+          nohup npm run start -- -p 3000 > "$RUNNER_TEMP/next.log" 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:3000/api/health > /dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/next.log"
+          exit 1
+      - run: npx playwright install --with-deps chromium
+      - name: Playwright (temps réel compris)
+        run: npm run test:e2e
+        env:
+          E2E_REALTIME: "1"
+      - name: Logs on failure
+        if: failure()
+        run: |
+          cat "$RUNNER_TEMP/next.log" || true
+          docker logs supabase_realtime_tri-coach --tail 200 || true
+      - name: Keep traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: test-results/
+          retention-days: 7
