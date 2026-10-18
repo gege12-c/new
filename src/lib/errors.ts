@@ -30,7 +30,12 @@ const AUTH_MESSAGES: Record<string, string> = {
   over_request_rate_limit: "Trop de tentatives : réessayez dans quelques minutes.",
   signup_disabled: "Les inscriptions sont désactivées pour le moment.",
   same_password: "Choisissez un mot de passe différent de l'actuel.",
+  email_address_not_authorized:
+    "L'email n'a pas pu être envoyé : l'envoi d'emails du site n'est pas encore configuré pour cette adresse.",
 };
+
+/** Échec d'envoi d'email côté Supabase (service d'envoi non configuré ou limite atteinte). */
+const EMAIL_SENDING_FAILED = /error sending (confirmation|recovery|magic link|invite) email/i;
 
 type ErrorLike = { message?: string; code?: string | number } | null | undefined;
 
@@ -40,6 +45,7 @@ export function friendlyError(error: ErrorLike, fallback = "L'opération n'a pas
   const code = String(error.code ?? "");
   for (const [key, text] of Object.entries(DB_MESSAGES)) if (message.includes(key)) return text;
   if (AUTH_MESSAGES[code]) return AUTH_MESSAGES[code];
+  if (EMAIL_SENDING_FAILED.test(message)) return AUTH_MESSAGES.email_address_not_authorized;
   if (code === "23505") return "Cette valeur existe déjà.";
   if (code === "23514") return "Valeur hors des limites autorisées.";
   if (code === "42501") return "Vous n'avez pas les droits pour cette action.";

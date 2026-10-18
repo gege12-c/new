@@ -14,7 +14,7 @@ Livré :
 - Authentification : inscription, confirmation d'email, connexion, mot de passe oublié, déconnexion ; session rafraîchie par `src/proxy.ts`.
 - Écrans : espace athlète (prochaines séances, objectif, seuils, gestion du coach et de ses permissions), profil sportif (objectifs, seuils datés, compétitions), espace coach (athlètes suivis, invitations, fiche athlète), réglages, page d'invitation.
 - Format de séance v1 : schéma Zod, déroulé des répétitions, durée et distance (exactes, estimées ou inconnues), zones, avertissements, résumé texte, profil graphique.
-- Tests : 63 au vert (29 unitaires, 34 sur un vrai PostgreSQL 16 avec une couche de compatibilité Supabase). Intégration continue GitHub Actions : lint, types, tests, build.
+- Tests : 66 au vert (32 unitaires, 34 sur un vrai PostgreSQL 16 avec une couche de compatibilité Supabase). Intégration continue GitHub Actions : lint, types, tests, build.
 
 ## Décisions
 
@@ -31,10 +31,21 @@ Livré :
 | Polices | Geist auto-hébergée (paquet `geist`) | build sans accès réseau aux polices |
 | Clés Supabase | nouvelle clé « publishable » | format actuel recommandé par Supabase |
 
+## Mise en production
+
+| Élément | État |
+| --- | --- |
+| Base Supabase `supabase-rose-candle` (`ugqtfkuisaqjdnwxvogm`, Zurich, PostgreSQL 17) | migrations appliquées le 18 octobre 2026 ; RLS active sur les 10 tables (23 politiques) ; aucun accès anonyme ; analyseur de sécurité sans erreur |
+| Projet Vercel | à créer : le connecteur Vercel n'a pas accès à l'espace personnel `geraldegea12-9585` (refus 403) |
+| Réglages d'authentification Supabase | à faire : Site URL, Redirect URLs, confirmation d'email (README, étape 2) |
+
+Avertissements de l'analyseur Supabase acceptés : les fonctions `create_invitation`, `accept_invitation`, `get_invitation_preview`, `revoke_invitation`, `revoke_coach_link`, `set_coach_permissions` et `current_user_is_admin` sont volontairement appelables depuis l'API ; chacune vérifie elle-même l'identité de l'appelant.
+
 ## Limites connues
 
-- L'application n'a pas encore tourné contre un vrai projet Supabase : l'environnement de développement ne peut pas joindre de service externe. La logique de base (migrations, RLS, invitations) est testée sur PostgreSQL 16 ; le parcours complet est à vérifier avec l'étape 5 du README après la mise en ligne.
-- Tests de bout en bout dans un navigateur (Playwright) : à mettre en place une fois l'application déployée.
+- Le parcours complet (inscription, invitation, acceptation) reste à vérifier dans un navigateur après le déploiement Vercel (README, étape 3). La logique de base est testée sur PostgreSQL et la configuration de production contrôlée sur Supabase.
+- Sans service d'envoi d'emails (SMTP), Supabase n'envoie d'emails qu'aux membres de l'organisation : confirmation d'email à désactiver d'ici là, mot de passe oublié limité à ces membres.
+- Tests de bout en bout dans un navigateur (Playwright) : à mettre en place.
 - Avertissements `npm audit` sur des dépendances de développement (ESLint) uniquement, sans effet sur l'application en ligne.
 
 ## Phase 2 — Planification : prochaine session
@@ -54,5 +65,6 @@ Critère de fin : une séance publiée apparaît chez l'athlète en quelques sec
 
 Dépôt GitHub : `gege12-c/new`.
 
-1. Suivre le README, étapes 1 à 5 : projet Supabase, migrations, réglages d'authentification, déploiement Vercel, vérification du parcours. Avec le connecteur Supabase activé dans le chat, Claude peut appliquer les migrations à votre place.
-2. Me signaler tout écart constaté à l'étape 5 au début de la prochaine session.
+1. Créer le projet Vercel à partir du dépôt, avec les deux variables Supabase (README, étape 1) ; ou bien reconnecter le connecteur Vercel en autorisant l'espace `geraldegea12-9585`, pour que Claude le fasse.
+2. Régler l'authentification Supabase (README, étape 2).
+3. Vérifier le parcours coach → athlète (README, étape 3) et signaler tout écart au début de la prochaine session.
