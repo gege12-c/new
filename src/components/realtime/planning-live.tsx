@@ -60,12 +60,16 @@ export function PlanningLive({ athleteId, self = false, className }: { athleteId
           .subscribe((status) => {
             if (cancelled) return;
             statuses.set(topic, status);
-            if ([...statuses.values()].some((s) => s === "CHANNEL_ERROR" || s === "TIMED_OUT" || s === "CLOSED")) {
+            const failed = (t: string) => ["CHANNEL_ERROR", "TIMED_OUT", "CLOSED"].includes(statuses.get(t) ?? "");
+            const primary = topics[0];
+            if (failed(primary)) {
               setState("offline");
               startFallback();
-            } else if (topics.every((t) => statuses.get(t) === "SUBSCRIBED")) {
+            } else if (statuses.get(primary) === "SUBSCRIBED") {
+              // Canal de l'athlète en direct ; si celui des activités Strava échoue, elles sont relues toutes les 30 s.
               setState("live");
-              stopFallback();
+              if (topics.some(failed)) startFallback();
+              else stopFallback();
             }
           });
         channels.push(channel);
