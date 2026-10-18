@@ -70,12 +70,22 @@ async function insertRun(date: string, time: string, minutes: number, title: str
   return row.id;
 }
 
-/** Recharge la page jusqu'à ce que l'élément apparaisse (traitement en tâche de fond). */
+/**
+ * Attend le résultat d'un traitement en tâche de fond. Avec le temps réel, la page se met à jour
+ * seule ; sinon (ou si le signal tarde), on recharge. Le temps réel est vérifié par planning.spec.
+ */
 async function eventually(page: Page, check: () => Promise<void>) {
+  if (realtime) {
+    const live = await check().then(
+      () => true,
+      () => false,
+    );
+    if (live) return;
+  }
   await expect(async () => {
-    if (!realtime) await page.reload();
+    await page.reload();
     await check();
-  }).toPass({ timeout: 20_000, intervals: [1000, 2000] });
+  }).toPass({ timeout: 25_000, intervals: [1000, 2000] });
 }
 
 test("un administrateur active la réception des activités Strava", async ({ browser }) => {
@@ -151,7 +161,7 @@ test("une activité Strava arrive par webhook, sans doublon, rattachée à la bo
 
   // Rattachée à la séance du soir, pas à celle du matin.
   const chip = athlete.getByRole("link", { name: new RegExp(`Seuil soir ${stamp}, terminée`) });
-  await eventually(athlete, () => expect(chip).toBeVisible({ timeout: 2_000 }));
+  await eventually(athlete, () => expect(chip).toBeVisible({ timeout: realtime ? 8_000 : 2_000 }));
   await expect(chip).toContainText("Réalisé 58 min (97 %)");
   await expect(athlete.getByRole("link", { name: new RegExp(`Footing matin ${stamp}`) })).not.toContainText("Réalisé");
 
@@ -195,6 +205,7 @@ test("un fichier FIT importé par l'athlète est visible de son coach", async ({
 
   const athlete = await signedIn(browser, "athlete");
   await athlete.goto("/athlete/profile#connexions");
+  await expect(athlete.locator('input[type="file"]')).toBeEnabled();
   await athlete.locator('input[type="file"]').setInputFiles(file);
   // Le message affiché (succès ou erreur) apparaît dans l'échec éventuel du test.
   await expect(athlete.locator('ul[aria-live="polite"] li').first()).toContainText("1 activité importée", { timeout: 20_000 });

@@ -1,13 +1,14 @@
 "use client";
 
 import { FileUp } from "lucide-react";
-import { useRef, useState, useTransition, type DragEvent } from "react";
+import { useRef, useState, useSyncExternalStore, useTransition, type DragEvent } from "react";
 import { importActivities, reportImportFailure } from "@/app/(app)/activity-actions";
 import { cn } from "@/lib/utils";
 
 type Line = { name: string; tone: "success" | "error" | "info"; text: string };
 
 const MAX_FILES = 10;
+const subscribeNothing = () => () => {};
 
 /**
  * Import de fichiers d’activité FIT (montre, compteur, Garmin Connect…), aussi en .zip ou .fit.gz.
@@ -18,6 +19,8 @@ export function FitImport() {
   const [lines, setLines] = useState<Line[]>([]);
   const [over, setOver] = useState(false);
   const [pending, start] = useTransition();
+  // Avant l'hydratation, un fichier choisi serait perdu : le champ reste inactif jusque-là.
+  const ready = useSyncExternalStore(subscribeNothing, () => true, () => false);
 
   const handle = (list: FileList | null) => {
     if (!list?.length) return;
@@ -66,10 +69,11 @@ export function FitImport() {
         }}
         onDragLeave={() => setOver(false)}
         onDrop={onDrop}
+        data-fit-ready={ready || undefined}
         className={cn(
           "flex cursor-pointer flex-col items-center gap-1.5 rounded-[12px] border border-dashed border-line-strong px-4 py-6 text-center transition-colors hover:bg-surface-2 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-ink",
           over && "border-ink bg-surface-2",
-          pending && "pointer-events-none opacity-60",
+          (pending || !ready) && "pointer-events-none opacity-60",
         )}
       >
         <FileUp className="size-6 text-muted" aria-hidden />
@@ -82,7 +86,7 @@ export function FitImport() {
           accept=".fit,.FIT,.zip,.gz,application/zip,application/gzip,application/octet-stream"
           className="sr-only"
           onChange={(event) => handle(event.target.files)}
-          disabled={pending}
+          disabled={pending || !ready}
         />
       </label>
       {lines.length ? (
