@@ -52,6 +52,7 @@ Critère de fin : une séance publiée apparaît chez l'athlète en quelques sec
 
 ## À faire de votre côté
 
-1. Créer le dépôt GitHub (vide) et me donner son nom : le code y sera poussé.
-2. Suivre le README, étapes 1 à 5 : projet Supabase, migrations, réglages d'authentification, déploiement Vercel, vérification du parcours.
-3. Me signaler tout écart constaté à l'étape 5 au début de la prochaine session.
+Dépôt GitHub : `gege12-c/new`.
+
+1. Suivre le README, étapes 1 à 5 : projet Supabase, migrations, réglages d'authentification, déploiement Vercel, vérification du parcours. Avec le connecteur Supabase activé dans le chat, Claude peut appliquer les migrations à votre place.
+2. Me signaler tout écart constaté à l'étape 5 au début de la prochaine session.
