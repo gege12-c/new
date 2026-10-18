@@ -39,8 +39,8 @@ Livré :
 | --- | --- |
 | Base Supabase `supabase-rose-candle` (`ugqtfkuisaqjdnwxvogm`, Zurich, PostgreSQL 17) | migrations appliquées le 18 octobre 2026 ; RLS active sur les 10 tables (23 politiques) ; aucun accès anonyme ; analyseur de sécurité sans erreur |
 | Projet Vercel `new` (`prj_2niwVUTlhR44kHnGK2As5ujUa1l7`) | en ligne sur https://new-bay-one-76.vercel.app ; relié au dépôt (branche `main`), variables Supabase en Production et Preview. L'import initial n'avait créé aucun déploiement (« 404 DEPLOYMENT_NOT_FOUND ») : premier déploiement lancé par l'API le 18 octobre 2026 |
-| Connexion Vercel → Supabase | vérifiée par `/api/health` (voir ci-dessous) |
-| Réglages d'authentification Supabase | à faire : Site URL, Redirect URLs, confirmation d'email (README, étape 2). Constaté le 18 octobre : confirmation d'email encore exigée, inscriptions ouvertes |
+| Connexion Vercel → Supabase | vérifiée le 18 octobre : `/api/health` répond `"supabase": "ok"` depuis Francfort, et la page d'invitation interroge la base avec succès (journaux Supabase) |
+| Réglages d'authentification Supabase | à faire : Site URL, Redirect URLs, confirmation d'email (README, étape 2). Constaté le 18 octobre : Site URL encore sur `http://localhost:3000` (journaux d'authentification), confirmation d'email encore exigée, inscriptions ouvertes |
 
 Accès du connecteur Vercel : lecture du projet, des variables (noms) et création de déploiements possibles ; journaux de build et d'exécution refusés (403 sur l'espace `geraldegea12-9585`).
 
