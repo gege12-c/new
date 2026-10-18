@@ -97,3 +97,37 @@ export async function insertSession(
   );
   return rows[0] as { id: string; version: number };
 }
+
+/** Plusieurs requêtes dans une même transaction, en tant qu'utilisateur (paramètres de session partagés). */
+export async function asSteps(user: TestUser | null, steps: { sql: string; params?: unknown[] }[]) {
+  const client = await db().connect();
+  try {
+    await client.query("begin");
+    await client.query(user ? "set local role authenticated" : "set local role anon");
+    const claims = user ? { sub: user.id, email: user.email, role: "authenticated" } : { role: "anon" };
+    await client.query("select set_config('request.jwt.claims', $1, true)", [JSON.stringify(claims)]);
+    const results = [];
+    for (const step of steps) results.push(await client.query(step.sql, step.params ?? []));
+    await client.query("commit");
+    return results;
+  } catch (error) {
+    await client.query("rollback").catch(() => undefined);
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+/** Champs modifiables d'une séance, tels que l'éditeur les charge (base de la fusion). */
+export async function editableSnapshot(user: TestUser, sessionId: string) {
+  const { rows } = await as(
+    user,
+    `select jsonb_build_object(
+       'scheduled_date', scheduled_date, 'start_time', start_time, 'sport', sport, 'title', title,
+       'objective', objective, 'description', description, 'nutrition_notes', nutrition_notes,
+       'content', content, 'planned_duration_s', planned_duration_s, 'planned_distance_m', planned_distance_m
+     ) as snapshot from public.planned_sessions where id = $1`,
+    [sessionId],
+  );
+  return rows[0].snapshot as Record<string, unknown>;
+}

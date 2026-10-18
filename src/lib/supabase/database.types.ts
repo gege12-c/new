@@ -187,6 +187,7 @@ export type Database = {
           entity_type: string;
           id: number;
           occurred_at: string;
+          visibility: string;
         };
         ComputedFields: never;
         Insert: {
@@ -198,6 +199,7 @@ export type Database = {
           entity_type: string;
           id?: never;
           occurred_at?: string;
+          visibility?: string;
         };
         Update: {
           action?: string;
@@ -208,6 +210,7 @@ export type Database = {
           entity_type?: string;
           id?: never;
           occurred_at?: string;
+          visibility?: string;
         };
         Relationships: [];
       };
@@ -319,6 +322,59 @@ export type Database = {
           {
             foreignKeyName: "invitations_coach_id_fkey";
             columns: ["coach_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      planned_session_drafts: {
+        Row: {
+          athlete_id: string;
+          base: NonNullable<Json>;
+          created_at: string;
+          payload: NonNullable<Json>;
+          session_id: string;
+          updated_at: string;
+          updated_by: string | null;
+        };
+        ComputedFields: never;
+        Insert: {
+          athlete_id: string;
+          base: NonNullable<Json>;
+          created_at?: string;
+          payload: NonNullable<Json>;
+          session_id: string;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Update: {
+          athlete_id?: string;
+          base?: NonNullable<Json>;
+          created_at?: string;
+          payload?: NonNullable<Json>;
+          session_id?: string;
+          updated_at?: string;
+          updated_by?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "planned_session_drafts_athlete_id_fkey";
+            columns: ["athlete_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "planned_session_drafts_session_id_fkey";
+            columns: ["session_id"];
+            isOneToOne: true;
+            referencedRelation: "planned_sessions";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "planned_session_drafts_updated_by_fkey";
+            columns: ["updated_by"];
             isOneToOne: false;
             referencedRelation: "profiles";
             referencedColumns: ["id"];
@@ -452,6 +508,62 @@ export type Database = {
         };
         Relationships: [];
       };
+      session_comments: {
+        Row: {
+          athlete_id: string;
+          author_id: string;
+          body: string;
+          created_at: string;
+          edited_at: string | null;
+          id: string;
+          session_id: string;
+          visibility: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          athlete_id: string;
+          author_id?: string;
+          body: string;
+          created_at?: string;
+          edited_at?: string | null;
+          id?: string;
+          session_id: string;
+          visibility?: string;
+        };
+        Update: {
+          athlete_id?: string;
+          author_id?: string;
+          body?: string;
+          created_at?: string;
+          edited_at?: string | null;
+          id?: string;
+          session_id?: string;
+          visibility?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "session_comments_athlete_id_fkey";
+            columns: ["athlete_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "session_comments_author_id_fkey";
+            columns: ["author_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "session_comments_session_id_fkey";
+            columns: ["session_id"];
+            isOneToOne: false;
+            referencedRelation: "planned_sessions";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       workout_templates: {
         Row: {
           archived_at: string | null;
@@ -524,6 +636,10 @@ export type Database = {
           value: number;
         }[];
       };
+      copy_planned_week: {
+        Args: { p_athlete: string; p_from: string; p_state?: string; p_to: string };
+        Returns: number;
+      };
       create_invitation: {
         Args: { p_email?: string; p_valid_hours?: number };
         Returns: {
@@ -533,6 +649,7 @@ export type Database = {
         }[];
       };
       current_user_is_admin: { Args: Record<PropertyKey, never>; Returns: boolean };
+      duplicate_planned_session: { Args: { p_date: string; p_session: string }; Returns: string };
       get_invitation_preview: {
         Args: { p_token: string };
         Returns: {
@@ -542,8 +659,18 @@ export type Database = {
           status: string;
         }[];
       };
+      publish_session_draft: { Args: { p_prefer?: string; p_session: string }; Returns: Json };
+      rebase_session_draft: { Args: { p_prefer: string; p_session: string }; Returns: Json };
       revoke_coach_link: { Args: { p_link_id: string }; Returns: undefined };
       revoke_invitation: { Args: { p_invitation_id: string }; Returns: undefined };
+      save_planned_session: {
+        Args: { p_base: Json; p_session: string; p_values: Json };
+        Returns: Json;
+      };
+      save_session_draft: {
+        Args: { p_base: Json; p_payload: Json; p_session: string };
+        Returns: Json;
+      };
       set_coach_permissions: {
         Args: { p_can_edit_plan: boolean; p_can_view_activities: boolean; p_link_id: string };
         Returns: undefined;

@@ -21,7 +21,7 @@ declare module "vitest" {
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "../..");
 const MIGRATIONS_DIR = path.join(ROOT, "supabase/migrations");
-const SHIM = path.join(HERE, "supabase-shim.sql");
+const SHIMS = [path.join(ROOT, "supabase/shims/platform.sql"), path.join(HERE, "supabase-shim.sql")];
 
 function findPgBin(): string {
   if (process.env.PG_BIN) return process.env.PG_BIN;
@@ -70,7 +70,7 @@ async function applySchema(url: string) {
   const client = new pg.Client({ connectionString: url });
   await client.connect();
   try {
-    await client.query(readFileSync(SHIM, "utf8"));
+    for (const shim of SHIMS) await client.query(readFileSync(shim, "utf8"));
     const files = readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith(".sql")).sort();
     for (const file of files) {
       try {

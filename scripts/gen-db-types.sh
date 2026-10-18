@@ -27,6 +27,7 @@ trap cleanup EXIT
 
 PSQL=("$PG_BIN/psql" -h 127.0.0.1 -p "$PORT" -U postgres -q -v ON_ERROR_STOP=1)
 "${PSQL[@]}" -d postgres -c "create database types"
+"${PSQL[@]}" -d types -f "$ROOT/supabase/shims/platform.sql"
 "${PSQL[@]}" -d types -f "$ROOT/tests/db/supabase-shim.sql"
 for migration in "$ROOT"/supabase/migrations/*.sql; do
   "${PSQL[@]}" -d types -f "$migration"
