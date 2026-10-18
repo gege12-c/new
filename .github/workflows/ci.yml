@@ -1,8 +1,8 @@
 name: CI
 
+# À chaque push, sur toutes les branches : une branche de travail est vérifiée avant sa fusion dans main.
 on:
   push:
-    branches: [main]
   pull_request:
 
 jobs:
