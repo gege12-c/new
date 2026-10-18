@@ -92,6 +92,72 @@ Les triggers `broadcast_planned_sessions` et `broadcast_session_comments` envoie
 
 Les erreurs métier sont levées avec un code stable (`invitation_expired`, `athlete_can_only_reschedule`…), traduit par `src/lib/errors.ts`.
 
+## Activités réalisées (phase 3)
+
+Migration `20261019000000_activities.sql`.
+
+```mermaid
+erDiagram
+  profiles ||--o| external_connections : "compte Strava relié"
+  external_connections ||--|| oauth_tokens : "jetons chiffrés"
+  external_connections ||--o{ activities : "activités Strava (cascade)"
+  profiles ||--o{ activities : "athlete_id"
+  planned_sessions ||--o{ session_activity_matches : "séance"
+  activities ||--o{ session_activity_matches : "activité"
+  planned_sessions ||--o| session_completions : "retour de l'athlète"
+  profiles ||--o{ sync_jobs : "file de synchronisation"
+  sync_jobs ||--o{ sync_logs : "journal technique"
+```
+
+| Table | Rôle | Points clés |
+| --- | --- | --- |
+| `external_connections` | compte Strava relié par l'athlète | une connexion par athlète et par fournisseur ; un compte Strava n'est relié qu'à un seul compte TriCoach ; seul l'identifiant Strava est conservé (aucun nom ni profil) ; `status` = `active` ou `reauth_required` ; `last_error` = code stable |
+| `oauth_tokens` | jetons OAuth | chiffrés par l'application (AES-256-GCM, clé `TOKEN_ENCRYPTION_KEY` hors de la base, préfixe `v1.` contrôlé) ; aucun privilège ni politique : invisibles par l'API, lus par le seul serveur ; `revision` évite qu'un renouvellement en écrase un autre |
+| `activities` | activités réalisées, normalisées | `source` = `strava` ou `fit_upload` ; unicité par `(athlete_id, source, external_id)` et, pour Strava, par identifiant d'activité tous comptes confondus ; instant de départ en UTC + date et heure locales de l'athlète ; mesures bornées (une valeur aberrante devient « non mesurée ») ; Strava : `expires_at` obligatoire, au plus 7 jours après la première lecture, jamais repoussé |
+| `session_activity_matches` | rapprochements séance-activité | `auto` (rapprochement automatique), `confirmed` (décision de l'athlète ou du coach), `proposed` (à valider), `rejected` (écartée, jamais reproposée) ; une activité n'est rattachée qu'à une séance à la fois ; `score` et `score_details` expliquent la note |
+| `session_completions` | retour de l'athlète sur une séance | `done`, `partial` ou `skipped`, RPE de 1 à 10, note (500 caractères) ; `athlete_id` recopié de la séance par trigger ; prime sur la mesure pour le statut affiché |
+| `sync_jobs` | file de jobs (évènements Strava, synchronisations, maintenance) | `dedupe_key` unique : un évènement reçu deux fois ne crée qu'un job ; reprise avec attente exponentielle (2^n minutes, 6 h au plus, 6 essais) ; un report pour quota ne compte pas comme un échec ; paramètres vidés une fois le job terminé |
+| `sync_logs` | journal technique | évènement et message, jamais de donnée sportive ; effacé après 30 jours |
+| `provider_state` | état de l'intégration Strava | abonnement webhook (un seul par application), derniers quotas lus, suspension jusqu'à la prochaine fenêtre |
+
+### Sécurité des activités
+
+| Donnée | Lecture | Écriture |
+| --- | --- | --- |
+| Connexion Strava | l'athlète | le serveur seul (clé secrète) |
+| Jetons OAuth | personne par l'API | le serveur seul |
+| Activités Strava | **l'athlète seul**, et jusqu'à leur expiration (politique Strava : affichage réservé à l'athlète, cache de 7 jours au plus) | le serveur seul |
+| Activités importées (FIT) | l'athlète, et ses coachs qu'il autorise à « voir ses activités importées » | l'athlète (import, suppression) |
+| Rapprochements | comme l'activité et la séance concernées (un coach ne voit jamais un rapprochement avec une activité Strava) | fonctions `associate_activity` et `dissociate_activity`, et le rapprochement automatique |
+| Retour de séance | l'athlète et ses coachs actifs | l'athlète |
+| File, journal, état Strava | les administrateurs (sans les paramètres des jobs) | le serveur seul |
+
+Temps réel : ce qui touche une activité Strava part sur le canal `self:<id>`, que seul l'athlète peut écouter ; les retours de séance et les fichiers FIT sur `athlete:<id>` (athlète et coachs actifs).
+
+### Fonctions des activités
+
+| Fonction | Usage |
+| --- | --- |
+| `associate_activity(séance, activité)` | rattache une activité (décision `confirmed`, jamais remise en cause par le rapprochement automatique) ; l'ancien rattachement devient `rejected` |
+| `dissociate_activity(séance, activité)` | détache une activité ou écarte une proposition (`rejected`) |
+| `upsert_strava_activities(connexion, activités)` | serveur : enregistre ou met à jour des activités Strava, sans jamais repousser leur expiration ni toucher à l'activité d'un autre compte |
+| `claim_sync_jobs(n)` | serveur : réserve les jobs à exécuter (`skip locked`), reprend ceux bloqués depuis plus de 10 minutes |
+| `run_maintenance()` | serveur : efface les activités Strava expirées, les jobs terminés depuis 7 jours, le journal de plus de 30 jours |
+| `purge_my_expired_activities()` | athlète : efface ses activités Strava expirées sans attendre la tâche quotidienne |
+| `athlete_sync_status(athlètes[])` | état des connexions (statut, dernière synchronisation, code d'erreur) des athlètes auxquels l'appelant a accès |
+| `admin_connection_counts()` | administrateur : nombre de comptes reliés par statut (capacité de l'application Strava) |
+
+### Rapprochement automatique
+
+`private.rematch_window(athlète, du, au)` recalcule les rapprochements d'une fenêtre de dates, sous un verrou par athlète, à chaque arrivée, modification ou suppression d'activité et à chaque changement de séance (date, heure, discipline, durée, état). Les décisions de l'utilisateur (`confirmed`, `rejected`) ne sont jamais modifiées.
+
+- Note (`private.match_score`) : discipline obligatoire (natation, vélo, course ; renforcement et « autre » se rapprochent entre eux), puis 45 % date (même jour 1, veille ou lendemain 0,35), 20 % heure (écart linéaire sur 4 h, 0,6 sans heure), 35 % volume (rapport de durée, sinon de distance, sur une échelle logarithmique : 1/3 ou ×3 donne 0).
+- Un enchaînement est découpé en segments (vélo, course…) : chaque activité peut en occuper un.
+- Rattachement automatique à partir de 0,68, seulement sans ambiguïté (aucune autre séance ou activité à moins de 0,12, sauf si celle-ci revient nettement à une autre) ; sinon, les deux meilleures séances à partir de 0,45 sont proposées à l'athlète.
+- Les brouillons et les séances annulées ne reçoivent rien ; deux séances du même jour se départagent par l'heure et la durée.
+
+Statut affiché d'une séance publiée : le retour de l'athlète s'il existe (faite, partielle, manquée) ; sinon une activité rattachée (terminée au-delà de 80 % du prévu, partielle en deçà) ; sinon « à rapprocher » si elle est passée. Une séance n'est jamais supposée manquée.
+
 ## Journal d'audit
 
 Chaque création, modification et suppression sur les profils sportifs, relations, invitations, seuils, compétitions et séances est enregistrée avec son auteur. Pour une modification, seules les colonnes changées sont conservées (ancienne et nouvelle valeur). Le contenu structuré d'une séance est noté « modifié » sans être recopié, car l'enregistrement automatique le réécrit souvent.

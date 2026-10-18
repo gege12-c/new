@@ -1,31 +1,41 @@
 # Avancement
 
-Dernière mise à jour : 18 octobre 2026, fin de la phase 2 (planification) et refonte visuelle.
+Dernière mise à jour : 19 octobre 2026, fin de la phase 3 (Strava et activités réalisées).
 
-## Phase 2 — Planification : terminée
+## Phase 3 — Strava : terminée, mise en production à finaliser
 
-Critère de fin : une séance publiée apparaît chez l'athlète en quelques secondes, sans rechargement ni modification perdue.
+Critère de fin : une activité Strava arrive par webhook, sans doublon, rattachée ou proposée à la bonne séance.
 
-Vérification :
+Vérification (données fictives uniquement, faux Strava : aucun accès à l'API réelle depuis cet environnement) :
 
-- « Aucune modification perdue » : 53 tests sur un vrai PostgreSQL (`tests/db/planning.test.ts` : fusion champ par champ, conflits, modifications en attente, deux éditeurs ouverts, recalage, droits) et 8 parcours Playwright dans un navigateur (`e2e/`), dont deux éditions concurrentes, deux onglets sur une séance publiée, glisser-déposer, copie de semaine, commentaires et notes privées.
-- « En quelques secondes, sans rechargement » : le parcours `e2e/planning.spec.ts` vérifie qu'une séance publiée par le coach s'affiche chez l'athlète en moins de 8 secondes sans recharger la page. Il tourne dans la CI (tâche `e2e`) contre la pile Supabase officielle, Realtime compris : vert le 18 octobre 2026 (8 parcours sur 8, sans nouvel essai). La pile locale sans Docker n'a pas de Realtime (la page s'y actualise toutes les 30 s, et l'indique).
-- En production : base à jour le 18 octobre ; essai à deux appareils à faire (voir « À faire de votre côté »).
+- Parcours Playwright `e2e/strava.spec.ts`, dans un navigateur : l'administrateur active la réception des activités ; l'athlète connecte Strava (OAuth complet) ; une activité arrive par webhook, envoyée deux fois : une seule activité en base, rattachée automatiquement à la séance du soir et non à celle du matin, « Réalisé 58 min (97 %) » dans le calendrier, comparaison dans le panneau ; le coach ne la voit pas, l'athlète donne son retour (« Faite, RPE 6 ») et le coach le voit. Un fichier FIT importé par l'athlète est visible du coach.
+- 12 tests d'intégration contre une vraie pile Supabase (`tests/integration/`) : connexion et jetons chiffrés, import des 7 derniers jours, webhook dédoublonné, modification relue, évènements d'un autre abonnement ignorés, suppression appliquée seulement après vérification chez Strava, jeton expiré renouvelé, quota presque atteint (report sans échec), retrait d'accès et déconnexion (révocation, effacement), autorisation incomplète refusée ; lectures du réalisé à travers l'API et la RLS (le coach ne voit jamais l'activité Strava).
+- 20 tests de base (`tests/db/activities.test.ts`) : note de correspondance, rattachement ou proposition, deux séances le même jour, ambiguïté levée par une seconde activité, enchaînements, brouillons et séances annulées ignorés, séance déplacée, décisions préservées, droits, visibilité et expiration Strava, limite de 7 jours, identifiants uniques, file de jobs, canaux temps réel, comptage administrateur. Plus 24 tests unitaires (chiffrement, lecture FIT et archives, API Strava et quotas, prévu contre réalisé).
+- CI : voir ci-dessous « Mise en production ».
 
 Livré :
 
-- Éditeur de séances structurées : toutes disciplines et enchaînements, répétitions imbriquées, cibles en plage, consignes et matériel, aperçu graphique, avertissements en direct sans correction silencieuse, totaux calculés avec les seuils de l'athlète à la date de la séance.
-- Enregistrement automatique (1,2 s après la dernière frappe) avec indicateur, enregistrement explicite (bouton et Ctrl/Cmd + S), alerte avant de quitter une page non enregistrée.
-- Brouillon ou publié. Une séance publiée modifiée garde sa version publiée chez l'athlète : les modifications restent « en attente » jusqu'à « Publier les modifications » (ou « Abandonner »).
-- Jamais d'écrasement silencieux : chaque enregistrement est fusionné champ par champ avec l'état en base ; un champ changé des deux côtés déclenche un conflit expliqué, avec le choix de la version à garder, sans perdre les autres modifications.
-- Calendrier coach par athlète : vues mois (avec volume prévu par semaine et par discipline), semaine, jour et liste ; glisser-déposer pour déplacer (Alt pour copier) ; glisser un modèle sur un jour ; copie de semaine (telle quelle ou en brouillon) ; duplication ; suppression avec confirmation.
-- Calendrier athlète (mobile d'abord) : couleur par discipline, statuts, filtres par discipline et statut, détail en panneau sans quitter le calendrier ; l'athlète peut déplacer les séances de son coach et créer les siennes.
-- Accueil athlète : séance du jour, suivante, semaine en cours et volumes par discipline, prochaine compétition, seuils.
-- Tableau de bord coach : semaine en cours de chaque athlète, brouillons à publier, prochaines séances, prochaine course, dernier échange.
-- Bibliothèque de modèles : création, modification, archivage, planification pour un athlète, enregistrement d'une séance comme modèle.
-- Commentaires de séance partagés, et notes privées du coach (visibles de lui seul) ; historique des modifications de chaque séance.
-- Temps réel : chaque changement visible envoie un signal sur le canal privé de l'athlète ; les pages ouvertes se mettent à jour d'elles-mêmes (indicateur « En direct »), avec repli automatique toutes les 30 s et au retour sur l'onglet.
-- Refonte visuelle : typographie Archivo à largeur variable, palette « nuit » et couleurs par discipline (natation bleu, vélo ambre, course corail, renforcement violet, enchaînement orange), profils de séance colorés par zone, mode sombre complet.
+- Connexion Strava (OAuth 2.0, jeton anti-falsification, autorisation `read,activity:read_all` vérifiée), renouvellement des jetons, déconnexion avec révocation chez Strava, reconnexion demandée si Strava refuse l'accès.
+- Réception par webhook (créations, modifications, suppressions, retrait d'accès) : réponse immédiate, traitement juste après ; synchronisation quotidienne de secours et bouton « Synchroniser maintenant » ; dédoublonnage par identifiant Strava ; quotas par 15 minutes et par jour lus dans les en-têtes et respectés ; adresse de l'API configurable (`STRAVA_API_BASE_URL`, nouvelle adresse annoncée pour janvier 2027).
+- Import de fichiers FIT d'activité (y compris .zip de Garmin Connect et .fit.gz) depuis le profil, multisport découpé par discipline, sans doublon.
+- Rapprochement automatique séance-activité, propositions à valider (« C'est bien cette séance » / « Ce n'est pas elle »), rattachement et détachement manuels, doubles séances d'une même journée, enchaînements.
+- Prévu contre réalisé dans le panneau de séance : part du prévu, durée et distance avec écarts en valeur et en pourcentage, mesures de l'activité (allure ou vitesse, FC, puissance), lien « View on Strava », date d'effacement des données Strava.
+- Statuts terminée, partielle, manquée et à rapprocher dans les calendriers (marque sur chaque séance, filtres), activités sans séance affichées et rattachables depuis le calendrier.
+- Retour de l'athlète sur chaque séance passée : faite, en partie, pas faite, effort ressenti (RPE 1 à 10), note ; visible du coach.
+- Accueil athlète : « À traiter » (reconnexion Strava, activités à valider, activités sans séance, séances sans retour). Tableau de bord coach : état de la connexion Strava, bilan des 7 derniers jours, dernier retour.
+- Page Administration : configuration, abonnement webhook, file, quotas, journal technique.
+
+## Accord API Strava (version du 1er juin 2026, relue les 18 et 19 octobre 2026)
+
+| Point | Règle | Ce que fait TriCoach |
+| --- | --- | --- |
+| Affichage au coach | données Strava d'un utilisateur montrées à lui seul (§2.3, §6.2) | activités Strava visibles de l'athlète seul ; le coach a les fichiers FIT et les retours de séance |
+| Conservation | 7 jours au plus en cache (§6.2) ; suppressions répercutées sous 48 h (§6.3) ; effacement après retrait d'accès (§7.4) | effacement à 6 jours ; suppression vérifiée et appliquée dès l'évènement ; tout effacé aussitôt à la déconnexion |
+| IA | aucune utilisation des données Strava par un modèle d'IA, contexte compris (§5.3) | développement et tests sur données fictives ; je n'utilise jamais le connecteur Strava de cet environnement |
+| Analyses | pas d'analyse ni d'agrégation de données Strava, même dérivées (§5.4) | comparaison séance par séance pour l'athlète seulement ; aucun volume ni statistique agrégée sur Strava |
+| Consentement | personne d'autre que l'athlète ne voit ses données sans accord exprès (§5.13) | rien n'est partagé, même avec accord (prudence) |
+| Marque | pas de « Strava » dans le nom de l'application ; liens « View on Strava » ; bouton officiel « Connect with Strava » | liens « View on Strava » en place ; bouton et logo officiels à intégrer (fichiers à fournir, voir plus bas) |
+| Accès | abonnement Strava exigé depuis juin 2026 ; capacité de 1 athlète, 10 sans revue, revue au-delà | à régler sur la page de l'application Strava |
 
 ## Décisions
 
@@ -50,38 +60,61 @@ Livré :
 | Clés Supabase | nouvelle clé « publishable » | format actuel recommandé par Supabase |
 | Région des fonctions Vercel | Francfort (`fra1`) | la base est à Zurich |
 | Contrôle de production | `GET /api/health` | vérifier un déploiement sans lire ses secrets |
+| Strava et coach | les activités Strava ne sont montrées qu'à l'athlète ; le coach voit les fichiers FIT importés (s'il y est autorisé) et le retour de séance de l'athlète (faite, partielle, pas faite, RPE, note) | politique API Strava du 1er juin 2026 (§2.3, §6.1, §6.2) ; choix validé le 18 octobre (« Strava + FIT + déclaration ») |
+| Conservation des données Strava | effacement 6 jours après la première lecture, jamais repoussé ; suppression répercutée dès l'évènement (vérifiée auprès de Strava) et à chaque synchronisation ; tout est effacé à la déconnexion ou au retrait d'accès ; aucun nom ni profil Strava conservé | §6.2 (7 jours au plus), §6.3 (48 h), §7.4 ; marge d'un jour pour la tâche quotidienne |
+| Historique Strava | import des 7 derniers jours à la connexion, pas au-delà | des données plus anciennes devraient être effacées aussitôt (§6.2) |
+| Statistiques sur Strava | aucune statistique agrégée (volumes réalisés, tendances) calculée sur des données Strava ; seule la comparaison séance par séance est montrée à l'athlète | §5.4 interdit les analyses et agrégations de données Strava, y compris dérivées ; la phase 5 s'appuiera sur les fichiers FIT et les retours, sauf accord écrit de Strava |
+| Jetons OAuth | chiffrés par l'application (AES-256-GCM, données associées = connexion), clé `TOKEN_ENCRYPTION_KEY` hors de la base ; table sans aucun privilège pour l'API ; renouvellement protégé par un numéro de révision | une fuite de la base seule ne livre aucun jeton utilisable |
+| File de jobs | table `sync_jobs` (dédoublonnage par clé, reprise exponentielle, quotas respectés sans compter d'échec) ; traitement juste après la réponse au webhook (`after()`), synchronisation quotidienne par Vercel Cron (3 h 20 UTC) et manuelle | Strava attend une réponse sous 2 s ; l'offre Hobby de Vercel limite les tâches planifiées à une par jour |
+| Rapprochement | en SQL, par triggers, sous un verrou par athlète ; note discipline/date/heure/volume ; automatique à partir de 0,68 et sans ambiguïté, proposé à partir de 0,45 ; décisions de l'utilisateur jamais remises en cause | même règle pour Strava et FIT, recalcul à chaque changement de séance ou d'activité, sans job supplémentaire |
+| Statut d'une séance | retour de l'athlète, sinon activité rattachée (terminée à 80 % du prévu, partielle en deçà), sinon « à rapprocher » ; jamais « manquée » par supposition | rien de simulé ; le coach voit un statut fondé sur ce qu'il a le droit de voir |
+| Import FIT | lu dans le navigateur avec le SDK FIT officiel de Garmin ; seul le résumé part au serveur (pas de trace GPS) ; .zip de Garmin Connect et .fit.gz décompressés sans dépendance ; identifiant = empreinte SHA-256 du fichier et numéro de segment | dédoublonnage naturel, limite de 1 Mo des Server Actions évitée |
+| Temps réel des activités | canal `self:<id>` réservé à l'athlète pour tout ce qui touche Strava ; `athlete:<id>` pour les retours et les fichiers FIT | aucun signal lié à Strava n'atteint le coach |
+| Administration | page `/admin` : configuration (présente ou non, jamais les valeurs), abonnement webhook, file, quotas, journal ; génération des valeurs secrètes dans le navigateur | vous saisissez les secrets vous-même, sans les écrire dans une conversation |
+
+## Phases 1 et 2 : terminées
+
+- Phase 1 (socle) : schéma, RLS, authentification, rôles, invitations à usage unique, profil et seuils historisés, format de séance et calculs.
+- Phase 2 (planification) : éditeur de séances structurées, modèles, calendriers coach et athlète, commentaires et notes privées, historique, enregistrement automatique sans écrasement silencieux (fusion champ par champ), temps réel vérifié en CI. Détail dans l'historique git (`docs: record phase 2 delivery…`).
 
 ## Mise en production
 
 | Élément | État |
 | --- | --- |
-| Base Supabase `supabase-rose-candle` (`ugqtfkuisaqjdnwxvogm`, Zurich, PostgreSQL 17) | 5 migrations. `planning` (phase 2) appliquée le 18 octobre depuis l'éditeur SQL (le connecteur annulait sa demande de confirmation), puis contrôlée : les 16 fonctions sont identiques au fichier, RLS active sur les 12 tables, aucun accès anonyme, migration inscrite à l'historique sous `20261018200000`. Analyseur de sécurité : rien de nouveau |
-| Projet Vercel `new` | en ligne sur https://new-bay-one-76.vercel.app ; la phase 2 y est déployée depuis `main` |
+| Base Supabase `supabase-rose-candle` (`ugqtfkuisaqjdnwxvogm`, Zurich, PostgreSQL 17) | phases 1 et 2 à jour (5 migrations, contrôlées le 18 octobre). **Migration de la phase 3 `20261019000000_activities.sql` à appliquer** avant la mise en ligne du code (voir « À faire de votre côté ») ; elle n'ajoute que des tables, fonctions et triggers : l'application actuelle continue de fonctionner une fois la base à jour |
+| Code de la phase 3 | branche `phase-3-strava` ; fusionné dans `main` (donc déployé par Vercel) seulement une fois la base à jour, sinon les pages qui lisent les activités échoueraient |
+| Projet Vercel `new` | en ligne sur https://new-bay-one-76.vercel.app (phase 2) ; variables de la phase 3 à ajouter (voir le README, « Activer Strava ») |
 | Réglages d'authentification Supabase | faits le 18 octobre (Site URL, Redirect URLs, confirmation d'email désactivée en attendant un SMTP) |
-| Realtime en production | contrôlé le 18 octobre : `realtime.send` et `realtime.topic` présents, droit de créer la politique de canal vérifié ; les partitions de messages se créent à la première connexion d'un navigateur |
+| Realtime en production | contrôlé le 18 octobre ; le canal `self:<id>` de la phase 3 utilise la même politique |
 
-Accès des connecteurs : Vercel lit le projet, les variables (noms) et crée des déploiements, mais ses journaux de build et d'exécution sont refusés (403 sur l'espace `geraldegea12-9585`) ; Supabase lit et interroge la base, mais ses migrations demandent une confirmation qui ne s'affiche pas ici : les prochaines s'appliqueront de la même façon, depuis l'éditeur SQL.
+Accès des connecteurs : Vercel lit le projet, les variables (noms) et crée des déploiements, mais ses journaux de build et d'exécution sont refusés (403 sur l'espace `geraldegea12-9585`) ; Supabase lit et interroge la base, mais ses migrations demandent une confirmation qui ne s'affiche pas ici : elles s'appliquent depuis l'éditeur SQL.
 
-Avertissements de l'analyseur Supabase acceptés : les fonctions d'invitation et de relation coach-athlète (`create_invitation`, `accept_invitation`, `get_invitation_preview`, `revoke_invitation`, `revoke_coach_link`, `set_coach_permissions`, `current_user_is_admin`) sont volontairement appelables depuis l'API et vérifient elles-mêmes l'appelant. Les fonctions de la phase 2 s'exécutent avec les droits de l'appelant (RLS). « Leaked password protection » : réglage d'authentification à activer (voir ci-dessous).
+Avertissements de l'analyseur Supabase acceptés : les fonctions d'invitation et de relation coach-athlète (`create_invitation`, `accept_invitation`, `get_invitation_preview`, `revoke_invitation`, `revoke_coach_link`, `set_coach_permissions`, `current_user_is_admin`) et celles de la phase 3 appelables par un utilisateur (`associate_activity`, `dissociate_activity`, `purge_my_expired_activities`, `athlete_sync_status`, `admin_connection_counts`) vérifient elles-mêmes l'appelant. « Leaked password protection » : réglage d'authentification à activer.
 
 ## Limites connues
 
+- Strava n'a pas pu être appelé depuis cet environnement (seuls les registres de paquets et GitHub sont joignables) : tout est vérifié contre un faux Strava qui reproduit l'API documentée. Le premier vrai branchement se fait en production, après création de l'application Strava.
+- Bouton officiel « Connect with Strava » et logo « Powered by Strava » : les fichiers officiels n'ont pas pu être téléchargés ici ; un bouton texte « Connecter Strava » les remplace. À intégrer avant toute revue Strava (au-delà de 10 athlètes).
+- Le coach ne voit pas les activités Strava de ses athlètes (règle de Strava) : pour lui, une séance est « terminée » grâce au retour de l'athlète ou à un fichier FIT importé.
+- La synchronisation de secours tourne une fois par jour (limite de l'offre Hobby de Vercel) ; les webhooks font l'essentiel en quelques minutes.
 - Sans service d'envoi d'emails (SMTP), Supabase n'envoie d'emails qu'aux membres de l'organisation : confirmation d'email désactivée, mot de passe oublié limité à ces membres. Une invitation nominative ne prouve donc pas l'adresse de l'athlète : le lien à usage unique reste le secret.
-- Les séances réalisées (Strava) n'existent pas encore : les statuts « terminée », « partielle » et « manquée » arrivent en phase 3 ; une séance passée sans activité est affichée « à rapprocher », jamais « manquée » par supposition.
 - Les boutons d'export (Zwift, Garmin) arrivent en phase 4.
 - Avertissements `npm audit` sur des dépendances de développement uniquement.
 
-## Phase 3 — Strava : prochaine session
+## Phase 4 — Exports : prochaine session
 
-À livrer : vérification de l'accord API Strava en vigueur (révisé le 1er juin 2026) avant tout code, connexion OAuth, webhooks, import de l'historique, rapprochement séance-activité.
+À livrer : connecteurs d'export avec une interface commune et leurs capacités réelles ; fichier .zwo (Zwift) et fichier FIT de séance (Garmin, SDK FIT officiel, relu pour validation) ; Wahoo et Suunto « non configurés » avec la méthode manuelle officielle ; contrôle de compatibilité, historique et relance des exports.
 
-Critère de fin : une activité Strava arrive par webhook, sans doublon, rattachée ou proposée à la bonne séance.
+Critère de fin : une même séance produit un .zwo et un FIT valides, avec la procédure d'import documentée.
 
 ## À faire de votre côté
 
 Dépôt GitHub : `gege12-c/new`.
 
-1. Vérifier le temps réel en production : ouvrez le calendrier de l'athlète sur votre téléphone (compte athlète) ; sur l'ordinateur, côté coach, créez une séance pour cet athlète et cliquez sur « Publier ». Elle doit apparaître sur le téléphone en quelques secondes, sans toucher à l'écran, et l'indicateur en haut du calendrier doit afficher « En direct ». La première connexion prépare le canal temps réel : si l'indicateur affiche « Actualisation toutes les 30 s », rechargez une fois la page.
-2. Dans Supabase, Authentication, rubrique des mots de passe : activez « Leaked password protection » si votre offre le propose (refus des mots de passe connus pour avoir fuité).
-3. Plus tard (au plus tard en phase 5) : configurer un service d'envoi d'emails (SMTP) dans Supabase, puis réactiver « Confirm email ».
-4. Phase 3 : ouvrir une nouvelle session et demander la phase 3. Préparez votre compte Strava (vous créerez l'application Strava vous-même ; je vous dirai quand et quoi saisir).
+1. Mettre la base à jour : dans Supabase, SQL Editor, « New query », collez tout le contenu de https://raw.githubusercontent.com/gege12-c/new/phase-3-strava/supabase/migrations/20261019000000_activities.sql puis « Run » (résultat attendu : « Success. No rows returned »). Dites-le-moi : je vérifie la base, je l'inscris à l'historique et je mets le code en ligne.
+2. Créer l'application Strava et saisir les variables dans Vercel : README, sections « Projet Vercel » (variables serveur) et « Activer Strava ». Ne me communiquez aucune de ces valeurs.
+3. Vous déclarer administrateur (README, « Devenir administrateur »), puis ouvrir la page Administration de TriCoach et cliquer sur « Activer la réception des activités ».
+4. Tester en vrai : connectez votre compte Strava depuis votre profil (compte athlète), faites ou importez une activité qui correspond à une séance du jour, et vérifiez qu'elle s'affiche rattachée en quelques minutes.
+5. Sur la page de votre application Strava, passer la capacité de 1 à 10 athlètes.
+6. Pour une future revue Strava : téléchargez le pack officiel des boutons « Connect with Strava » et des logos « Powered by Strava » (developers.strava.com, rubrique Guidelines) et envoyez-le-moi dans une session ; je les intégrerai.
+7. Toujours valable : activer « Leaked password protection » dans Supabase ; plus tard (au plus tard en phase 5), configurer un service d'envoi d'emails (SMTP) puis réactiver « Confirm email ».
