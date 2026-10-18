@@ -1,6 +1,6 @@
 # Avancement
 
-Dernière mise à jour : 18 octobre 2026, fin de la phase 1.
+Dernière mise à jour : 18 octobre 2026, fin de la phase 1 et mise en ligne sur Vercel.
 
 ## Phase 1 — Socle : terminée
 
@@ -14,7 +14,7 @@ Livré :
 - Authentification : inscription, confirmation d'email, connexion, mot de passe oublié, déconnexion ; session rafraîchie par `src/proxy.ts`.
 - Écrans : espace athlète (prochaines séances, objectif, seuils, gestion du coach et de ses permissions), profil sportif (objectifs, seuils datés, compétitions), espace coach (athlètes suivis, invitations, fiche athlète), réglages, page d'invitation.
 - Format de séance v1 : schéma Zod, déroulé des répétitions, durée et distance (exactes, estimées ou inconnues), zones, avertissements, résumé texte, profil graphique.
-- Tests : 66 au vert (32 unitaires, 34 sur un vrai PostgreSQL 16 avec une couche de compatibilité Supabase). Intégration continue GitHub Actions : lint, types, tests, build.
+- Tests : 70 au vert (36 unitaires, 34 sur un vrai PostgreSQL 16 avec une couche de compatibilité Supabase). Intégration continue GitHub Actions : lint, types, tests, build.
 
 ## Décisions
 
@@ -30,21 +30,27 @@ Livré :
 | Emails d'invitation | lien à copier ou email prérempli ; pas d'envoi automatique | aucun service d'envoi configuré : rien n'est simulé |
 | Polices | Geist auto-hébergée (paquet `geist`) | build sans accès réseau aux polices |
 | Clés Supabase | nouvelle clé « publishable » | format actuel recommandé par Supabase |
+| Région des fonctions Vercel | Francfort (`fra1`, `vercel.json`) au lieu de Washington (`iad1`, défaut) | la base est à Zurich : chaque requête évite un aller-retour transatlantique |
+| Contrôle de production | `GET /api/health` : validité de l'URL et de la clé Supabase déployées, inscription ouverte, confirmation d'email | vérifier un déploiement sans lire ses secrets ; uniquement des informations déjà publiques |
 
 ## Mise en production
 
 | Élément | État |
 | --- | --- |
 | Base Supabase `supabase-rose-candle` (`ugqtfkuisaqjdnwxvogm`, Zurich, PostgreSQL 17) | migrations appliquées le 18 octobre 2026 ; RLS active sur les 10 tables (23 politiques) ; aucun accès anonyme ; analyseur de sécurité sans erreur |
-| Projet Vercel | à créer : le connecteur Vercel n'a pas accès à l'espace personnel `geraldegea12-9585` (refus 403) |
-| Réglages d'authentification Supabase | à faire : Site URL, Redirect URLs, confirmation d'email (README, étape 2) |
+| Projet Vercel `new` (`prj_2niwVUTlhR44kHnGK2As5ujUa1l7`) | en ligne sur https://new-bay-one-76.vercel.app ; relié au dépôt (branche `main`), variables Supabase en Production et Preview. L'import initial n'avait créé aucun déploiement (« 404 DEPLOYMENT_NOT_FOUND ») : premier déploiement lancé par l'API le 18 octobre 2026 |
+| Connexion Vercel → Supabase | vérifiée par `/api/health` (voir ci-dessous) |
+| Réglages d'authentification Supabase | à faire : Site URL, Redirect URLs, confirmation d'email (README, étape 2). Constaté le 18 octobre : confirmation d'email encore exigée, inscriptions ouvertes |
+
+Accès du connecteur Vercel : lecture du projet, des variables (noms) et création de déploiements possibles ; journaux de build et d'exécution refusés (403 sur l'espace `geraldegea12-9585`).
 
 Avertissements de l'analyseur Supabase acceptés : les fonctions `create_invitation`, `accept_invitation`, `get_invitation_preview`, `revoke_invitation`, `revoke_coach_link`, `set_coach_permissions` et `current_user_is_admin` sont volontairement appelables depuis l'API ; chacune vérifie elle-même l'identité de l'appelant.
 
 ## Limites connues
 
-- Le parcours complet (inscription, invitation, acceptation) reste à vérifier dans un navigateur après le déploiement Vercel (README, étape 3). La logique de base est testée sur PostgreSQL et la configuration de production contrôlée sur Supabase.
+- Le parcours complet (inscription, invitation, acceptation) reste à vérifier dans un navigateur une fois l'authentification Supabase réglée (README, étapes 2 et 3). La logique de base est testée sur PostgreSQL et la configuration de production contrôlée sur Supabase.
 - Sans service d'envoi d'emails (SMTP), Supabase n'envoie d'emails qu'aux membres de l'organisation : confirmation d'email à désactiver d'ici là, mot de passe oublié limité à ces membres.
+- Confirmation d'email désactivée, une invitation nominative ne prouve plus que l'adresse appartient à l'athlète : le lien à usage unique reste le secret. Configurer un SMTP et réactiver la confirmation rétablit ce contrôle.
 - Tests de bout en bout dans un navigateur (Playwright) : à mettre en place.
 - Avertissements `npm audit` sur des dépendances de développement (ESLint) uniquement, sans effet sur l'application en ligne.
 
@@ -65,6 +71,5 @@ Critère de fin : une séance publiée apparaît chez l'athlète en quelques sec
 
 Dépôt GitHub : `gege12-c/new`.
 
-1. Créer le projet Vercel à partir du dépôt, avec les deux variables Supabase (README, étape 1) ; ou bien reconnecter le connecteur Vercel en autorisant l'espace `geraldegea12-9585`, pour que Claude le fasse.
-2. Régler l'authentification Supabase (README, étape 2).
-3. Vérifier le parcours coach → athlète (README, étape 3) et signaler tout écart au début de la prochaine session.
+1. Régler l'authentification Supabase (README, étape 2), puis vérifier que `/api/health` affiche `"emailConfirmation": "disabled"`.
+2. Vérifier le parcours coach → athlète (README, étape 3) et signaler tout écart au début de la prochaine session.

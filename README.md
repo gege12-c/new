@@ -7,31 +7,35 @@ Next.js 16 (TypeScript) + Supabase (PostgreSQL, Auth, RLS), déployé sur Vercel
 
 ## Mise en ligne
 
-La base Supabase de production (`supabase-rose-candle`, référence `ugqtfkuisaqjdnwxvogm`) est prête : les migrations sont appliquées et la sécurité vérifiée. Il reste deux réglages, à faire une fois.
+| | |
+| --- | --- |
+| Application | https://new-bay-one-76.vercel.app (projet Vercel `new`) |
+| Base | Supabase `supabase-rose-candle`, référence `ugqtfkuisaqjdnwxvogm`, Zurich |
+| État en direct | https://new-bay-one-76.vercel.app/api/health |
 
-### 1. Déployer sur Vercel
+Chaque push sur `main` redéploie l'application. Les fonctions Vercel tournent à Francfort (`vercel.json`), au plus près de la base. La page `/api/health` indique si l'URL et la clé Supabase du déploiement sont valides (`"supabase": "ok"`) et si la confirmation d'email est exigée (`"emailConfirmation"`) ; elle n'affiche que des informations déjà publiques.
 
-1. Sur [vercel.com](https://vercel.com), créez un nouveau projet et importez le dépôt `gege12-c/new`.
-2. Ajoutez les variables d'environnement (Production, Preview et Development) :
+### 1. Projet Vercel (fait)
 
-   | Variable | Valeur |
-   | --- | --- |
-   | `NEXT_PUBLIC_SUPABASE_URL` | `https://ugqtfkuisaqjdnwxvogm.supabase.co` |
-   | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | la clé publishable du projet (`sb_publishable_…`), dans les clés d'API Supabase |
+Variables d'environnement du projet (Production et Preview) :
 
-   Si vous reliez plutôt le projet à la base via l'intégration Supabase de Vercel, les variables qu'elle crée (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`) sont reconnues aussi.
+| Variable | Valeur |
+| --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | `https://ugqtfkuisaqjdnwxvogm.supabase.co` |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | la clé publishable du projet (`sb_publishable_…`), dans les clés d'API Supabase |
 
-3. Lancez le déploiement et notez l'adresse obtenue (par exemple `https://tricoach.vercel.app`).
+Les variables de l'intégration Supabase de Vercel (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`) sont reconnues aussi. La clé secrète Supabase n'est jamais nécessaire : l'application n'utilise que la clé publishable, et la sécurité repose sur les règles d'accès de la base.
 
-La clé secrète Supabase n'est jamais nécessaire : l'application n'utilise que la clé publishable, et la sécurité repose sur les règles d'accès de la base.
+Pour recréer le projet : importez le dépôt `gege12-c/new` sur [vercel.com](https://vercel.com), ajoutez les deux variables, puis vérifiez dans l'onglet Deployments qu'un déploiement a bien démarré (sans déploiement, l'adresse affiche « 404 DEPLOYMENT_NOT_FOUND »).
 
 ### 2. Régler l'authentification Supabase
 
-Dans la configuration de l'authentification du projet Supabase :
+Le tableau de bord Supabase s'ouvre depuis Vercel (onglet Storage, base `supabase-rose-candle`, bouton « Open in Supabase ») ou directement sur supabase.com. Dans **Authentication** :
 
-- **Site URL** : l'adresse Vercel de l'étape 1.
-- **Redirect URLs** : ajoutez `https://<votre-domaine>/auth/confirm` (et `http://localhost:3000/auth/confirm` pour le développement).
-- **Confirmation d'email** : tant qu'aucun service d'envoi d'emails (SMTP) n'est configuré, Supabase n'envoie d'emails qu'aux membres de l'organisation du projet. Pour que votre coach et vos athlètes puissent créer leur compte, désactivez la confirmation d'email ; réactivez-la après avoir configuré un service d'envoi. Le mot de passe oublié reste limité aux membres de l'organisation d'ici là.
+- **URL Configuration** : *Site URL* = `https://new-bay-one-76.vercel.app` ; dans *Redirect URLs*, ajoutez `https://new-bay-one-76.vercel.app/**` (et `http://localhost:3000/**` pour le développement). Sans cela, les liens reçus par email renvoient vers `localhost`.
+- **Sign In / Providers**, section Email : désactivez **Confirm email**, puis enregistrez. Tant qu'aucun service d'envoi d'emails (SMTP) n'est configuré, Supabase n'envoie d'emails qu'aux membres de l'organisation du projet : vos athlètes ne pourraient pas confirmer leur compte. Réactivez-la après avoir configuré un service d'envoi. Le mot de passe oublié reste limité aux membres de l'organisation d'ici là.
+
+Contrôle : `/api/health` affiche alors `"emailConfirmation": "disabled"`.
 
 ### 3. Vérifier le parcours coach → athlète
 
