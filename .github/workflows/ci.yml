@@ -74,9 +74,12 @@ jobs:
           key="$(openssl rand -base64 32)"; echo "::add-mask::$key"; echo "TOKEN_ENCRYPTION_KEY=$key" >> "$GITHUB_ENV"
           cron="$(openssl rand -hex 24)"; echo "::add-mask::$cron"; echo "CRON_SECRET=$cron" >> "$GITHUB_ENV"
       - name: Integration tests (Strava pipeline, data loaders)
-        run: npm run test:integration
+        run: npx vitest run --project integration --reporter=default --reporter=github-actions
+      # Les parcours de bout en bout tournent même si les tests d'intégration échouent.
       - run: npm run build
+        if: ${{ !cancelled() }}
       - name: Start the app
+        if: ${{ !cancelled() }}
         run: |
           nohup npm run start -- -p 3000 > "$RUNNER_TEMP/next.log" 2>&1 &
           for i in $(seq 1 60); do
@@ -86,7 +89,9 @@ jobs:
           cat "$RUNNER_TEMP/next.log"
           exit 1
       - run: npx playwright install --with-deps chromium
+        if: ${{ !cancelled() }}
       - name: Playwright (temps réel compris)
+        if: ${{ !cancelled() }}
         run: npm run test:e2e
         env:
           E2E_REALTIME: "1"
