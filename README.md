@@ -1,7 +1,7 @@
 # TriCoach
 
-Plateforme de coaching triathlon : le coach programme sur le Web, l'athlète retrouve ses séances sur son téléphone.
-Next.js 16 (TypeScript) + Supabase (PostgreSQL, Auth, RLS), déployé sur Vercel.
+Plateforme de coaching triathlon : le coach programme sur le Web, l'athlète retrouve ses séances sur son téléphone, mises à jour en direct.
+Next.js 16 (TypeScript) + Supabase (PostgreSQL, Auth, RLS, Realtime), déployé sur Vercel.
 
 État d'avancement : [docs/STATUS.md](docs/STATUS.md). Cahier des charges : [CLAUDE.md](CLAUDE.md).
 
@@ -61,7 +61,6 @@ Appliquez les fichiers de [`supabase/migrations`](supabase/migrations) dans l'or
 
 ```bash
 npx supabase login
-npx supabase init          # crée supabase/config.toml, garde les migrations existantes
 npx supabase link --project-ref <référence-du-projet>
 npx supabase db push
 ```
@@ -85,8 +84,26 @@ npm run dev                  # http://localhost:3000
 | `npm run test:db` | migrations et politiques RLS sur un PostgreSQL jetable |
 | `npm run lint` / `npm run typecheck` | qualité du code |
 | `npm run db:types` | régénère les types TypeScript de la base après une migration |
+| `npm run test:e2e` | parcours clés dans un navigateur (Playwright), contre l'application lancée sur `http://localhost:3000` |
 
 Les tests de base démarrent un PostgreSQL temporaire (binaires trouvés automatiquement, ou `PG_BIN`) ; avec `TEST_DATABASE_URL`, ils utilisent ce serveur à la place.
+
+### Pile Supabase locale et tests de bout en bout
+
+Deux façons de faire tourner Supabase sur sa machine :
+
+- **Avec Docker** (pile officielle, Realtime compris) : `npx supabase start` lit `supabase/config.toml` et applique les migrations. `npx supabase status` donne l'URL et la clé `anon` à mettre dans `.env.local`. C'est ce que fait la CI pour les tests de bout en bout, avec `E2E_REALTIME=1` pour vérifier les mises à jour en direct.
+- **Sans Docker** : `npm run stack:start` lance PostgreSQL (installé sur la machine), PostgREST et Supabase Auth (téléchargés depuis GitHub au premier lancement), avec une passerelle sur `http://127.0.0.1:54321`, et écrit `.env.local-stack`. Pas de Realtime : l'application bascule alors sur une actualisation toutes les 30 secondes, et l'indique.
+
+```bash
+npm run stack:start                       # terminal 1
+set -a && source .env.local-stack && set +a
+npx tsx scripts/local-stack/seed.ts       # données de démonstration (coach@tricoach.local, mot de passe Demo-tricoach-2026)
+npm run dev                               # terminal 2, avec les mêmes variables
+npm run test:e2e                          # terminal 3, avec les mêmes variables
+```
+
+`node scripts/local-stack/stack.mjs reset` efface les données locales.
 
 ## Documentation
 

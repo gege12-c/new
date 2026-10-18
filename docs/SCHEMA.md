@@ -9,7 +9,7 @@ Migrations : [`supabase/migrations`](../supabase/migrations). Tests de sécurit�
 - Valeurs énumérées en `text` + `CHECK`, plus simples à faire évoluer que des types `enum`.
 - `updated_at` est maintenu par trigger ; `created_by` prend `auth.uid()` par défaut et n'est jamais modifiable.
 
-## Tables (phase 1)
+## Tables (phases 1 et 2)
 
 ```mermaid
 erDiagram
@@ -23,6 +23,8 @@ erDiagram
   profiles ||--o{ workout_templates : "owner_id"
   profiles ||--o{ planned_sessions : "athlete_id"
   workout_templates |o--o{ planned_sessions : "template_id"
+  planned_sessions ||--o| planned_session_drafts : "modifications en attente"
+  planned_sessions ||--o{ session_comments : "commentaires"
 ```
 
 | Table | Rôle | Points clés |
@@ -35,10 +37,12 @@ erDiagram
 | `athlete_thresholds` | seuils historisés (FTP, FC seuil, allure seuil, CSS, FC max…) | une valeur par seuil et par date d'effet ; bornes plausibles contrôlées |
 | `athlete_events` | compétitions | priorité A, B ou C |
 | `workout_templates` | bibliothèque de séances du coach | contenu au format v1 |
-| `planned_sessions` | séances planifiées | `draft`, `published`, `cancelled` ; `version` pour la concurrence optimiste |
-| `audit_logs` | historique des modifications | alimenté par triggers, en lecture seule |
+| `planned_sessions` | séances planifiées | `draft`, `published`, `cancelled` ; `version` incrémentée à chaque modification ; écrite par fusion champ par champ (voir plus bas) |
+| `planned_session_drafts` | modifications en attente d'une séance publiée (ou annulée) | une ligne au plus par séance ; `base` = version publiée au début de l'édition (fixée par trigger), `payload` = état voulu ; invisible pour l'athlète |
+| `session_comments` | commentaires de séance | `shared` (athlète et coachs) ou `coach_private` (visible de son seul auteur) ; texte modifiable par l'auteur, visibilité figée |
+| `audit_logs` | historique des modifications | alimenté par triggers, en lecture seule ; `visibility = 'coaches'` pour une séance restée brouillon |
 
-Tables prévues dans les phases suivantes : `comments` (phase 2), `external_connections`, `activities`, `activity_streams`, `session_activity_matches`, `sync_jobs`, `sync_logs` (phase 3), `workout_exports` (phase 4), `notifications` (phase 5).
+Tables prévues dans les phases suivantes : `external_connections`, `activities`, `activity_streams`, `session_activity_matches`, `sync_jobs`, `sync_logs` (phase 3), `workout_exports` (phase 4), `notifications` (phase 5).
 
 ## Sécurité
 
@@ -50,6 +54,9 @@ Le rôle `anon` n'a accès à aucune table. Le rôle `authenticated` reçoit des
 | Profil sportif | l'athlète et ses coachs actifs | l'athlète |
 | Seuils, compétitions | l'athlète et ses coachs actifs | l'athlète, ou un coach autorisé à planifier |
 | Séances planifiées | l'athlète (hors brouillons du coach) et ses coachs actifs | l'athlète pour ses propres séances ; un coach autorisé à planifier ; l'athlète peut seulement **déplacer** les séances de son coach |
+| Modifications en attente | qui peut modifier le contenu de la séance (jamais l'athlète pour une séance du coach) | idem |
+| Commentaires partagés | qui voit la séance | l'athlète et ses coachs actifs ; texte modifiable et suppression par l'auteur |
+| Notes privées | leur auteur, tant qu'il coache l'athlète | un coach de l'athlète |
 | Modèles | leur propriétaire | leur propriétaire |
 | Relations, invitations | les deux parties / le coach | uniquement via les fonctions ci-dessous |
 | Journal d'audit | l'athlète et ses coachs actifs | personne (triggers) |
@@ -68,6 +75,20 @@ Procédures exposées (RPC) :
 | `set_coach_permissions(id, planifier, voir_activités)` | athlète : règle les droits de son coach |
 | `athlete_thresholds_at(athlète, date)` | seuils en vigueur à une date, selon les droits de l'appelant |
 | `current_user_is_admin()` | l'utilisateur courant est-il administrateur |
+| `save_planned_session(séance, base, valeurs)` | enregistre une séance par fusion (voir ci-dessous) ; sert aussi aux déplacements |
+| `save_session_draft(séance, base, valeurs)` | enregistre les modifications en attente d'une séance publiée, par fusion ; les supprime si elles redeviennent identiques à la version publiée |
+| `publish_session_draft(séance, préférence?)` | publie les modifications en attente ; `préférence` (`mine` ou `theirs`) tranche un conflit |
+| `rebase_session_draft(séance, préférence)` | recale les modifications en attente sur la version publiée actuelle, sans publier |
+| `duplicate_planned_session(séance, date)` | copie une séance (une séance annulée revient en brouillon) |
+| `copy_planned_week(athlète, lundi source, lundi cible, état?)` | copie une semaine jour pour jour, sans les séances annulées, en une transaction |
+
+### Fusion champ par champ
+
+L'éditeur envoie l'état qu'il a chargé (`base`) et l'état voulu. Seuls les champs qui diffèrent de `base` sont écrits. Si l'un d'eux a aussi été changé en base entre-temps, avec une autre valeur, rien n'est écrit : l'erreur `session_conflict` (code `PT409`, HTTP 409) liste les champs en conflit et l'interface demande quelle version garder. Les autres changements faits ailleurs (un déplacement par l'athlète, par exemple) sont conservés et repris par l'éditeur. Les verrous sont pris dans le même ordre partout (séance, puis modifications en attente).
+
+### Temps réel
+
+Les triggers `broadcast_planned_sessions` et `broadcast_session_comments` envoient un message `planning_changed` (Realtime Broadcast) sur le canal privé `athlete:<id>` à chaque changement visible par l'athlète. Le message ne contient que des identifiants ; les brouillons, les commentaires de brouillons et les notes privées n'en envoient pas. La politique `athlete_topic_receive` de `realtime.messages` réserve l'écoute du canal à l'athlète et à ses coachs actifs.
 
 Les erreurs métier sont levées avec un code stable (`invitation_expired`, `athlete_can_only_reschedule`…), traduit par `src/lib/errors.ts`.
 

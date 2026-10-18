@@ -1,20 +1,31 @@
 # Avancement
 
-Dernière mise à jour : 18 octobre 2026, fin de la phase 1 et mise en ligne sur Vercel.
+Dernière mise à jour : 18 octobre 2026, fin de la phase 2 (planification) et refonte visuelle.
 
-## Phase 1 — Socle : terminée
+## Phase 2 — Planification : terminée en local, mise en production en attente
 
-Critère de fin vérifié par les tests automatisés : un coach invite un athlète qui accepte, et un coach non autorisé ne lit ni ne modifie rien (`tests/db/security.test.ts`, `tests/db/invitations.test.ts`). Vérifié aussi en production le 18 octobre 2026 : un compte coach et un compte athlète créés sur le site, invitation nominative acceptée, relation active avec les permissions par défaut, journal d'audit complet, aucune erreur dans les journaux Supabase.
+Critère de fin : une séance publiée apparaît chez l'athlète en quelques secondes, sans rechargement ni modification perdue.
+
+Vérification :
+
+- « Aucune modification perdue » : 53 tests sur un vrai PostgreSQL (`tests/db/planning.test.ts` : fusion champ par champ, conflits, modifications en attente, deux éditeurs ouverts, recalage, droits) et 8 parcours Playwright dans un navigateur (`e2e/`), dont deux éditions concurrentes, deux onglets sur une séance publiée, glisser-déposer, copie de semaine, commentaires et notes privées.
+- « En quelques secondes, sans rechargement » : le parcours `e2e/planning.spec.ts` vérifie qu'une séance publiée par le coach s'affiche chez l'athlète en moins de 8 secondes sans recharger la page. Il tourne dans la CI (tâche `e2e`) contre la pile Supabase officielle, Realtime compris ; la pile locale sans Docker n'a pas de Realtime (la page s'y actualise toutes les 30 s, et l'indique).
+- En production : à vérifier dès que la migration `planning` est appliquée (voir « À faire de votre côté »).
 
 Livré :
 
-- Projet Next.js 16 + TypeScript + Tailwind, navigation latérale sur ordinateur et barre basse sur mobile.
-- Migrations Supabase : profils, rôles (athlète, coach, administrateur), relations coach-athlète avec permissions, invitations à usage unique, seuils historisés, compétitions, modèles et séances planifiées, journal d'audit.
-- Sécurité : RLS sur toutes les tables, privilèges colonne par colonne, aucune table accessible sans connexion, fonctions d'autorisation hors API.
-- Authentification : inscription, confirmation d'email, connexion, mot de passe oublié, déconnexion ; session rafraîchie par `src/proxy.ts`.
-- Écrans : espace athlète (prochaines séances, objectif, seuils, gestion du coach et de ses permissions), profil sportif (objectifs, seuils datés, compétitions), espace coach (athlètes suivis, invitations, fiche athlète), réglages, page d'invitation.
-- Format de séance v1 : schéma Zod, déroulé des répétitions, durée et distance (exactes, estimées ou inconnues), zones, avertissements, résumé texte, profil graphique.
-- Tests : 70 au vert (36 unitaires, 34 sur un vrai PostgreSQL 16 avec une couche de compatibilité Supabase). Intégration continue GitHub Actions : lint, types, tests, build.
+- Éditeur de séances structurées : toutes disciplines et enchaînements, répétitions imbriquées, cibles en plage, consignes et matériel, aperçu graphique, avertissements en direct sans correction silencieuse, totaux calculés avec les seuils de l'athlète à la date de la séance.
+- Enregistrement automatique (1,2 s après la dernière frappe) avec indicateur, enregistrement explicite (bouton et Ctrl/Cmd + S), alerte avant de quitter une page non enregistrée.
+- Brouillon ou publié. Une séance publiée modifiée garde sa version publiée chez l'athlète : les modifications restent « en attente » jusqu'à « Publier les modifications » (ou « Abandonner »).
+- Jamais d'écrasement silencieux : chaque enregistrement est fusionné champ par champ avec l'état en base ; un champ changé des deux côtés déclenche un conflit expliqué, avec le choix de la version à garder, sans perdre les autres modifications.
+- Calendrier coach par athlète : vues mois (avec volume prévu par semaine et par discipline), semaine, jour et liste ; glisser-déposer pour déplacer (Alt pour copier) ; glisser un modèle sur un jour ; copie de semaine (telle quelle ou en brouillon) ; duplication ; suppression avec confirmation.
+- Calendrier athlète (mobile d'abord) : couleur par discipline, statuts, filtres par discipline et statut, détail en panneau sans quitter le calendrier ; l'athlète peut déplacer les séances de son coach et créer les siennes.
+- Accueil athlète : séance du jour, suivante, semaine en cours et volumes par discipline, prochaine compétition, seuils.
+- Tableau de bord coach : semaine en cours de chaque athlète, brouillons à publier, prochaines séances, prochaine course, dernier échange.
+- Bibliothèque de modèles : création, modification, archivage, planification pour un athlète, enregistrement d'une séance comme modèle.
+- Commentaires de séance partagés, et notes privées du coach (visibles de lui seul) ; historique des modifications de chaque séance.
+- Temps réel : chaque changement visible envoie un signal sur le canal privé de l'athlète ; les pages ouvertes se mettent à jour d'elles-mêmes (indicateur « En direct »), avec repli automatique toutes les 30 s et au retour sur l'onglet.
+- Refonte visuelle : typographie Archivo à largeur variable, palette « nuit » et couleurs par discipline (natation bleu, vélo ambre, course corail, renforcement violet, enchaînement orange), profils de séance colorés par zone, mode sombre complet.
 
 ## Décisions
 
@@ -22,55 +33,53 @@ Livré :
 | --- | --- | --- |
 | Cache Components (Next.js 16) | conservé, lectures de session sous `<Suspense>` | ce sera le fonctionnement par défaut de la prochaine version majeure |
 | Contenu des séances | JSONB validé par un schéma versionné, plutôt qu'une table de blocs | répétitions imbriquées, lecture en un bloc, aucun texte libre ; la base contrôle la forme générale |
-| Séances | `planned_sessions` (séance datée) + `workout_templates` (bibliothèque), pas de troisième table | éviter la redondance du modèle initial |
+| Séances | `planned_sessions` (séance datée) + `workout_templates` (bibliothèque) | éviter la redondance du modèle initial |
 | Comptes | chaque compte a un profil sportif ; « coach » est un mode activable | un coach peut aussi s'entraîner |
-| Invitations | jeton de 244 bits, stocké sous forme d'empreinte, à usage unique ; adresse confirmée exigée si l'invitation est nominative | sécurité et simplicité |
+| Invitations | jeton de 244 bits, stocké sous forme d'empreinte, à usage unique | sécurité et simplicité |
 | Séances du coach | l'athlète peut seulement les déplacer (trigger) | le contenu reste la prescription du coach |
-| Audit | contenu des séances noté « modifié », pas recopié | l'enregistrement automatique gonflerait le journal |
-| Emails d'invitation | lien à copier ou email prérempli ; pas d'envoi automatique | aucun service d'envoi configuré : rien n'est simulé |
-| Polices | Geist auto-hébergée (paquet `geist`) | build sans accès réseau aux polices |
+| Audit | contenu des séances noté « modifié », pas recopié ; les entrées d'une séance restée brouillon ne sont visibles que des coachs | l'enregistrement automatique gonflerait le journal ; un brouillon n'existe pas encore pour l'athlète |
+| Concurrence | fusion à trois voies champ par champ (`save_planned_session`) au lieu d'un simple numéro de version | un déplacement fait par l'athlète pendant que le coach modifie le contenu n'est ni perdu ni bloquant ; seul un vrai conflit est signalé |
+| Code d'erreur de conflit | `PT409` (HTTP 409) | avec le code standard `40001`, PostgREST relance la transaction en boucle |
+| Modifications d'une séance publiée | table `planned_session_drafts`, fusionnée elle aussi ; base de publication fixée par la base de données | l'athlète ne voit jamais une version à moitié modifiée ; deux éditeurs ouverts ne s'écrasent pas |
+| Annuler ou repasser en brouillon | refusé tant que des modifications sont en attente | aucune modification ne disparaît sans décision explicite |
+| Temps réel | Realtime Broadcast depuis des triggers, canal privé `athlete:<id>` autorisé par RLS ; le message ne contient que des identifiants et la page relit les données sous les droits de l'utilisateur | aucune donnée de séance ne transite par le canal ; brouillons et notes privées n'émettent rien |
+| Notes privées | visibles de leur seul auteur (un coach de l'athlète) | une note de travail n'est pas destinée aux autres coachs |
+| Duplication | une copie d'une séance publiée est publiée ; une séance annulée revient en brouillon | copier, c'est reproduire ; la copie de semaine propose « en brouillon » |
+| Tests de bout en bout | Playwright ; en local, pile Supabase sans Docker (`scripts/local-stack` : PostgreSQL, PostgREST, Auth) ; dans la CI, pile officielle `supabase start` (`supabase/config.toml`) avec Realtime | l'environnement de développement n'a pas Docker ; Realtime ne tourne qu'avec la pile officielle |
+| Polices | Archivo variable auto-hébergée (paquet `@fontsource-variable/archivo`), à la place de Geist | caractère sportif, largeurs variables pour les titres et les chiffres ; build sans accès réseau |
 | Clés Supabase | nouvelle clé « publishable » | format actuel recommandé par Supabase |
-| Région des fonctions Vercel | Francfort (`fra1`, `vercel.json`) au lieu de Washington (`iad1`, défaut) | la base est à Zurich : chaque requête évite un aller-retour transatlantique |
-| Contrôle de production | `GET /api/health` : validité de l'URL et de la clé Supabase déployées, inscription ouverte, confirmation d'email | vérifier un déploiement sans lire ses secrets ; uniquement des informations déjà publiques |
+| Région des fonctions Vercel | Francfort (`fra1`) | la base est à Zurich |
+| Contrôle de production | `GET /api/health` | vérifier un déploiement sans lire ses secrets |
 
 ## Mise en production
 
 | Élément | État |
 | --- | --- |
-| Base Supabase `supabase-rose-candle` (`ugqtfkuisaqjdnwxvogm`, Zurich, PostgreSQL 17) | migrations appliquées le 18 octobre 2026 ; RLS active sur les 10 tables (23 politiques) ; aucun accès anonyme ; analyseur de sécurité sans erreur |
-| Projet Vercel `new` (`prj_2niwVUTlhR44kHnGK2As5ujUa1l7`) | en ligne sur https://new-bay-one-76.vercel.app ; relié au dépôt (branche `main`), variables Supabase en Production et Preview. L'import initial n'avait créé aucun déploiement (« 404 DEPLOYMENT_NOT_FOUND ») : premier déploiement lancé par l'API le 18 octobre 2026 |
-| Connexion Vercel → Supabase | vérifiée le 18 octobre : `/api/health` répond `"supabase": "ok"` depuis Francfort, et la page d'invitation interroge la base avec succès (journaux Supabase) |
-| Réglages d'authentification Supabase | faits le 18 octobre : Site URL et Redirect URLs sur le domaine de production, confirmation d'email désactivée en attendant un SMTP (contrôlé par `/api/health` et les journaux d'authentification) |
-| Parcours coach → athlète | vérifié en production le 18 octobre (voir phase 1) |
+| Base Supabase `supabase-rose-candle` (`ugqtfkuisaqjdnwxvogm`, Zurich, PostgreSQL 17) | migrations de la phase 1 appliquées. Migration `planning` (phase 2) **non appliquée** : l'application par le connecteur a été annulée deux fois le 18 octobre, faute de confirmation |
+| Projet Vercel `new` | en ligne sur https://new-bay-one-76.vercel.app avec la phase 1 ; la phase 2 attend la migration (la branche `phase-2-planning` n'est fusionnée dans `main` qu'après) |
+| Réglages d'authentification Supabase | faits le 18 octobre (Site URL, Redirect URLs, confirmation d'email désactivée en attendant un SMTP) |
+| Realtime en production | contrôlé le 18 octobre : `realtime.send` et `realtime.topic` présents, droit de créer la politique de canal vérifié ; les partitions de messages se créent à la première connexion d'un navigateur |
 
 Accès du connecteur Vercel : lecture du projet, des variables (noms) et création de déploiements possibles ; journaux de build et d'exécution refusés (403 sur l'espace `geraldegea12-9585`).
 
-Avertissements de l'analyseur Supabase acceptés : les fonctions `create_invitation`, `accept_invitation`, `get_invitation_preview`, `revoke_invitation`, `revoke_coach_link`, `set_coach_permissions` et `current_user_is_admin` sont volontairement appelables depuis l'API ; chacune vérifie elle-même l'identité de l'appelant.
-
 ## Limites connues
 
-- Sans service d'envoi d'emails (SMTP), Supabase n'envoie d'emails qu'aux membres de l'organisation : confirmation d'email à désactiver d'ici là, mot de passe oublié limité à ces membres.
-- Confirmation d'email désactivée, une invitation nominative ne prouve plus que l'adresse appartient à l'athlète : le lien à usage unique reste le secret. Configurer un SMTP et réactiver la confirmation rétablit ce contrôle.
-- Tests de bout en bout dans un navigateur (Playwright) : à mettre en place.
-- Avertissements `npm audit` sur des dépendances de développement (ESLint) uniquement, sans effet sur l'application en ligne.
+- Sans service d'envoi d'emails (SMTP), Supabase n'envoie d'emails qu'aux membres de l'organisation : confirmation d'email désactivée, mot de passe oublié limité à ces membres. Une invitation nominative ne prouve donc pas l'adresse de l'athlète : le lien à usage unique reste le secret.
+- Les séances réalisées (Strava) n'existent pas encore : les statuts « terminée », « partielle » et « manquée » arrivent en phase 3 ; une séance passée sans activité est affichée « à rapprocher », jamais « manquée » par supposition.
+- Les boutons d'export (Zwift, Garmin) arrivent en phase 4.
+- Avertissements `npm audit` sur des dépendances de développement uniquement.
 
-## Phase 2 — Planification : prochaine session
+## Phase 3 — Strava : prochaine session
 
-À livrer :
+À livrer : vérification de l'accord API Strava en vigueur (révisé le 1er juin 2026) avant tout code, connexion OAuth, webhooks, import de l'historique, rapprochement séance-activité.
 
-1. Éditeur de séances structurées (toutes disciplines, répétitions imbriquées, aperçu, avertissements en direct, calcul des totaux).
-2. Bibliothèque de modèles du coach.
-3. Calendriers coach et athlète : vues jour, semaine, mois, agenda ; glisser-déposer ; filtres ; copie de semaine.
-4. Brouillon et publication, autosave avec indicateur, contrôle de version (`version`) pour ne jamais écraser une modification.
-5. Commentaires (privés coach, visibles athlète) et historique des modifications.
-6. Temps réel : publication Supabase Realtime sur `planned_sessions`.
-
-Critère de fin : une séance publiée apparaît chez l'athlète en quelques secondes, sans rechargement ni modification perdue.
+Critère de fin : une activité Strava arrive par webhook, sans doublon, rattachée ou proposée à la bonne séance.
 
 ## À faire de votre côté
 
 Dépôt GitHub : `gege12-c/new`.
 
-1. Rien de bloquant : la phase 1 tourne en production.
-2. Phase 2 : ouvrir une nouvelle session sur le dépôt et demander la phase 2.
-3. Plus tard (au plus tard en phase 5) : créer un compte chez un service d'envoi d'emails, saisir ses identifiants SMTP dans Supabase (Authentication, Emails, SMTP Settings), puis réactiver « Confirm email ». Cela rétablit la confirmation des adresses et le mot de passe oublié pour tous.
+1. Autoriser la mise à jour de la base de production : répondez « oui » dans la conversation (ou confirmez la demande du connecteur Supabase quand elle s'affiche). Rien n'a encore été modifié. Ensuite, la branche `phase-2-planning` est fusionnée et Vercel met le site à jour tout seul.
+2. Vérifier le temps réel en production, une fois le site à jour : ouvrez le calendrier de l'athlète sur votre téléphone (compte athlète) ; sur l'ordinateur, côté coach, créez une séance pour cet athlète et cliquez sur « Publier ». Elle doit apparaître sur le téléphone en quelques secondes, sans toucher à l'écran. L'indicateur en haut du calendrier doit afficher « En direct ».
+3. Plus tard (au plus tard en phase 5) : configurer un service d'envoi d'emails (SMTP) dans Supabase, puis réactiver « Confirm email ».
+4. Phase 3 : ouvrir une nouvelle session et demander la phase 3. Préparez votre compte Strava (vous créerez l'application Strava vous-même ; je vous dirai quand et quoi saisir).
