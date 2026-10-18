@@ -154,6 +154,9 @@ export function RealizationSection({
   const nothing = !attached.length && !proposals.length;
   const attachable = candidates.filter(canManage);
 
+  // Séance à venir sans rien de réalisé ni à rattacher : rien à comparer pour l’instant.
+  if (!past && nothing && !attachable.length && session.state !== "draft") return null;
+
   if (session.state === "draft") {
     return (
       <section aria-labelledby="done-title">
@@ -205,7 +208,7 @@ export function RealizationSection({
           </div>
         ) : viewer === "athlete" ? (
           <div className="rounded-[12px] border border-dashed border-line-strong p-3 text-[13.5px] text-ink-soft">
-            {past ? "Aucune activité trouvée de la veille au lendemain." : "Rien de réalisé pour l’instant."}{" "}
+            Aucune activité trouvée de la veille au lendemain.{" "}
             <TextLink href="/athlete/profile#connexions" className="inline-flex items-center gap-1">
               <Upload className="size-3.5" aria-hidden />
               Connecter Strava ou importer un fichier FIT

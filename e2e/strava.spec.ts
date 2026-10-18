@@ -83,6 +83,8 @@ test("un administrateur active la réception des activités Strava", async ({ br
   await coach.goto("/admin");
   await expect(coach.getByRole("heading", { name: "Administration" })).toBeVisible();
   await expect(coach.getByText("(manquant)")).toHaveCount(0);
+  // Selon l'état laissé par une exécution précédente, l'un ou l'autre bouton s'affiche.
+  await expect(coach.getByRole("button", { name: /^(Activer la réception des activités|Désactiver la réception)$/ })).toBeVisible();
   const disable = coach.getByRole("button", { name: "Désactiver la réception" });
   if (await disable.isVisible()) {
     await disable.click();

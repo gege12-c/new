@@ -335,7 +335,9 @@ begin
     details jsonb not null,
     state text not null
   ) on commit drop;
-  delete from pg_temp.tc_rematch_pairs;
+  -- « where true » : l'extension pg_safeupdate de Supabase refuse tout DELETE sans WHERE, y compris
+  -- dans une fonction appelée par l'API (la table peut déjà exister si un trigger précédent l'a créée).
+  delete from pg_temp.tc_rematch_pairs where true;
 
   insert into pg_temp.tc_rematch_pairs (activity_id, session_id, slot, score, details, state)
   select a.id, s.id, slot.sport, (d.details ->> 'score')::numeric, d.details, 'open'

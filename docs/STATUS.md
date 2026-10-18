@@ -70,6 +70,7 @@ Livré :
 | Statut d'une séance | retour de l'athlète, sinon activité rattachée (terminée à 80 % du prévu, partielle en deçà), sinon « à rapprocher » ; jamais « manquée » par supposition | rien de simulé ; le coach voit un statut fondé sur ce qu'il a le droit de voir |
 | Import FIT | lu dans le navigateur avec le SDK FIT officiel de Garmin ; seul le résumé part au serveur (pas de trace GPS) ; .zip de Garmin Connect et .fit.gz décompressés sans dépendance ; identifiant = empreinte SHA-256 du fichier et numéro de segment | dédoublonnage naturel, limite de 1 Mo des Server Actions évitée |
 | Temps réel des activités | canal `self:<id>` réservé à l'athlète pour tout ce qui touche Strava ; `athlete:<id>` pour les retours et les fichiers FIT | aucun signal lié à Strava n'atteint le coach |
+| `pg_safeupdate` | aucune instruction DELETE ou UPDATE sans WHERE dans les migrations, contrôlé par un test statique (`tests/db/migrations-lint.test.ts`) | Supabase refuse ces instructions pour l'API, même dans une fonction ou un trigger ; la CI l'a révélé (la création de séances aurait échoué en production), les bases de test locales n'ont pas cette extension |
 | Administration | page `/admin` : configuration (présente ou non, jamais les valeurs), abonnement webhook, file, quotas, journal ; génération des valeurs secrètes dans le navigateur | vous saisissez les secrets vous-même, sans les écrire dans une conversation |
 
 ## Phases 1 et 2 : terminées
