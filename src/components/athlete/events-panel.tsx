@@ -65,7 +65,7 @@ export function EventsPanel({
 
       {past.length > 0 ? (
         <details className="mt-4 border-t border-line pt-4">
-          <summary className="cursor-pointer text-sm font-medium text-accent">Compétitions passées ({past.length})</summary>
+          <summary className="cursor-pointer text-[14px] font-semibold text-ink-soft hover:text-ink">Compétitions passées ({past.length})</summary>
           <ul className="divide-y divide-line">{past.map(row)}</ul>
         </details>
       ) : null}

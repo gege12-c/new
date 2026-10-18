@@ -1,4 +1,4 @@
-/** Lectures des données d'un athlète. La RLS limite les résultats à ce que l'appelant a le droit de voir. */
+/** Lectures des données d’un athlète. La RLS limite les résultats à ce que l’appelant a le droit de voir. */
 import "server-only";
 import type { ServerSupabase } from "@/lib/supabase/server";
 import type { ThresholdRow } from "@/lib/thresholds";
@@ -47,7 +47,7 @@ export async function getUpcomingSessions(supabase: ServerSupabase, athleteId: s
   return data ?? [];
 }
 
-/** Coachs de l'athlète (relations actives), avec leurs permissions. */
+/** Coachs de l’athlète (relations actives), avec leurs permissions. */
 export async function getMyCoaches(supabase: ServerSupabase, athleteId: string) {
   const { data, error } = await supabase
     .from("coach_athlete_links")

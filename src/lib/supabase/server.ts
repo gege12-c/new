@@ -6,7 +6,7 @@ import { requireSupabaseEnv } from "./env";
 
 /** Client Supabase côté serveur, lié aux cookies de la requête (un client par requête). */
 export async function createClient() {
-  // Lire les cookies d'abord : au build, le rendu s'arrête ici (contenu dynamique) au lieu d'échouer sur la configuration.
+  // Lire les cookies d’abord : au build, le rendu s’arrête ici (contenu dynamique) au lieu d’échouer sur la configuration.
   const cookieStore = await cookies();
   const { url, key } = requireSupabaseEnv();
   return createServerClient<Database>(url, key, {

@@ -1,113 +1,92 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { z } from "zod";
-import { revokeCoachLink } from "@/app/(app)/actions";
-import { EventsPanel } from "@/components/athlete/events-panel";
-import { ThresholdsPanel } from "@/components/athlete/thresholds-panel";
-import { ConfirmSubmit } from "@/components/ui/confirm-submit";
-import { EmptyState, Notice, SectionSkeleton } from "@/components/ui/feedback";
-import { PageHeader, Panel } from "@/components/ui/panel";
-import { getProfile, requireSession } from "@/lib/auth/dal";
-import { EXPERIENCE_LABELS, getAthleteProfile, getEvents, getThresholds } from "@/lib/data/athlete";
-import { getCoachLink } from "@/lib/data/coach";
-import { localDate } from "@/lib/utils";
+import { PlanningCalendar } from "@/components/calendar/planning-calendar";
+import { AthleteHeader } from "@/components/coach/athlete-header";
+import { PageContainer } from "@/components/layout/page";
+import { SessionPanel } from "@/components/planning/session-panel";
+import { PlanningLive } from "@/components/realtime/planning-live";
+import { CalendarSkeleton } from "@/components/layout/skeletons";
+import { Notice } from "@/components/ui/feedback";
+import { loadCoachedAthlete } from "@/lib/coach/access";
+import { getEvents, getThresholds } from "@/lib/data/athlete";
+import { getSessionsInRange, getTemplates } from "@/lib/data/planning";
+import { calendarHref, readCalendarQuery } from "@/lib/planning/calendar-query";
+import { viewRange } from "@/lib/planning/dates";
+import { currentThresholds, toAthleteThresholds } from "@/lib/thresholds";
 
-export const metadata: Metadata = { title: "Fiche athlète" };
+export const metadata: Metadata = { title: "Calendrier de l’athlète" };
 
-export default function CoachAthletePage({ params }: PageProps<"/coach/athletes/[athleteId]">) {
+export default function CoachAthleteCalendarPage({ params, searchParams }: PageProps<"/coach/athletes/[athleteId]">) {
   return (
-    <>
-      <Link href="/coach" className="mb-4 inline-block text-sm font-medium text-accent">
-        Retour aux athlètes
-      </Link>
-      <Suspense fallback={<SectionSkeleton />}>
-        <AthleteCard params={params} />
+    <PageContainer wide>
+      <Suspense fallback={<CalendarSkeleton />}>
+        <CoachAthleteCalendar params={params} searchParams={searchParams} />
       </Suspense>
-    </>
+    </PageContainer>
   );
 }
 
-async function AthleteCard({ params }: Pick<PageProps<"/coach/athletes/[athleteId]">, "params">) {
+async function CoachAthleteCalendar({ params, searchParams }: PageProps<"/coach/athletes/[athleteId]">) {
   const { athleteId } = await params;
-  if (!z.uuid().safeParse(athleteId).success) notFound();
-
-  const [{ supabase, userId }, coachProfile] = await Promise.all([requireSession(`/coach/athletes/${athleteId}`), getProfile()]);
-  const link = await getCoachLink(supabase, userId, athleteId);
-  // Sans relation active, la RLS ne renverrait de toute façon aucune donnée.
-  if (!link) notFound();
-
-  const [{ data: athlete }, athleteProfile, thresholds, events] = await Promise.all([
-    supabase.from("profiles").select("display_name, timezone").eq("id", athleteId).single(),
-    getAthleteProfile(supabase, athleteId),
-    getThresholds(supabase, athleteId),
-    getEvents(supabase, athleteId),
+  const basePath = `/coach/athletes/${athleteId}`;
+  const [ctx, sp] = await Promise.all([loadCoachedAthlete(athleteId, basePath), searchParams]);
+  const query = readCalendarQuery(sp, ctx.today, "month");
+  const { from, to } = viewRange(query.view, query.date);
+  const [sessions, thresholdRows, events, templates] = await Promise.all([
+    getSessionsInRange(ctx.supabase, athleteId, from, to, { withPending: true }),
+    getThresholds(ctx.supabase, athleteId),
+    getEvents(ctx.supabase, athleteId),
+    ctx.canPlan ? getTemplates(ctx.supabase, ctx.userId) : Promise.resolve([]),
   ]);
-  if (!athlete) notFound();
-
-  const today = localDate(athlete.timezone);
-  const canEdit = link.can_edit_plan;
+  const thresholds = toAthleteThresholds(currentThresholds(thresholdRows, ctx.today));
+  const nextEvent = events.find((e) => e.event_date >= ctx.today) ?? null;
 
   return (
     <>
-      <PageHeader
-        title={athlete.display_name}
-        description={athleteProfile?.main_goal ?? "Objectif non renseigné"}
+      <AthleteHeader
+        athleteId={athleteId}
+        name={ctx.athlete.display_name}
+        goal={ctx.athleteProfile?.main_goal ?? null}
+        thresholds={thresholdRows}
+        nextEvent={nextEvent}
+        today={ctx.today}
+        active="calendar"
+        readOnly={!ctx.canPlan}
       />
-      {!canEdit ? (
-        <Notice tone="warning" className="mb-6">
-          Lecture seule : cet athlète ne vous a pas autorisé à planifier ni à modifier ses seuils.
+      {!ctx.canPlan ? (
+        <Notice tone="warning" className="mb-4">
+          {ctx.athlete.display_name} ne vous autorise pas à planifier : le calendrier est en lecture seule.
         </Notice>
       ) : null}
-      {athlete.timezone !== coachProfile.timezone ? (
-        <Notice className="mb-6">Fuseau horaire de l&apos;athlète : {athlete.timezone}. Les dates sont affichées dans son fuseau.</Notice>
+      <PlanningCalendar
+        mode="coach"
+        athleteId={athleteId}
+        basePath={basePath}
+        query={query}
+        today={ctx.today}
+        sessions={sessions}
+        events={events.filter((e) => e.event_date >= from && e.event_date <= to)}
+        thresholds={thresholds}
+        canMove={ctx.canPlan}
+        canCreate={ctx.canPlan}
+        newSessionPath={ctx.canPlan ? `${basePath}/sessions/new` : undefined}
+        templates={templates}
+        toolbarExtra={<PlanningLive athleteId={athleteId} className="order-first w-full sm:order-none sm:w-auto" />}
+      />
+      {query.session ? (
+        <SessionPanel
+          supabase={ctx.supabase}
+          sessionId={query.session}
+          viewerId={ctx.userId}
+          viewer="coach"
+          today={ctx.today}
+          timeZone={ctx.athlete.timezone}
+          thresholds={thresholds}
+          closeHref={calendarHref(basePath, query, { session: null })}
+          editHref={`${basePath}/sessions/${query.session}`}
+          canPlan={ctx.canPlan}
+        />
       ) : null}
-
-      <div className="space-y-6">
-        <Panel title="Profil">
-          <dl className="grid gap-4 sm:grid-cols-3">
-            <div>
-              <dt className="text-sm text-muted">Niveau</dt>
-              <dd className="font-medium">{athleteProfile?.experience_level ? EXPERIENCE_LABELS[athleteProfile.experience_level] : "Non précisé"}</dd>
-            </div>
-            <div>
-              <dt className="text-sm text-muted">Volume visé</dt>
-              <dd className="tabular font-medium">
-                {athleteProfile?.weekly_hours_target ? `${athleteProfile.weekly_hours_target} h par semaine` : "Non précisé"}
-              </dd>
-            </div>
-            <div className="sm:col-span-3">
-              <dt className="text-sm text-muted">Informations de l&apos;athlète</dt>
-              <dd className="whitespace-pre-line">{athleteProfile?.notes || "Aucune"}</dd>
-            </div>
-          </dl>
-        </Panel>
-
-        <Panel title="Calendrier">
-          <EmptyState title="Planification bientôt disponible">
-            L&apos;éditeur de séances structurées et le calendrier arrivent dans la prochaine version.
-          </EmptyState>
-        </Panel>
-
-        <ThresholdsPanel athleteId={athleteId} rows={thresholds} today={today} canEdit={canEdit} />
-        <EventsPanel athleteId={athleteId} events={events} today={today} canEdit={canEdit} />
-
-        <Panel title="Fin du suivi">
-          <form action={revokeCoachLink} className="flex flex-wrap items-center justify-between gap-3">
-            <input type="hidden" name="link_id" value={link.id} />
-            <input type="hidden" name="redirect_to" value="/coach" />
-            <p className="text-sm text-muted">Vous perdrez immédiatement l&apos;accès aux données de cet athlète.</p>
-            <ConfirmSubmit
-              variant="danger"
-              size="sm"
-              confirmMessage={`Arrêter de suivre ${athlete.display_name} ? Une nouvelle invitation sera nécessaire pour reprendre.`}
-            >
-              Arrêter le suivi
-            </ConfirmSubmit>
-          </form>
-        </Panel>
-      </div>
     </>
   );
 }

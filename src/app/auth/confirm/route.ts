@@ -4,8 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { safeNextPath } from "@/lib/utils";
 
 /**
- * Retour du lien de confirmation d'email.
- * Gère les deux formes de lien Supabase : `?code=` (PKCE, par défaut) et `?token_hash=&type=` (modèle d'email personnalisé).
+ * Retour du lien de confirmation d’email.
+ * Gère les deux formes de lien Supabase : `?code=` (PKCE, par défaut) et `?token_hash=&type=` (modèle d’email personnalisé).
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
   if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) return NextResponse.redirect(new URL(next, request.url));
-    // Lien ouvert sur un autre appareil : l'adresse est confirmée, mais la session n'a pas pu être ouverte ici.
+    // Lien ouvert sur un autre appareil : l’adresse est confirmée, mais la session n’a pas pu être ouverte ici.
     const login = new URL("/login", request.url);
     login.searchParams.set("confirmed", "1");
     login.searchParams.set("next", next);

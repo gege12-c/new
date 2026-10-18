@@ -1,4 +1,4 @@
-/** Définition des seuils saisis par l'athlète ou son coach, et conversion pour les calculs. */
+/** Définition des seuils saisis par l’athlète ou son coach, et conversion pour les calculs. */
 import type { AthleteThresholds } from "@/lib/workout/zones";
 import { formatClock } from "@/lib/workout/format";
 

@@ -1,7 +1,7 @@
 /**
- * Seuils de l'athlète et modèles de zones par défaut.
+ * Seuils de l’athlète et modèles de zones par défaut.
  *
- * Les zones sont exprimées en pourcentage d'un seuil :
+ * Les zones sont exprimées en pourcentage d’un seuil :
  * - puissance : % de FTP (modèle de Coggan, 7 zones) ;
  * - fréquence cardiaque : % de FC au seuil (modèle de Friel simplifié, 5 zones, propre à chaque sport) ;
  * - allure : % de la VITESSE au seuil (course : allure seuil ; natation : CSS), 5 zones.
@@ -47,7 +47,7 @@ export const HR_ZONES: Record<"bike" | "run", readonly ZoneRange[]> = {
   ],
 };
 
-/** Allure, % de la vitesse au seuil (plus le pourcentage est haut, plus c'est rapide). */
+/** Allure, % de la vitesse au seuil (plus le pourcentage est haut, plus c’est rapide). */
 export const PACE_ZONES: Record<"run" | "swim", readonly ZoneRange[]> = {
   run: [
     { zone: 1, label: "Récupération", min: 60, max: 77 },

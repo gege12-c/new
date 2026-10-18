@@ -1,6 +1,6 @@
 /**
  * Variables publiques Supabase (URL du projet et clé publique).
- * Accepte aussi les noms posés par l'intégration Supabase de Vercel (`NEXT_PUBLIC_SUPABASE_ANON_KEY`).
+ * Accepte aussi les noms posés par l’intégration Supabase de Vercel (`NEXT_PUBLIC_SUPABASE_ANON_KEY`).
  */
 export function supabaseEnv(): { url: string; key: string } | null {
   // Accès littéral : Next.js remplace ces valeurs au build pour le navigateur.

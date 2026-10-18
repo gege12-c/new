@@ -1,6 +1,7 @@
-/** Lectures de l'espace coach. */
+/** Lectures de l’espace coach. */
 import "server-only";
 import type { ServerSupabase } from "@/lib/supabase/server";
+import { nowIso } from "@/lib/time";
 
 /** Athlètes suivis par le coach (relations actives). */
 export async function getCoachedAthletes(supabase: ServerSupabase, coachId: string) {
@@ -35,7 +36,7 @@ export async function getPendingInvitations(supabase: ServerSupabase, coachId: s
     .eq("coach_id", coachId)
     .is("accepted_at", null)
     .is("revoked_at", null)
-    .gt("expires_at", new Date().toISOString())
+    .gt("expires_at", await nowIso())
     .order("created_at", { ascending: false })
     .limit(30);
   if (error) throw error;
@@ -60,5 +61,47 @@ export async function getAthletesOverview(supabase: ServerSupabase, athleteIds: 
     profiles: profiles.data ?? [],
     events: events.data ?? [],
     thresholds: (thresholds.data ?? []).map((t) => ({ ...t, value: Number(t.value) })),
+  };
+}
+
+export interface DashboardSession {
+  id: string;
+  athlete_id: string;
+  scheduled_date: string;
+  start_time: string | null;
+  sport: string;
+  title: string;
+  state: string;
+  planned_duration_s: number | null;
+  planned_distance_m: number | null;
+}
+
+/** Séances des deux semaines à venir et derniers commentaires, pour tous les athlètes du coach. */
+export async function getCoachDashboard(supabase: ServerSupabase, athleteIds: string[], from: string, to: string) {
+  if (athleteIds.length === 0) return { sessions: [] as DashboardSession[], comments: [] };
+  const [sessions, comments] = await Promise.all([
+    supabase
+      .from("planned_sessions")
+      .select("id, athlete_id, scheduled_date, start_time, sport, title, state, planned_duration_s, planned_distance_m")
+      .in("athlete_id", athleteIds)
+      .gte("scheduled_date", from)
+      .lte("scheduled_date", to)
+      .order("scheduled_date", { ascending: true })
+      .order("start_time", { ascending: true, nullsFirst: false }),
+    supabase
+      .from("session_comments")
+      .select("id, athlete_id, session_id, body, visibility, created_at, author:profiles!session_comments_author_id_fkey(display_name)")
+      .in("athlete_id", athleteIds)
+      .order("created_at", { ascending: false })
+      .limit(100),
+  ]);
+  if (sessions.error) throw sessions.error;
+  if (comments.error) throw comments.error;
+  return {
+    sessions: (sessions.data ?? []).map((s) => ({ ...s, planned_distance_m: s.planned_distance_m === null ? null : Number(s.planned_distance_m) })),
+    comments: (comments.data ?? []).map((c) => ({
+      ...c,
+      author_name: (c.author as { display_name: string } | null)?.display_name ?? "Compte supprimé",
+    })),
   };
 }

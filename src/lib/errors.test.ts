@@ -8,8 +8,8 @@ describe("messages d'erreur", () => {
   });
 
   it("explique un envoi d'email impossible", () => {
-    expect(friendlyError({ code: "email_address_not_authorized" })).toMatch(/envoi d'emails/);
-    expect(friendlyError({ message: "Error sending confirmation email" })).toMatch(/envoi d'emails/);
+    expect(friendlyError({ code: "email_address_not_authorized" })).toMatch(/envoi d’emails/);
+    expect(friendlyError({ message: "Error sending confirmation email" })).toMatch(/envoi d’emails/);
   });
 
   it("garde un message générique pour l'inconnu", () => {

@@ -9,8 +9,8 @@ export const metadata: Metadata = { title: "Connexion" };
 
 export default function LoginPage({ searchParams }: PageProps<"/login">) {
   return (
-    <div className="rounded-lg border border-line bg-surface p-6">
-      <h1 className="text-[22px] font-semibold">Connexion</h1>
+    <div>
+      <h1 className="display text-[32px]">Connexion</h1>
       <Suspense fallback={<Skeleton className="mt-6 h-56" />}>
         <LoginContent searchParams={searchParams} />
       </Suspense>
@@ -38,14 +38,14 @@ async function LoginContent({ searchParams }: Pick<PageProps<"/login">, "searchP
         </Notice>
       ) : null}
       <LoginForm next={next} />
-      <p className="mt-4 text-sm">
-        <Link href="/forgot-password" className="font-medium text-accent underline-offset-4 hover:underline">
+      <p className="mt-6 text-[14px]">
+        <Link href="/forgot-password" className="font-semibold text-ink underline decoration-line-strong underline-offset-4 hover:decoration-ink">
           Mot de passe oublié ?
         </Link>
       </p>
-      <p className="mt-2 text-sm text-muted">
+      <p className="mt-2 text-[14px] text-muted">
         Pas encore de compte ?{" "}
-        <Link href={`/signup?next=${encodeURIComponent(next)}`} className="font-medium text-accent underline-offset-4 hover:underline">
+        <Link href={`/signup?next=${encodeURIComponent(next)}`} className="font-semibold text-ink underline decoration-line-strong underline-offset-4 hover:decoration-ink">
           Créer un compte
         </Link>
       </p>

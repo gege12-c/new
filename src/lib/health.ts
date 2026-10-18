@@ -7,7 +7,7 @@ import { supabaseEnv } from "@/lib/supabase/env";
  * Everything returned here is already public (readable with the publishable key).
  */
 
-/** Subset of Supabase Auth's public settings (`GET /auth/v1/settings`). */
+/** Subset of Supabase Auth’s public settings (`GET /auth/v1/settings`). */
 const AuthSettingsSchema = z.object({
   disable_signup: z.boolean(),
   mailer_autoconfirm: z.boolean(),

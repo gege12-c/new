@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/layout/page";
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { signOut } from "@/app/(auth)/actions";
@@ -11,12 +12,12 @@ export const metadata: Metadata = { title: "Réglages" };
 
 export default function SettingsPage() {
   return (
-    <>
+    <PageContainer>
       <PageHeader title="Réglages" />
       <Suspense fallback={<SectionSkeleton />}>
         <SettingsContent />
       </Suspense>
-    </>
+    </PageContainer>
   );
 }
 

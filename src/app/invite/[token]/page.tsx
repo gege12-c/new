@@ -59,7 +59,7 @@ async function Invitation({ params }: Pick<PageProps<"/invite/[token]">, "params
       <>
         <h1 className="text-[22px] font-semibold">Invitation de {invitation.coach_name}</h1>
         <Notice tone="warning" className="mt-4">
-          {STATUS_MESSAGES[invitation.status] ?? "Cette invitation n'est plus valable."}
+          {STATUS_MESSAGES[invitation.status] ?? "Cette invitation n’est plus valable."}
         </Notice>
       </>
     );
@@ -74,7 +74,7 @@ async function Invitation({ params }: Pick<PageProps<"/invite/[token]">, "params
         retirer son accès à tout moment.
       </p>
       {invitation.email_bound ? (
-        <p className="mt-2 text-sm text-muted">Cette invitation est réservée à l&apos;adresse email choisie par votre coach.</p>
+        <p className="mt-2 text-sm text-muted">Cette invitation est réservée à l’adresse email choisie par votre coach.</p>
       ) : null}
       <div className="mt-6">
         {session ? (
@@ -83,7 +83,7 @@ async function Invitation({ params }: Pick<PageProps<"/invite/[token]">, "params
           <div className="grid gap-2">
             <ButtonLink href={`/signup?next=${encodeURIComponent(next)}`}>Créer mon compte</ButtonLink>
             <ButtonLink href={`/login?next=${encodeURIComponent(next)}`} variant="secondary">
-              J&apos;ai déjà un compte
+              J’ai déjà un compte
             </ButtonLink>
           </div>
         )}

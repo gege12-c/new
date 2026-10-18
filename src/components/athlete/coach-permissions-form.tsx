@@ -30,7 +30,7 @@ export function CoachPermissionsForm({
         name="can_view_activities"
         defaultChecked={canViewActivities}
         label="Peut voir mes activités réalisées"
-        hint="S'appliquera aux activités importées de Strava, dès leur arrivée."
+        hint="S’appliquera aux activités importées de Strava, dès leur arrivée."
       />
       <FormMessage state={state} />
       <SubmitButton size="sm" variant="secondary">

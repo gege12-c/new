@@ -1,7 +1,7 @@
 "use server";
 
 /**
- * Server Actions de l'espace connecté. Chacune revalide l'entrée (Zod), relit la session,
+ * Server Actions de l’espace connecté. Chacune revalide l’entrée (Zod), relit la session,
  * puis laisse la base appliquer les droits (RLS) : aucune autorisation ne repose sur le navigateur.
  */
 import { refresh } from "next/cache";
@@ -124,7 +124,7 @@ export async function addThreshold(_prev: ActionState, formData: FormData): Prom
       .match({ athlete_id: row.athlete_id, sport, metric, effective_from: row.effective_from })
       .select("id");
     if (updated.error) return fail(friendlyError(updated.error));
-    if (!updated.data?.length) return fail("Vous n'avez pas les droits pour modifier ce seuil.");
+    if (!updated.data?.length) return fail("Vous n’avez pas les droits pour modifier ce seuil.");
   } else if (inserted.error) {
     return fail(friendlyError(inserted.error));
   }

@@ -1,113 +1,243 @@
 @import "tailwindcss";
 
 /*
- * Jetons de design.
- * Encre bleu ardoise sur papier froid ; un seul accent, bleu de lac ;
- * les couleurs de discipline portent du sens (natation, vélo, course…) et rien d'autre.
+ * Jetons de design TriCoach.
+ * Encre marine sur gris froid ; l'interface reste neutre pour que les couleurs de discipline
+ * (eau, maillot jaune, piste en tartan, salle de renfo) et d'intensité portent seules le sens.
+ * Typographie : Archivo variable, avec sa chasse (font-stretch) comme outil de hiérarchie :
+ * élargie pour les titres, normale pour l'interface, resserrée pour les chiffres d'entraînement.
  */
 :root {
-  --paper: #f5f7f8;
+  --canvas: #f3f5f8;
   --surface: #ffffff;
-  --surface-2: #eef2f4;
-  --ink: #14212b;
-  --muted: #5b6b77;
-  --line: #d9e1e6;
-  --accent: #0e6b7f;
-  --accent-ink: #ffffff;
-  --accent-soft: #e1f0f3;
-  --danger: #b42318;
-  --danger-soft: #fdecea;
-  --success: #1f7a4d;
-  --success-soft: #e6f4ec;
-  --warning: #8a5a00;
-  --warning-soft: #fff3d1;
-  --swim: #1c8fd6;
-  --bike: #2f9e5b;
-  --run: #e2702d;
-  --strength: #7a5bc7;
-  --brick: #b98f14;
-  --rest: #8c99a3;
-  /* Zones d'intensité (du plus facile au plus dur). */
-  --zone-1: #9fb3c0;
-  --zone-2: #3d8fd1;
-  --zone-3: #3aa76d;
-  --zone-4: #e0a526;
-  --zone-5: #e2702d;
-  --zone-6: #c8402f;
+  --surface-2: #eef2f6;
+  --surface-3: #e2e8ef;
+  --ink: #0e1a2b;
+  --ink-soft: #33435a;
+  --muted: #5d6d82;
+  --line: #dde4eb;
+  --line-strong: #c6d0db;
+  --primary: #0e1a2b;
+  --primary-ink: #ffffff;
+  --night: #0e1a2b;
+  --night-2: #182840;
+  --night-ink: #e8eef6;
+  --night-muted: #93a3b8;
+
+  --success: #13804a;
+  --success-soft: #e5f4ec;
+  --warning: #9a5b00;
+  --warning-soft: #fff3d9;
+  --danger: #c2293b;
+  --danger-soft: #fdecee;
+
+  /* Disciplines : couleur pleine, fond teinté, texte lisible sur ce fond. */
+  --swim: #0a84d0;
+  --swim-soft: #e2f0fa;
+  --swim-ink: #075e95;
+  --bike: #e3a00d;
+  --bike-soft: #fcf2d8;
+  --bike-ink: #7a5100;
+  --run: #e5484d;
+  --run-soft: #fde8e8;
+  --run-ink: #a3242a;
+  --strength: #6e56cf;
+  --strength-soft: #eeeafb;
+  --strength-ink: #4d37a6;
+  --brick: #ea7a2a;
+  --brick-soft: #fdeddd;
+  --brick-ink: #96440f;
+  --other: #7e8b9c;
+  --other-soft: #edf0f4;
+  --other-ink: #4a5667;
+
+  /* Zones d'intensité, du plus facile au plus dur. */
+  --zone-1: #9db0c3;
+  --zone-2: #3b95d6;
+  --zone-3: #2fae7c;
+  --zone-4: #efbd3a;
+  --zone-5: #f08337;
+  --zone-6: #e1474e;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --shadow-pop: 0 1px 2px rgb(14 26 43 / 0.06), 0 8px 24px -6px rgb(14 26 43 / 0.18);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --paper: #0e171d;
-    --surface: #15222b;
-    --surface-2: #1b2a34;
-    --ink: #e6edf1;
-    --muted: #9aabb6;
-    --line: #27373f;
-    --accent: #45b4cb;
-    --accent-ink: #052129;
-    --accent-soft: #12333c;
-    --danger: #f97066;
-    --danger-soft: #3b1714;
-    --success: #5dd39e;
-    --success-soft: #11301f;
-    --warning: #f5c451;
-    --warning-soft: #392d0c;
+    --canvas: #0a1220;
+    --surface: #101b2c;
+    --surface-2: #16233a;
+    --surface-3: #1e2d46;
+    --ink: #e8eef6;
+    --ink-soft: #c3cedc;
+    --muted: #8e9db2;
+    --line: #22324b;
+    --line-strong: #31445f;
+    --primary: #e8eef6;
+    --primary-ink: #0a1220;
+    --night: #0d1729;
+    --night-2: #15233a;
+
+    --success: #4cc78a;
+    --success-soft: #0f2c20;
+    --warning: #f3bd4f;
+    --warning-soft: #33270b;
+    --danger: #f46b78;
+    --danger-soft: #3a1419;
+
+    --swim: #3ba6ee;
+    --swim-soft: #0f2a42;
+    --swim-ink: #94cff6;
+    --bike: #f2b632;
+    --bike-soft: #33280c;
+    --bike-ink: #f7d27f;
+    --run: #f2666b;
+    --run-soft: #3a1618;
+    --run-ink: #f8a6a9;
+    --strength: #9886f2;
+    --strength-soft: #241d47;
+    --strength-ink: #c7bdf8;
+    --brick: #f28f45;
+    --brick-soft: #3a220f;
+    --brick-ink: #f8c093;
+    --other: #93a0b2;
+    --other-soft: #1d2a3d;
+    --other-ink: #c6cfdb;
+
+    --zone-1: #7f93a8;
+    --zone-2: #4ba6e6;
+    --zone-3: #3cc28d;
+    --zone-4: #f5c94e;
+    --zone-5: #f6934b;
+    --zone-6: #f05d63;
+
+    --shadow-pop: 0 1px 2px rgb(0 0 0 / 0.4), 0 12px 32px -8px rgb(0 0 0 / 0.6);
   }
 }
 
 @theme inline {
-  --color-paper: var(--paper);
+  --color-canvas: var(--canvas);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
   --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
   --color-muted: var(--muted);
   --color-line: var(--line);
-  --color-accent: var(--accent);
-  --color-accent-ink: var(--accent-ink);
-  --color-accent-soft: var(--accent-soft);
-  --color-danger: var(--danger);
-  --color-danger-soft: var(--danger-soft);
+  --color-line-strong: var(--line-strong);
+  --color-primary: var(--primary);
+  --color-primary-ink: var(--primary-ink);
+  --color-night: var(--night);
+  --color-night-2: var(--night-2);
+  --color-night-ink: var(--night-ink);
+  --color-night-muted: var(--night-muted);
   --color-success: var(--success);
   --color-success-soft: var(--success-soft);
   --color-warning: var(--warning);
   --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
   --color-swim: var(--swim);
+  --color-swim-soft: var(--swim-soft);
+  --color-swim-ink: var(--swim-ink);
   --color-bike: var(--bike);
+  --color-bike-soft: var(--bike-soft);
+  --color-bike-ink: var(--bike-ink);
   --color-run: var(--run);
+  --color-run-soft: var(--run-soft);
+  --color-run-ink: var(--run-ink);
   --color-strength: var(--strength);
+  --color-strength-soft: var(--strength-soft);
+  --color-strength-ink: var(--strength-ink);
   --color-brick: var(--brick);
-  --color-rest: var(--rest);
+  --color-brick-soft: var(--brick-soft);
+  --color-brick-ink: var(--brick-ink);
+  --color-other: var(--other);
+  --color-other-soft: var(--other-soft);
+  --color-other-ink: var(--other-ink);
   --color-zone-1: var(--zone-1);
   --color-zone-2: var(--zone-2);
   --color-zone-3: var(--zone-3);
   --color-zone-4: var(--zone-4);
   --color-zone-5: var(--zone-5);
   --color-zone-6: var(--zone-6);
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --shadow-pop: var(--shadow-pop);
+  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
 }
 
-html {
-  color-scheme: light dark;
-  -webkit-text-size-adjust: 100%;
+@layer base {
+  html {
+    color-scheme: light dark;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background: var(--canvas);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.5;
+  }
 }
 
-body {
-  background: var(--paper);
-  color: var(--ink);
-  font-family: var(--font-sans);
-  font-feature-settings: "ss01";
+/* Titres : Archivo élargie, serrée en approche. */
+.display {
+  font-stretch: 116%;
+  font-weight: 720;
+  letter-spacing: -0.025em;
+  line-height: 1.02;
 }
 
-/* Chiffres alignés pour les données d'entraînement. */
+.heading {
+  font-stretch: 108%;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+}
+
+/* Chiffres d'entraînement : resserrés, alignés. */
+.figure {
+  font-stretch: 86%;
+  font-weight: 640;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
 .tabular {
   font-variant-numeric: tabular-nums;
 }
 
-:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-  border-radius: 4px;
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--swim) 28%, transparent);
+  }
+}
+
+/* Profil d'effort de la page d'accueil : les blocs montent une seule fois, dans l'ordre de la séance. */
+@keyframes rise {
+  from {
+    transform: scaleY(0.04);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+.rise-in > * {
+  transform-origin: bottom;
+  animation: rise 700ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  animation-delay: calc(var(--i, 0) * 38ms);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -115,6 +245,7 @@ body {
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
     transition-duration: 0.01ms !important;
   }
 }

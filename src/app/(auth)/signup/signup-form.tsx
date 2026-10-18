@@ -30,7 +30,7 @@ export function SignupForm({ next, invited }: { next: string; invited: boolean }
       <Field
         label="Email"
         htmlFor="email"
-        hint={invited ? "Utilisez l'adresse à laquelle votre coach vous a invité." : undefined}
+        hint={invited ? "Utilisez l’adresse à laquelle votre coach vous a invité." : undefined}
       >
         <Input id="email" name="email" type="email" autoComplete="email" required inputMode="email" />
       </Field>
@@ -38,7 +38,7 @@ export function SignupForm({ next, invited }: { next: string; invited: boolean }
         <Input id="password" name="password" type="password" autoComplete="new-password" required minLength={8} />
       </Field>
       {invited ? null : (
-        <Checkbox name="coach" label="J'entraîne des athlètes" hint="Active l'espace coach. Modifiable plus tard." />
+        <Checkbox name="coach" label="J’entraîne des athlètes" hint="Active l’espace coach. Modifiable plus tard." />
       )}
       <FormMessage state={state} />
       <SubmitButton className="w-full" pendingLabel="Création du compte…">

@@ -1,9 +1,10 @@
 /**
- * Couche d'accès aux données (DAL) : toute lecture de session passe par ici.
+ * Couche d’accès aux données (DAL) : toute lecture de session passe par ici.
  * Chaque appel vérifie le jeton (getClaims) ; la RLS reste la garantie finale côté base.
  */
 import "server-only";
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 
@@ -14,6 +15,9 @@ export type Session = {
 };
 
 export const getSession = cache(async (): Promise<Session | null> => {
+  // La vérification du jeton compare son expiration à l’heure courante : elle n’a de sens qu’à la
+  // requête, jamais dans un pré-rendu (préchargement partiel compris).
+  await connection();
   const supabase = await createClient();
   const { data, error } = await supabase.auth.getClaims();
   const sub = data?.claims?.sub;

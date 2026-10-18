@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
-/** Point d'entrée après connexion : l'espace coach pour un coach, sinon l'espace athlète. */
+/** Point d’entrée après connexion : l’espace coach pour un coach, sinon l’espace athlète. */
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
   const { data } = await supabase.auth.getClaims();

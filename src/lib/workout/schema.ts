@@ -2,7 +2,7 @@
  * Format interne des séances structurées (version 1).
  *
  * Une séance = un ou plusieurs segments (un par discipline pour un enchaînement),
- * chaque segment = une liste d'étapes et de répétitions (imbriquables).
+ * chaque segment = une liste d’étapes et de répétitions (imbriquables).
  * Ce format est indépendant des fournisseurs : les exports (.zwo, FIT…) le convertissent.
  * Toute évolution incompatible doit incrémenter `schemaVersion` et fournir une migration.
  */
@@ -10,11 +10,11 @@ import { z } from "zod";
 
 export const WORKOUT_SCHEMA_VERSION = 1 as const;
 
-/** Disciplines d'un segment. */
+/** Disciplines d’un segment. */
 export const SEGMENT_SPORTS = ["swim", "bike", "run", "strength", "other"] as const;
 export type SegmentSport = (typeof SEGMENT_SPORTS)[number];
 
-/** Discipline d'une séance : celle de ses segments, ou "brick" s'ils diffèrent. */
+/** Discipline d’une séance : celle de ses segments, ou "brick" s’ils diffèrent. */
 export const SESSION_SPORTS = [...SEGMENT_SPORTS, "brick"] as const;
 export type SessionSport = (typeof SESSION_SPORTS)[number];
 
@@ -42,7 +42,7 @@ export const EQUIPMENT = [
 ] as const;
 export type Equipment = (typeof EQUIPMENT)[number];
 
-/** Objectif physiologique d'une séance (aussi contrôlé en base). */
+/** Objectif physiologique d’une séance (aussi contrôlé en base). */
 export const SESSION_OBJECTIVES = [
   "recovery",
   "endurance",
@@ -177,7 +177,7 @@ export const LengthSchema = z.discriminatedUnion("unit", [
     unit: z.literal("reps"),
     reps: z.int().min(1).max(LIMITS.maxReps),
   }),
-  /** Durée libre : l'étape se termine à l'appui sur le bouton tour. */
+  /** Durée libre : l’étape se termine à l’appui sur le bouton tour. */
   z.strictObject({ unit: z.literal("open") }),
 ]);
 
@@ -193,7 +193,7 @@ export const TargetSchema = z
     if (!bounds) {
       ctx.addIssue({
         code: "custom",
-        message: `L'unité « ${t.unit} » n'existe pas pour la métrique « ${t.metric} ».`,
+        message: `L’unité « ${t.unit} » n’existe pas pour la métrique « ${t.metric} ».`,
         path: ["unit"],
       });
       return;
@@ -215,7 +215,7 @@ export const TargetSchema = z
     if ((t.unit === "zone" || t.unit === "scale") && (!Number.isInteger(t.min) || !Number.isInteger(t.max))) {
       ctx.addIssue({
         code: "custom",
-        message: "Les zones et le RPE s'expriment en nombres entiers.",
+        message: "Les zones et le RPE s’expriment en nombres entiers.",
         path: ["min"],
       });
     }
@@ -239,14 +239,14 @@ export const StepSchema = z
     if (new Set(metrics).size !== metrics.length) {
       ctx.addIssue({
         code: "custom",
-        message: "Deux cibles d'une même étape ne peuvent pas porter sur la même métrique.",
+        message: "Deux cibles d’une même étape ne peuvent pas porter sur la même métrique.",
         path: ["targets"],
       });
     }
     if (s.sendOffSeconds !== undefined && s.length.unit !== "distance") {
       ctx.addIssue({
         code: "custom",
-        message: "Un départ (send-off) s'applique à une étape en distance.",
+        message: "Un départ (send-off) s’applique à une étape en distance.",
         path: ["sendOffSeconds"],
       });
     }
@@ -429,7 +429,7 @@ export const EQUIPMENT_LABELS: Record<Equipment, string> = {
   other: "Autre",
 };
 
-/** Discipline d'une séance déduite de ses segments. */
+/** Discipline d’une séance déduite de ses segments. */
 export function sessionSportOf(workout: Pick<Workout, "segments">): SessionSport {
   const sports = new Set(workout.segments.map((s) => s.sport));
   if (sports.size === 1) return workout.segments[0].sport;

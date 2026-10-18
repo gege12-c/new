@@ -27,7 +27,7 @@ export interface WorkoutIssue {
   code: WorkoutIssueCode;
   severity: IssueSeverity;
   message: string;
-  /** Identifiant du bloc concerné, pour le surligner dans l'éditeur. */
+  /** Identifiant du bloc concerné, pour le surligner dans l’éditeur. */
   nodeId?: string;
 }
 
@@ -44,7 +44,7 @@ const MISSING_LABELS: Record<Exclude<MissingThreshold, "unsupported">, string> =
 const SUSTAINED_RULES: { sport: SegmentSport; minPercent: number; maxSeconds: number; label: string }[] = [
   { sport: "bike", minPercent: 121, maxSeconds: 8 * 60, label: "au-dessus de 120 % de la FTP" },
   { sport: "bike", minPercent: 106, maxSeconds: 20 * 60, label: "au-dessus de 105 % de la FTP" },
-  { sport: "run", minPercent: 103, maxSeconds: 25 * 60, label: "plus vite que l'allure seuil" },
+  { sport: "run", minPercent: 103, maxSeconds: 25 * 60, label: "plus vite que l’allure seuil" },
   { sport: "swim", minPercent: 104, maxSeconds: 15 * 60, label: "plus vite que la CSS" },
 ];
 
@@ -145,7 +145,7 @@ export function analyzeWorkout(workout: Workout, thresholds?: AthleteThresholds)
           issues.push({
             code: "recovery_harder_than_work",
             severity: "warning",
-            message: "La récupération est aussi intense, ou plus, que l'effort qui la précède.",
+            message: "La récupération est aussi intense, ou plus, que l’effort qui la précède.",
             nodeId: step.id,
           });
         }
@@ -155,7 +155,7 @@ export function analyzeWorkout(workout: Workout, thresholds?: AthleteThresholds)
         issues.push({
           code: "rest_with_target",
           severity: "info",
-          message: "Une étape de repos porte une cible : certains appareils l'ignoreront.",
+          message: "Une étape de repos porte une cible : certains appareils l’ignoreront.",
           nodeId: step.id,
         });
       }
@@ -164,7 +164,7 @@ export function analyzeWorkout(workout: Workout, thresholds?: AthleteThresholds)
         issues.push({
           code: "transition_outside_brick",
           severity: "warning",
-          message: "Étape de transition dans une séance d'une seule discipline.",
+          message: "Étape de transition dans une séance d’une seule discipline.",
           nodeId: step.id,
         });
       }
@@ -173,7 +173,7 @@ export function analyzeWorkout(workout: Workout, thresholds?: AthleteThresholds)
         issues.push({
           code: "very_short_step",
           severity: "info",
-          message: `Étape de ${step.length.seconds} s : vérifiez l'unité de durée.`,
+          message: `Étape de ${step.length.seconds} s : vérifiez l’unité de durée.`,
           nodeId: step.id,
         });
       }
@@ -191,7 +191,7 @@ export function analyzeWorkout(workout: Workout, thresholds?: AthleteThresholds)
           issues.push({
             code: "wide_target_range",
             severity: "info",
-            message: "Plage de cible très large : l'appareil guidera peu l'athlète.",
+            message: "Plage de cible très large : l’appareil guidera peu l’athlète.",
             nodeId: step.id,
           });
           break;

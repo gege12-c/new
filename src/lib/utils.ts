@@ -29,3 +29,10 @@ export function formatLocalDate(isoDate: string): string {
 export function daysBetween(fromIso: string, toIso: string): number {
   return Math.round((Date.parse(`${toIso}T00:00:00Z`) - Date.parse(`${fromIso}T00:00:00Z`)) / 86_400_000);
 }
+
+/** Initiales d’un nom affiché (« Léa Martin » → « LM »), pour les avatars. */
+export function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const letters = parts.length > 1 ? [parts[0][0], parts[parts.length - 1][0]] : [parts[0]?.[0] ?? "?"];
+  return letters.join("").toLocaleUpperCase("fr-FR");
+}

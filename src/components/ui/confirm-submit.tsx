@@ -4,7 +4,7 @@ import { useFormStatus } from "react-dom";
 import type { ComponentProps } from "react";
 import { Button } from "./button";
 
-/** Bouton d'envoi qui demande confirmation avant une action destructrice. */
+/** Bouton d’envoi qui demande confirmation avant une action destructrice. */
 export function ConfirmSubmit({
   confirmMessage,
   children,

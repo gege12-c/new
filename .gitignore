@@ -40,3 +40,14 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local Supabase stack without Docker
+/.local-stack/
+
+# end-to-end test accounts
+/e2e/.accounts.json
+/test-results/
+/playwright-report/
+
+# Supabase CLI cache
+/supabase/.temp/

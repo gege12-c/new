@@ -20,7 +20,7 @@ function redirectKeepingCookies(url: URL, from: NextResponse) {
 
 /**
  * Rafraîchit la session Supabase à chaque requête et fait une vérification optimiste
- * des pages protégées. L'autorisation réelle est vérifiée au plus près des données (DAL + RLS).
+ * des pages protégées. L’autorisation réelle est vérifiée au plus près des données (DAL + RLS).
  */
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -41,7 +41,7 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  // Rien ne doit s'exécuter entre la création du client et cet appel (recommandation Supabase).
+  // Rien ne doit s’exécuter entre la création du client et cet appel (recommandation Supabase).
   const { data } = await supabase.auth.getClaims();
   const signedIn = Boolean(data?.claims?.sub);
   const { pathname, search } = request.nextUrl;

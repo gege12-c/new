@@ -60,12 +60,12 @@ export async function signUp(_prev: ActionState, formData: FormData): Promise<Ac
   });
   if (error) return fail(friendlyError(error, "Inscription impossible pour le moment."));
 
-  // Confirmation d'email désactivée : la session existe déjà.
+  // Confirmation d’email désactivée : la session existe déjà.
   if (data.session) redirect(next);
 
   return {
     status: "success",
-    message: `Un email de confirmation a été envoyé à ${parsed.data.email}. Ouvrez le lien qu'il contient pour activer votre compte.`,
+    message: `Un email de confirmation a été envoyé à ${parsed.data.email}. Ouvrez le lien qu’il contient pour activer votre compte.`,
   };
 }
 
@@ -83,7 +83,7 @@ export async function requestPasswordReset(_prev: ActionState, formData: FormDat
   if (error && error.code !== "user_not_found") return fail(friendlyError(error, "Envoi impossible pour le moment."));
   return {
     status: "success",
-    message: "Si un compte existe pour cette adresse, un lien de réinitialisation vient d'être envoyé.",
+    message: "Si un compte existe pour cette adresse, un lien de réinitialisation vient d’être envoyé.",
   };
 }
 
@@ -101,7 +101,7 @@ export async function updatePassword(_prev: ActionState, formData: FormData): Pr
   const { data } = await supabase.auth.getClaims();
   if (!data?.claims?.sub) return fail("Lien expiré : demandez un nouveau lien de réinitialisation.");
   const { error } = await supabase.auth.updateUser({ password: parsed.data.password });
-  if (error) return fail(friendlyError(error, "Le mot de passe n'a pas pu être changé."));
+  if (error) return fail(friendlyError(error, "Le mot de passe n’a pas pu être changé."));
   redirect("/home");
 }
 

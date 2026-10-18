@@ -19,6 +19,23 @@ export function formatDuration(totalSeconds: number): string {
   return minutes === 0 ? `${hours} h` : `${hours} h ${String(minutes).padStart(2, "0")}`;
 }
 
+/** Durée arrondie à la minute, pour les calendriers et les totaux : « 27 min », « 1 h 05 ». */
+export function formatDurationShort(totalSeconds: number): string {
+  const s = Math.round(totalSeconds);
+  if (s < 60) return `${s} s`;
+  const minutes = Math.round(s / 60);
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest === 0 ? `${hours} h` : `${hours} h ${String(rest).padStart(2, "0")}`;
+}
+
+/** Heure locale « 07:30:00 » → « 7 h 30 », « 18:00 » → « 18 h ». */
+export function formatTimeOfDay(time: string): string {
+  const [h, m] = time.split(":");
+  return m === "00" ? `${Number(h)} h` : `${Number(h)} h ${m}`;
+}
+
 export function formatDistance(meters: number, sport?: SegmentSport): string {
   if (sport === "swim" || meters < 1000) return `${nf().format(Math.round(meters))} m`;
   return `${nf(meters < 10_000 ? 2 : 1).format(meters / 1000)} km`;

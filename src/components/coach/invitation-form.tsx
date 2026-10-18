@@ -30,17 +30,17 @@ export function InvitationForm({ coachName }: { coachName: string }) {
 
   const mailto = link
     ? `mailto:${email ?? ""}?subject=${encodeURIComponent(`${coachName} vous invite à suivre votre entraînement`)}&body=${encodeURIComponent(
-        `Bonjour,\n\nPour que je puisse planifier et suivre ton entraînement, ouvre ce lien et accepte l'invitation :\n${link}\n\nÀ bientôt,\n${coachName}`,
+        `Bonjour,\n\nPour que je puisse planifier et suivre ton entraînement, ouvre ce lien et accepte l’invitation :\n${link}\n\nÀ bientôt,\n${coachName}`,
       )}`
     : undefined;
 
   return (
     <div className="space-y-4">
       <form action={action} className="grid gap-3 sm:grid-cols-[1.6fr_1fr_auto] sm:items-end">
-        <Field label="Email de l'athlète (facultatif)" htmlFor="invite-email" hint="Avec un email, seule cette adresse pourra accepter.">
+        <Field label="Email de l’athlète (facultatif)" htmlFor="invite-email" hint="Avec un email, seule cette adresse pourra accepter.">
           <Input id="invite-email" name="email" type="email" inputMode="email" autoComplete="off" />
         </Field>
-        <Field label="Validité" htmlFor="invite-validity" hint="Le lien ne sert qu'une fois.">
+        <Field label="Validité" htmlFor="invite-validity" hint="Le lien ne sert qu’une fois.">
           <Select id="invite-validity" name="valid_days" defaultValue="7">
             <option value="1">1 jour</option>
             <option value="7">7 jours</option>
@@ -55,10 +55,10 @@ export function InvitationForm({ coachName }: { coachName: string }) {
 
       {link ? (
         <div className="rounded-md border border-success/30 bg-success-soft p-4">
-          <p className="font-medium text-success">Lien d&apos;invitation prêt</p>
+          <p className="font-medium text-success">Lien d’invitation prêt</p>
           <p className="mt-1 text-sm text-muted">
-            Envoyez-le à votre athlète. Il expire le {expiryFormatter.format(new Date(state.data!.expiresAt))}. Il n&apos;est affiché
-            qu&apos;une fois : copiez-le maintenant.
+            Envoyez-le à votre athlète. Il expire le {expiryFormatter.format(new Date(state.data!.expiresAt))}. Il n’est affiché
+            qu’une fois : copiez-le maintenant.
           </p>
           <p className="mt-3 break-all rounded border border-line bg-surface px-3 py-2 font-mono text-[13px]">{link}</p>
           <div className="mt-3 flex flex-wrap gap-2">

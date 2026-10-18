@@ -8,7 +8,7 @@ import { ThresholdForm } from "./threshold-form";
 
 type Row = ThresholdRow & { id: string };
 
-/** Seuils en vigueur, historique et saisie d'une nouvelle valeur (datée). */
+/** Seuils en vigueur, historique et saisie d’une nouvelle valeur (datée). */
 export function ThresholdsPanel({
   athleteId,
   rows,
@@ -76,7 +76,7 @@ export function ThresholdsPanel({
 
       {rows.length > 0 ? (
         <details className="mt-6 border-t border-line pt-4">
-          <summary className="cursor-pointer text-sm font-medium text-accent">Historique ({rows.length})</summary>
+          <summary className="cursor-pointer text-[14px] font-semibold text-ink-soft hover:text-ink">Historique ({rows.length})</summary>
           <ul className="mt-3 divide-y divide-line">
             {rows.map((row) => {
               const def = thresholdDef(row.sport, row.metric);

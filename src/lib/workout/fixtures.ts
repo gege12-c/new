@@ -1,7 +1,7 @@
-/** Séances d'exemple, utilisées par les tests et la documentation. */
+/** Séances d’exemple, utilisées par les tests et la documentation. */
 import type { WorkoutInput } from "./schema";
 
-/** Vélo : 15 min d'échauffement, 4 × (8 min à 95–100 % FTP / 3 min récup), 10 min retour au calme. */
+/** Vélo : 15 min d’échauffement, 4 × (8 min à 95–100 % FTP / 3 min récup), 10 min retour au calme. */
 export const bikeThreshold: WorkoutInput = {
   schemaVersion: 1,
   segments: [

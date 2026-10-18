@@ -42,7 +42,7 @@ export function AthleteProfileForm({ values }: { values: Values }) {
           />
         </Field>
       </div>
-      <Field label="Informations pour le coach" htmlFor="notes" hint="Contraintes d'emploi du temps, matériel, antécédents utiles…">
+      <Field label="Informations pour le coach" htmlFor="notes" hint="Contraintes d’emploi du temps, matériel, antécédents utiles…">
         <Textarea id="notes" name="notes" defaultValue={values.notes ?? ""} maxLength={2000} />
       </Field>
       <FormMessage state={state} />

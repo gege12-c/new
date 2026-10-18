@@ -4,7 +4,7 @@ import { useFormStatus } from "react-dom";
 import type { ComponentProps } from "react";
 import { Button } from "./button";
 
-/** Bouton d'envoi qui indique l'enregistrement en cours et empêche le double envoi. */
+/** Bouton d’envoi qui indique l’enregistrement en cours et empêche le double envoi. */
 export function SubmitButton({
   children,
   pendingLabel,

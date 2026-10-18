@@ -2,7 +2,7 @@
  * Calculs sur une séance : résolution des cibles, déroulé des répétitions, durée et distance.
  *
  * Règle : aucune valeur inventée. Chaque quantité est « exacte » (prescrite), « estimée »
- * (déduite d'une cible et des seuils de l'athlète, selon une hypothèse documentée) ou « inconnue ».
+ * (déduite d’une cible et des seuils de l’athlète, selon une hypothèse documentée) ou « inconnue ».
  */
 import type { SegmentSport, Step, Target, Workout, WorkoutNode } from "./schema";
 import {
@@ -49,7 +49,7 @@ function missingPaceThreshold(sport: SegmentSport): MissingThreshold {
   return sport === "swim" ? "swim_css" : sport === "run" ? "run_threshold_pace" : "unsupported";
 }
 
-/** Convertit une plage en % de vitesse seuil en plage d'allure absolue. */
+/** Convertit une plage en % de vitesse seuil en plage d’allure absolue. */
 function paceFromPercent(
   sport: SegmentSport,
   minPct: number,
@@ -66,14 +66,14 @@ function paceFromPercent(
     target: {
       metric: "pace",
       unit,
-      // Plus le pourcentage de vitesse est élevé, plus l'allure (en secondes) est basse.
+      // Plus le pourcentage de vitesse est élevé, plus l’allure (en secondes) est basse.
       min: round((secPerMeter * meters) / (maxPct / 100)),
       max: round((secPerMeter * meters) / (minPct / 100)),
     },
   };
 }
 
-/** Exprime une cible en valeurs absolues à l'aide des seuils de l'athlète. */
+/** Exprime une cible en valeurs absolues à l’aide des seuils de l’athlète. */
 export function resolveTarget(
   target: Target,
   sport: SegmentSport,
@@ -144,9 +144,9 @@ export function resolveTarget(
 }
 
 /**
- * Intensité relative d'une étape, en % du seuil (100 = seuil), selon sa cible principale.
+ * Intensité relative d’une étape, en % du seuil (100 = seuil), selon sa cible principale.
  * Puissance : % FTP ; FC : % FC seuil ; allure : % de vitesse seuil ; RPE : RPE × 10.
- * Renvoie null si l'intensité ne peut pas être exprimée sans inventer de valeur.
+ * Renvoie null si l’intensité ne peut pas être exprimée sans inventer de valeur.
  */
 export function intensityPercent(
   step: Step,
@@ -188,11 +188,11 @@ export function intensityPercent(
   return null;
 }
 
-/** Hypothèse documentée : une étape facile sans cible d'allure se fait à ce % de la vitesse seuil. */
+/** Hypothèse documentée : une étape facile sans cible d’allure se fait à ce % de la vitesse seuil. */
 export const EASY_SPEED_RATIO: Partial<Record<SegmentSport, number>> = { run: 0.8, swim: 0.85 };
 const EASY_STEP_TYPES = new Set(["warmup", "cooldown", "recovery", "drill"]);
 
-/** Vitesse (m/s) déduite des cibles ou des seuils, avec la qualité de l'estimation. */
+/** Vitesse (m/s) déduite des cibles ou des seuils, avec la qualité de l’estimation. */
 function speedFor(
   step: Step,
   sport: SegmentSport,
@@ -209,7 +209,7 @@ function speedFor(
       return { speed: (meters / t.min + meters / t.max) / 2, quality: "estimated" };
     }
   }
-  // Cible de FC en zone : on suppose la zone d'allure de même rang (estimation).
+  // Cible de FC en zone : on suppose la zone d’allure de même rang (estimation).
   const hrZone = step.targets.find((t) => t.metric === "heart_rate" && t.unit === "zone");
   const paceZones = paceZonesFor(sport);
   const secPerMeter = thresholdSecondsPerMeter(sport, thresholds);
@@ -232,12 +232,12 @@ export type Quantity =
 const exact = (value: number): Quantity => ({ value, quality: "exact" });
 const unknown: Quantity = { value: null, quality: "unknown" };
 
-/** Disciplines et types d'étape pour lesquels la distance n'a pas de sens (comptée 0). */
+/** Disciplines et types d’étape pour lesquels la distance n’a pas de sens (comptée 0). */
 function distanceIsIrrelevant(step: Step, sport: SegmentSport) {
   return sport === "strength" || step.type === "rest" || step.type === "transition";
 }
 
-/** Durée et distance d'une étape (une seule occurrence). */
+/** Durée et distance d’une étape (une seule occurrence). */
 export function stepQuantities(
   step: Step,
   sport: SegmentSport,
@@ -274,7 +274,7 @@ export interface FlatStep {
   step: Step;
   sport: SegmentSport;
   segmentIndex: number;
-  /** Rang de l'itération dans chaque répétition englobante (de l'extérieur vers l'intérieur). */
+  /** Rang de l’itération dans chaque répétition englobante (de l’extérieur vers l’intérieur). */
   iterations: number[];
 }
 
@@ -300,7 +300,7 @@ export interface QuantityTotal {
   /** Somme des parties connues (exactes et estimées). */
   value: number;
   status: TotalStatus;
-  /** Nombre d'étapes déroulées dont la valeur est inconnue. */
+  /** Nombre d’étapes déroulées dont la valeur est inconnue. */
   unknownSteps: number;
 }
 
