@@ -1,0 +1,54 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { Suspense } from "react";
+import { Notice, Skeleton } from "@/components/ui/feedback";
+import { safeNextPath } from "@/lib/utils";
+import { LoginForm } from "./login-form";
+
+export const metadata: Metadata = { title: "Connexion" };
+
+export default function LoginPage({ searchParams }: PageProps<"/login">) {
+  return (
+    <div className="rounded-lg border border-line bg-surface p-6">
+      <h1 className="text-[22px] font-semibold">Connexion</h1>
+      <Suspense fallback={<Skeleton className="mt-6 h-56" />}>
+        <LoginContent searchParams={searchParams} />
+      </Suspense>
+    </div>
+  );
+}
+
+async function LoginContent({ searchParams }: Pick<PageProps<"/login">, "searchParams">) {
+  const params = await searchParams;
+  const read = (key: string) => (typeof params[key] === "string" ? (params[key] as string) : undefined);
+  const next = safeNextPath(read("next"));
+  const error = read("error");
+  const confirmed = read("confirmed") === "1";
+
+  return (
+    <>
+      {confirmed ? (
+        <Notice tone="success" className="mt-4">
+          Adresse confirmée. Connectez-vous pour continuer.
+        </Notice>
+      ) : null}
+      {error ? (
+        <Notice tone="error" className="mt-4">
+          {error}
+        </Notice>
+      ) : null}
+      <LoginForm next={next} />
+      <p className="mt-4 text-sm">
+        <Link href="/forgot-password" className="font-medium text-accent underline-offset-4 hover:underline">
+          Mot de passe oublié ?
+        </Link>
+      </p>
+      <p className="mt-2 text-sm text-muted">
+        Pas encore de compte ?{" "}
+        <Link href={`/signup?next=${encodeURIComponent(next)}`} className="font-medium text-accent underline-offset-4 hover:underline">
+          Créer un compte
+        </Link>
+      </p>
+    </>
+  );
+}

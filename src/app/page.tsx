@@ -1,68 +1,71 @@
-import Image from "next/image";
+import Link from "next/link";
+import { Brand } from "@/components/brand";
+import { SportDot } from "@/components/sport";
+import { ButtonLink } from "@/components/ui/button";
+import { WorkoutProfile } from "@/components/workout/workout-profile";
+import { computeTotals, expandWorkout, resolveTarget } from "@/lib/workout/compute";
+import { bikeThreshold } from "@/lib/workout/fixtures";
+import { formatDuration, summarizeNodes } from "@/lib/workout/format";
+import { WorkoutSchema } from "@/lib/workout/schema";
 
-export default function Home() {
+// Séance d'exemple réelle, calculée par le moteur de l'application (FTP de 250 W).
+const example = WorkoutSchema.parse(bikeThreshold);
+const exampleThresholds = { bike: { ftpW: 250 } };
+const exampleTotals = computeTotals(example, exampleThresholds);
+const workStep = expandWorkout(example).find((f) => f.step.type === "active")!.step;
+const workTarget = resolveTarget(workStep.targets[0], "bike", exampleThresholds);
+const workWatts = workTarget.ok ? workTarget.target : null;
+
+export default function LandingPage() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
+    <div className="mx-auto flex min-h-dvh max-w-5xl flex-col px-4 sm:px-6">
+      <header className="flex h-16 items-center justify-between">
+        <Brand />
+        <Link href="/login" className="text-[15px] font-medium text-accent">
+          Se connecter
+        </Link>
+      </header>
+
+      <main className="flex flex-1 flex-col justify-center gap-12 py-12 lg:flex-row lg:items-center lg:gap-16">
+        <div className="max-w-xl">
+          <h1 className="text-[34px] font-semibold leading-[1.1] tracking-tight sm:text-[44px]">
+            Le plan du coach et la séance de l&apos;athlète, au même endroit.
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+          <p className="mt-5 text-[17px] leading-relaxed text-muted">
+            Le coach programme depuis son navigateur, sans rien installer. L&apos;athlète retrouve chaque séance sur son téléphone,
+            avec ses cibles exactes, calculées à partir de ses propres seuils.
+          </p>
+          <div className="mt-8 flex flex-wrap gap-3">
+            <ButtonLink href="/signup">Créer un compte</ButtonLink>
+            <ButtonLink href="/login" variant="secondary">
+              Se connecter
+            </ButtonLink>
+          </div>
+          <p className="mt-6 text-sm text-muted">
+            Import des activités Strava et export vers Garmin, Zwift, Wahoo et Suunto : en cours de développement.
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+
+        <figure className="w-full max-w-md rounded-lg border border-line bg-surface p-5">
+          <figcaption className="flex items-center justify-between gap-3">
+            <span className="flex items-center gap-2 font-medium">
+              <SportDot sport="bike" />
+              {example.segments[0].title}
+            </span>
+            <span className="tabular text-sm text-muted">{formatDuration(exampleTotals.duration.value)}</span>
+          </figcaption>
+          <WorkoutProfile workout={example} thresholds={exampleThresholds} className="mt-5" height={112} />
+          <p className="mt-4 text-sm leading-relaxed text-muted">{summarizeNodes(example.segments[0].steps, "bike")}</p>
+          {workWatts ? (
+            <p className="mt-3 border-t border-line pt-3 text-sm">
+              Pour une FTP de 250 W, les blocs au seuil se font entre{" "}
+              <span className="tabular font-semibold">
+                {workWatts.min} et {workWatts.max} W
+              </span>
+              .
+            </p>
+          ) : null}
+        </figure>
       </main>
     </div>
   );
