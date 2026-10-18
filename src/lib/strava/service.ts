@@ -275,15 +275,23 @@ async function purgeConnection(deps: StravaDeps, connection: { id: string; athle
 // ---------------------------------------------------------------------------
 
 export async function enqueueSync(deps: StravaDeps, connectionId: string, athleteId: string, reason: string) {
-  await deps.admin
+  const { error } = await deps.admin
     .from("sync_jobs")
     .upsert(
       { kind: "strava_sync", athlete_id: athleteId, payload: { connection_id: connectionId }, dedupe_key: `strava:sync:${connectionId}:${reason}` },
       { onConflict: "dedupe_key", ignoreDuplicates: true },
     );
+  if (error) throw new Error(`Synchronisation non mise en file : ${error.message}`);
 }
 
 export type WebhookOutcome = "queued" | "ignored";
+
+/**
+ * Au-delà de ce nombre d'évènements d'activité en attente pour un athlète, les suivants sont
+ * regroupés en une synchronisation (une toutes les 10 minutes au plus) : un afflux d'évènements,
+ * légitimes ou non, ne peut pas épuiser le quota d'appels à Strava.
+ */
+export const MAX_PENDING_EVENTS = 20;
 
 /**
  * Évènement reçu de Strava : mis en file (idempotent), traité ensuite. L'évènement n'étant pas
@@ -294,13 +302,28 @@ export async function enqueueWebhookEvent(deps: StravaDeps, event: WebhookEvent)
   if (!state?.subscription_id || state.subscription_id !== event.subscription_id) return "ignored";
   const connection = await connectionByOwner(deps, event.owner_id);
   if (!connection) return "ignored";
+  if (event.object_type === "activity") {
+    const { count, error } = await deps.admin
+      .from("sync_jobs")
+      .select("id", { count: "exact", head: true })
+      .eq("athlete_id", connection.athlete_id)
+      .eq("kind", "strava_event")
+      .in("status", ["pending", "failed", "running"]);
+    if (error) throw new Error(`File de synchronisation illisible : ${error.message}`);
+    if ((count ?? 0) >= MAX_PENDING_EVENTS) {
+      await enqueueSync(deps, connection.id, connection.athlete_id, `burst:${Math.floor(deps.now().getTime() / 600_000)}`);
+      return "queued";
+    }
+  }
   const key = `strava:event:${event.object_type}:${event.object_id}:${event.aspect_type}:${event.event_time}`;
-  await deps.admin
+  const { error } = await deps.admin
     .from("sync_jobs")
     .upsert(
       { kind: "strava_event", athlete_id: connection.athlete_id, payload: { event: event as unknown as Json }, dedupe_key: key },
       { onConflict: "dedupe_key", ignoreDuplicates: true },
     );
+  // Une erreur remonte : la route répond 500 et Strava renverra l'évènement.
+  if (error) throw new Error(`Évènement non mis en file : ${error.message}`);
   return "queued";
 }
 

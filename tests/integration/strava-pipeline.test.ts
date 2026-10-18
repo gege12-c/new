@@ -125,6 +125,33 @@ describe.skipIf(!url || !serviceKey)("chaîne Strava (webhook → activité → 
     expect(await enqueueWebhookEvent(deps, { ...event(1, "create"), owner_id: 1 })).toBe("ignored");
   });
 
+  it("un afflux d'évènements est regroupé en une synchronisation", async () => {
+    const fakes = Array.from({ length: 20 }, (_, i) => ({
+      kind: "strava_event",
+      athlete_id: athleteId,
+      payload: {},
+      dedupe_key: `test:burst:${athleteId}:${i}`,
+      run_after: new Date(Date.now() + 3600_000).toISOString(),
+    }));
+    await admin.from("sync_jobs").insert(fakes);
+    try {
+      expect(await enqueueWebhookEvent(deps, event(stravaId * 10 + 9, "create"))).toBe("queued");
+      const { count: events } = await admin.from("sync_jobs").select("id", { count: "exact", head: true }).like("dedupe_key", `strava:event:activity:${stravaId * 10 + 9}:%`);
+      expect(events).toBe(0);
+      const { data: syncs } = await admin.from("sync_jobs").select("dedupe_key").eq("athlete_id", athleteId).like("dedupe_key", "strava:sync:%:burst:%");
+      expect(syncs).toHaveLength(1);
+      // Le retrait d'accès n'est jamais regroupé.
+      const deauth = { ...event(stravaId, "update", { authorized: "false" }, "athlete") };
+      expect(await enqueueWebhookEvent(deps, deauth)).toBe("queued");
+      const { count: deauths } = await admin.from("sync_jobs").select("id", { count: "exact", head: true }).eq("dedupe_key", `strava:event:athlete:${stravaId}:update:${deauth.event_time}`);
+      expect(deauths).toBe(1);
+      await admin.from("sync_jobs").delete().eq("dedupe_key", `strava:event:athlete:${stravaId}:update:${deauth.event_time}`);
+    } finally {
+      await admin.from("sync_jobs").delete().like("dedupe_key", `test:burst:${athleteId}:%`);
+    }
+    await runDueJobs(deps);
+  });
+
   it("une suppression n'est appliquée qu'après vérification chez Strava", async () => {
     const id = stravaId * 10 + 2;
     // Faux évènement : l'activité existe encore chez Strava, elle reste.
