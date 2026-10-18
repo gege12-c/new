@@ -2,15 +2,15 @@
 
 Dernière mise à jour : 18 octobre 2026, fin de la phase 2 (planification) et refonte visuelle.
 
-## Phase 2 — Planification : terminée en local, mise en production en attente
+## Phase 2 — Planification : terminée
 
 Critère de fin : une séance publiée apparaît chez l'athlète en quelques secondes, sans rechargement ni modification perdue.
 
 Vérification :
 
 - « Aucune modification perdue » : 53 tests sur un vrai PostgreSQL (`tests/db/planning.test.ts` : fusion champ par champ, conflits, modifications en attente, deux éditeurs ouverts, recalage, droits) et 8 parcours Playwright dans un navigateur (`e2e/`), dont deux éditions concurrentes, deux onglets sur une séance publiée, glisser-déposer, copie de semaine, commentaires et notes privées.
-- « En quelques secondes, sans rechargement » : le parcours `e2e/planning.spec.ts` vérifie qu'une séance publiée par le coach s'affiche chez l'athlète en moins de 8 secondes sans recharger la page. Il tourne dans la CI (tâche `e2e`) contre la pile Supabase officielle, Realtime compris ; la pile locale sans Docker n'a pas de Realtime (la page s'y actualise toutes les 30 s, et l'indique).
-- En production : à vérifier dès que la migration `planning` est appliquée (voir « À faire de votre côté »).
+- « En quelques secondes, sans rechargement » : le parcours `e2e/planning.spec.ts` vérifie qu'une séance publiée par le coach s'affiche chez l'athlète en moins de 8 secondes sans recharger la page. Il tourne dans la CI (tâche `e2e`) contre la pile Supabase officielle, Realtime compris : vert le 18 octobre 2026 (8 parcours sur 8, sans nouvel essai). La pile locale sans Docker n'a pas de Realtime (la page s'y actualise toutes les 30 s, et l'indique).
+- En production : base à jour le 18 octobre ; essai à deux appareils à faire (voir « À faire de votre côté »).
 
 Livré :
 
@@ -55,12 +55,14 @@ Livré :
 
 | Élément | État |
 | --- | --- |
-| Base Supabase `supabase-rose-candle` (`ugqtfkuisaqjdnwxvogm`, Zurich, PostgreSQL 17) | migrations de la phase 1 appliquées. Migration `planning` (phase 2) **non appliquée** : l'application par le connecteur a été annulée deux fois le 18 octobre, faute de confirmation |
-| Projet Vercel `new` | en ligne sur https://new-bay-one-76.vercel.app avec la phase 1 ; la phase 2 attend la migration (la branche `phase-2-planning` n'est fusionnée dans `main` qu'après) |
+| Base Supabase `supabase-rose-candle` (`ugqtfkuisaqjdnwxvogm`, Zurich, PostgreSQL 17) | 5 migrations. `planning` (phase 2) appliquée le 18 octobre depuis l'éditeur SQL (le connecteur annulait sa demande de confirmation), puis contrôlée : les 16 fonctions sont identiques au fichier, RLS active sur les 12 tables, aucun accès anonyme, migration inscrite à l'historique sous `20261018200000`. Analyseur de sécurité : rien de nouveau |
+| Projet Vercel `new` | en ligne sur https://new-bay-one-76.vercel.app ; la phase 2 y est déployée depuis `main` |
 | Réglages d'authentification Supabase | faits le 18 octobre (Site URL, Redirect URLs, confirmation d'email désactivée en attendant un SMTP) |
 | Realtime en production | contrôlé le 18 octobre : `realtime.send` et `realtime.topic` présents, droit de créer la politique de canal vérifié ; les partitions de messages se créent à la première connexion d'un navigateur |
 
-Accès du connecteur Vercel : lecture du projet, des variables (noms) et création de déploiements possibles ; journaux de build et d'exécution refusés (403 sur l'espace `geraldegea12-9585`).
+Accès des connecteurs : Vercel lit le projet, les variables (noms) et crée des déploiements, mais ses journaux de build et d'exécution sont refusés (403 sur l'espace `geraldegea12-9585`) ; Supabase lit et interroge la base, mais ses migrations demandent une confirmation qui ne s'affiche pas ici : les prochaines s'appliqueront de la même façon, depuis l'éditeur SQL.
+
+Avertissements de l'analyseur Supabase acceptés : les fonctions d'invitation et de relation coach-athlète (`create_invitation`, `accept_invitation`, `get_invitation_preview`, `revoke_invitation`, `revoke_coach_link`, `set_coach_permissions`, `current_user_is_admin`) sont volontairement appelables depuis l'API et vérifient elles-mêmes l'appelant. Les fonctions de la phase 2 s'exécutent avec les droits de l'appelant (RLS). « Leaked password protection » : réglage d'authentification à activer (voir ci-dessous).
 
 ## Limites connues
 
@@ -79,7 +81,7 @@ Critère de fin : une activité Strava arrive par webhook, sans doublon, rattach
 
 Dépôt GitHub : `gege12-c/new`.
 
-1. Autoriser la mise à jour de la base de production : répondez « oui » dans la conversation (ou confirmez la demande du connecteur Supabase quand elle s'affiche). Rien n'a encore été modifié. Ensuite, la branche `phase-2-planning` est fusionnée et Vercel met le site à jour tout seul.
-2. Vérifier le temps réel en production, une fois le site à jour : ouvrez le calendrier de l'athlète sur votre téléphone (compte athlète) ; sur l'ordinateur, côté coach, créez une séance pour cet athlète et cliquez sur « Publier ». Elle doit apparaître sur le téléphone en quelques secondes, sans toucher à l'écran. L'indicateur en haut du calendrier doit afficher « En direct ».
+1. Vérifier le temps réel en production : ouvrez le calendrier de l'athlète sur votre téléphone (compte athlète) ; sur l'ordinateur, côté coach, créez une séance pour cet athlète et cliquez sur « Publier ». Elle doit apparaître sur le téléphone en quelques secondes, sans toucher à l'écran, et l'indicateur en haut du calendrier doit afficher « En direct ». La première connexion prépare le canal temps réel : si l'indicateur affiche « Actualisation toutes les 30 s », rechargez une fois la page.
+2. Dans Supabase, Authentication, rubrique des mots de passe : activez « Leaked password protection » si votre offre le propose (refus des mots de passe connus pour avoir fuité).
 3. Plus tard (au plus tard en phase 5) : configurer un service d'envoi d'emails (SMTP) dans Supabase, puis réactiver « Confirm email ».
 4. Phase 3 : ouvrir une nouvelle session et demander la phase 3. Préparez votre compte Strava (vous créerez l'application Strava vous-même ; je vous dirai quand et quoi saisir).
