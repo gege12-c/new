@@ -4,7 +4,7 @@ Dernière mise à jour : 18 octobre 2026, fin de la phase 1 et mise en ligne sur
 
 ## Phase 1 — Socle : terminée
 
-Critère de fin vérifié par les tests automatisés : un coach invite un athlète qui accepte, et un coach non autorisé ne lit ni ne modifie rien (`tests/db/security.test.ts`, `tests/db/invitations.test.ts`).
+Critère de fin vérifié par les tests automatisés : un coach invite un athlète qui accepte, et un coach non autorisé ne lit ni ne modifie rien (`tests/db/security.test.ts`, `tests/db/invitations.test.ts`). Vérifié aussi en production le 18 octobre 2026 : un compte coach et un compte athlète créés sur le site, invitation nominative acceptée, relation active avec les permissions par défaut, journal d'audit complet, aucune erreur dans les journaux Supabase.
 
 Livré :
 
@@ -40,7 +40,8 @@ Livré :
 | Base Supabase `supabase-rose-candle` (`ugqtfkuisaqjdnwxvogm`, Zurich, PostgreSQL 17) | migrations appliquées le 18 octobre 2026 ; RLS active sur les 10 tables (23 politiques) ; aucun accès anonyme ; analyseur de sécurité sans erreur |
 | Projet Vercel `new` (`prj_2niwVUTlhR44kHnGK2As5ujUa1l7`) | en ligne sur https://new-bay-one-76.vercel.app ; relié au dépôt (branche `main`), variables Supabase en Production et Preview. L'import initial n'avait créé aucun déploiement (« 404 DEPLOYMENT_NOT_FOUND ») : premier déploiement lancé par l'API le 18 octobre 2026 |
 | Connexion Vercel → Supabase | vérifiée le 18 octobre : `/api/health` répond `"supabase": "ok"` depuis Francfort, et la page d'invitation interroge la base avec succès (journaux Supabase) |
-| Réglages d'authentification Supabase | à faire : Site URL, Redirect URLs, confirmation d'email (README, étape 2). Constaté le 18 octobre : Site URL encore sur `http://localhost:3000` (journaux d'authentification), confirmation d'email encore exigée, inscriptions ouvertes |
+| Réglages d'authentification Supabase | faits le 18 octobre : Site URL et Redirect URLs sur le domaine de production, confirmation d'email désactivée en attendant un SMTP (contrôlé par `/api/health` et les journaux d'authentification) |
+| Parcours coach → athlète | vérifié en production le 18 octobre (voir phase 1) |
 
 Accès du connecteur Vercel : lecture du projet, des variables (noms) et création de déploiements possibles ; journaux de build et d'exécution refusés (403 sur l'espace `geraldegea12-9585`).
 
@@ -48,7 +49,6 @@ Avertissements de l'analyseur Supabase acceptés : les fonctions `create_invitat
 
 ## Limites connues
 
-- Le parcours complet (inscription, invitation, acceptation) reste à vérifier dans un navigateur une fois l'authentification Supabase réglée (README, étapes 2 et 3). La logique de base est testée sur PostgreSQL et la configuration de production contrôlée sur Supabase.
 - Sans service d'envoi d'emails (SMTP), Supabase n'envoie d'emails qu'aux membres de l'organisation : confirmation d'email à désactiver d'ici là, mot de passe oublié limité à ces membres.
 - Confirmation d'email désactivée, une invitation nominative ne prouve plus que l'adresse appartient à l'athlète : le lien à usage unique reste le secret. Configurer un SMTP et réactiver la confirmation rétablit ce contrôle.
 - Tests de bout en bout dans un navigateur (Playwright) : à mettre en place.
@@ -71,5 +71,6 @@ Critère de fin : une séance publiée apparaît chez l'athlète en quelques sec
 
 Dépôt GitHub : `gege12-c/new`.
 
-1. Régler l'authentification Supabase (README, étape 2), puis vérifier que `/api/health` affiche `"emailConfirmation": "disabled"`.
-2. Vérifier le parcours coach → athlète (README, étape 3) et signaler tout écart au début de la prochaine session.
+1. Rien de bloquant : la phase 1 tourne en production.
+2. Phase 2 : ouvrir une nouvelle session sur le dépôt et demander la phase 2.
+3. Plus tard (au plus tard en phase 5) : créer un compte chez un service d'envoi d'emails, saisir ses identifiants SMTP dans Supabase (Authentication, Emails, SMTP Settings), puis réactiver « Confirm email ». Cela rétablit la confirmation des adresses et le mot de passe oublié pour tous.
