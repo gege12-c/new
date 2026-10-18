@@ -37,14 +37,19 @@ jobs:
       - run: npm run build
 
   # Parcours clés dans un vrai navigateur, contre la pile Supabase officielle (Docker) :
-  # c'est ici que se vérifie le critère de la phase 2 (une séance publiée apparaît chez
-  # l'athlète en quelques secondes, sans rechargement) grâce à Supabase Realtime.
+  # critère de la phase 2 (une séance publiée apparaît chez l'athlète sans rechargement, grâce
+  # à Supabase Realtime) et de la phase 3 (une activité Strava arrive par webhook, sans doublon,
+  # rattachée à la bonne séance), contre un faux Strava lancé par les tests (données fictives).
   e2e:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
       NEXT_TELEMETRY_DISABLED: "1"
       NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      STRAVA_CLIENT_ID: "4242"
+      STRAVA_CLIENT_SECRET: fake-client-secret
+      STRAVA_API_BASE_URL: http://127.0.0.1:4010/api/v3
+      STRAVA_OAUTH_BASE_URL: http://127.0.0.1:4010/oauth
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -63,6 +68,13 @@ jobs:
           set -a; . "$RUNNER_TEMP/supabase.env"; set +a
           echo "NEXT_PUBLIC_SUPABASE_URL=$API_URL" >> "$GITHUB_ENV"
           echo "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$ANON_KEY" >> "$GITHUB_ENV"
+          echo "::add-mask::$SERVICE_ROLE_KEY"
+          echo "SUPABASE_SECRET_KEY=$SERVICE_ROLE_KEY" >> "$GITHUB_ENV"
+          # Valeurs jetables, propres à cette exécution.
+          key="$(openssl rand -base64 32)"; echo "::add-mask::$key"; echo "TOKEN_ENCRYPTION_KEY=$key" >> "$GITHUB_ENV"
+          cron="$(openssl rand -hex 24)"; echo "::add-mask::$cron"; echo "CRON_SECRET=$cron" >> "$GITHUB_ENV"
+      - name: Integration tests (Strava pipeline, data loaders)
+        run: npm run test:integration
       - run: npm run build
       - name: Start the app
         run: |

@@ -7,7 +7,7 @@ test("l'athlète consulte son entraînement sur téléphone", async ({ browser }
   const page = await signedIn(browser, "athlete", { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   await page.goto("/athlete");
   await expect(page.getByRole("heading", { name: "Aujourd’hui" })).toBeVisible();
-  await expect(page.getByText("Cette semaine")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Cette semaine" })).toBeVisible();
 
   const nav = page.getByRole("navigation", { name: "Navigation principale" }).last();
   await nav.getByRole("link", { name: "Calendrier" }).click();
