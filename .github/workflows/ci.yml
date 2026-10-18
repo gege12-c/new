@@ -7,7 +7,7 @@ on:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: postgres:16
@@ -40,7 +40,7 @@ jobs:
   # c'est ici que se vérifie le critère de la phase 2 (une séance publiée apparaît chez
   # l'athlète en quelques secondes, sans rechargement) grâce à Supabase Realtime.
   e2e:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
       NEXT_TELEMETRY_DISABLED: "1"
