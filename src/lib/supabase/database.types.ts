@@ -3,6 +3,124 @@ export type Json = string | number | boolean | null | { [key: string]: Json | un
 export type Database = {
   public: {
     Tables: {
+      activities: {
+        Row: {
+          athlete_id: string;
+          avg_cadence: number | null;
+          avg_hr: number | null;
+          avg_power: number | null;
+          avg_speed_mps: number | null;
+          connection_id: string | null;
+          created_at: string;
+          device_name: string | null;
+          distance_m: number | null;
+          elapsed_s: number | null;
+          elevation_gain_m: number | null;
+          expires_at: string | null;
+          external_id: string;
+          fetched_at: string;
+          group_key: string | null;
+          id: string;
+          local_date: string;
+          local_start_time: string | null;
+          manual: boolean | null;
+          max_hr: number | null;
+          max_power: number | null;
+          moving_s: number | null;
+          name: string | null;
+          source: string;
+          sport: string;
+          sport_detail: string | null;
+          start_time: string;
+          timezone: string | null;
+          trainer: boolean | null;
+          updated_at: string;
+          weighted_power: number | null;
+        };
+        ComputedFields: never;
+        Insert: {
+          athlete_id?: string;
+          avg_cadence?: number | null;
+          avg_hr?: number | null;
+          avg_power?: number | null;
+          avg_speed_mps?: number | null;
+          connection_id?: string | null;
+          created_at?: string;
+          device_name?: string | null;
+          distance_m?: number | null;
+          elapsed_s?: number | null;
+          elevation_gain_m?: number | null;
+          expires_at?: string | null;
+          external_id: string;
+          fetched_at?: string;
+          group_key?: string | null;
+          id?: string;
+          local_date: string;
+          local_start_time?: string | null;
+          manual?: boolean | null;
+          max_hr?: number | null;
+          max_power?: number | null;
+          moving_s?: number | null;
+          name?: string | null;
+          source: string;
+          sport: string;
+          sport_detail?: string | null;
+          start_time: string;
+          timezone?: string | null;
+          trainer?: boolean | null;
+          updated_at?: string;
+          weighted_power?: number | null;
+        };
+        Update: {
+          athlete_id?: string;
+          avg_cadence?: number | null;
+          avg_hr?: number | null;
+          avg_power?: number | null;
+          avg_speed_mps?: number | null;
+          connection_id?: string | null;
+          created_at?: string;
+          device_name?: string | null;
+          distance_m?: number | null;
+          elapsed_s?: number | null;
+          elevation_gain_m?: number | null;
+          expires_at?: string | null;
+          external_id?: string;
+          fetched_at?: string;
+          group_key?: string | null;
+          id?: string;
+          local_date?: string;
+          local_start_time?: string | null;
+          manual?: boolean | null;
+          max_hr?: number | null;
+          max_power?: number | null;
+          moving_s?: number | null;
+          name?: string | null;
+          source?: string;
+          sport?: string;
+          sport_detail?: string | null;
+          start_time?: string;
+          timezone?: string | null;
+          trainer?: boolean | null;
+          updated_at?: string;
+          weighted_power?: number | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "activities_athlete_id_fkey";
+            columns: ["athlete_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "activities_connection_id_fkey";
+            columns: ["connection_id"];
+            isOneToOne: false;
+            referencedRelation: "external_connections";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       admin_users: {
         Row: {
           created_at: string;
@@ -276,6 +394,57 @@ export type Database = {
           },
         ];
       };
+      external_connections: {
+        Row: {
+          athlete_id: string;
+          connected_at: string;
+          external_athlete_id: string;
+          id: string;
+          last_error: string | null;
+          last_error_at: string | null;
+          last_sync_at: string | null;
+          provider: string;
+          scopes: string[];
+          status: string;
+          updated_at: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          athlete_id: string;
+          connected_at?: string;
+          external_athlete_id: string;
+          id?: string;
+          last_error?: string | null;
+          last_error_at?: string | null;
+          last_sync_at?: string | null;
+          provider: string;
+          scopes?: string[];
+          status?: string;
+          updated_at?: string;
+        };
+        Update: {
+          athlete_id?: string;
+          connected_at?: string;
+          external_athlete_id?: string;
+          id?: string;
+          last_error?: string | null;
+          last_error_at?: string | null;
+          last_sync_at?: string | null;
+          provider?: string;
+          scopes?: string[];
+          status?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "external_connections_athlete_id_fkey";
+            columns: ["athlete_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       invitations: {
         Row: {
           accepted_at: string | null;
@@ -324,6 +493,42 @@ export type Database = {
             columns: ["coach_id"];
             isOneToOne: false;
             referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      oauth_tokens: {
+        Row: {
+          access_token: string;
+          connection_id: string;
+          expires_at: string;
+          refresh_token: string;
+          revision: number;
+          updated_at: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          access_token: string;
+          connection_id: string;
+          expires_at: string;
+          refresh_token: string;
+          revision?: number;
+          updated_at?: string;
+        };
+        Update: {
+          access_token?: string;
+          connection_id?: string;
+          expires_at?: string;
+          refresh_token?: string;
+          revision?: number;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "oauth_tokens_connection_id_fkey";
+            columns: ["connection_id"];
+            isOneToOne: true;
+            referencedRelation: "external_connections";
             referencedColumns: ["id"];
           },
         ];
@@ -508,6 +713,109 @@ export type Database = {
         };
         Relationships: [];
       };
+      provider_state: {
+        Row: {
+          blocked_until: string | null;
+          provider: string;
+          rate_limit: Json | null;
+          rate_observed_at: string | null;
+          subscription_callback: string | null;
+          subscription_id: number | null;
+          updated_at: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          blocked_until?: string | null;
+          provider: string;
+          rate_limit?: Json | null;
+          rate_observed_at?: string | null;
+          subscription_callback?: string | null;
+          subscription_id?: number | null;
+          updated_at?: string;
+        };
+        Update: {
+          blocked_until?: string | null;
+          provider?: string;
+          rate_limit?: Json | null;
+          rate_observed_at?: string | null;
+          subscription_callback?: string | null;
+          subscription_id?: number | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      session_activity_matches: {
+        Row: {
+          activity_id: string;
+          athlete_id: string;
+          created_at: string;
+          decided_at: string | null;
+          decided_by: string | null;
+          id: string;
+          score: number | null;
+          score_details: Json | null;
+          session_id: string;
+          status: string;
+          updated_at: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          activity_id: string;
+          athlete_id: string;
+          created_at?: string;
+          decided_at?: string | null;
+          decided_by?: string | null;
+          id?: string;
+          score?: number | null;
+          score_details?: Json | null;
+          session_id: string;
+          status: string;
+          updated_at?: string;
+        };
+        Update: {
+          activity_id?: string;
+          athlete_id?: string;
+          created_at?: string;
+          decided_at?: string | null;
+          decided_by?: string | null;
+          id?: string;
+          score?: number | null;
+          score_details?: Json | null;
+          session_id?: string;
+          status?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "session_activity_matches_activity_id_fkey";
+            columns: ["activity_id"];
+            isOneToOne: false;
+            referencedRelation: "activities";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "session_activity_matches_athlete_id_fkey";
+            columns: ["athlete_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "session_activity_matches_decided_by_fkey";
+            columns: ["decided_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "session_activity_matches_session_id_fkey";
+            columns: ["session_id"];
+            isOneToOne: false;
+            referencedRelation: "planned_sessions";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       session_comments: {
         Row: {
           athlete_id: string;
@@ -560,6 +868,161 @@ export type Database = {
             columns: ["session_id"];
             isOneToOne: false;
             referencedRelation: "planned_sessions";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      session_completions: {
+        Row: {
+          athlete_id: string;
+          created_at: string;
+          note: string | null;
+          rpe: number | null;
+          session_id: string;
+          status: string;
+          updated_at: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          athlete_id: string;
+          created_at?: string;
+          note?: string | null;
+          rpe?: number | null;
+          session_id: string;
+          status: string;
+          updated_at?: string;
+        };
+        Update: {
+          athlete_id?: string;
+          created_at?: string;
+          note?: string | null;
+          rpe?: number | null;
+          session_id?: string;
+          status?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "session_completions_athlete_id_fkey";
+            columns: ["athlete_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "session_completions_session_id_fkey";
+            columns: ["session_id"];
+            isOneToOne: true;
+            referencedRelation: "planned_sessions";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      sync_jobs: {
+        Row: {
+          athlete_id: string | null;
+          attempts: number;
+          created_at: string;
+          dedupe_key: string | null;
+          finished_at: string | null;
+          id: number;
+          kind: string;
+          last_error: string | null;
+          locked_at: string | null;
+          max_attempts: number;
+          payload: NonNullable<Json>;
+          run_after: string;
+          status: string;
+          updated_at: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          athlete_id?: string | null;
+          attempts?: number;
+          created_at?: string;
+          dedupe_key?: string | null;
+          finished_at?: string | null;
+          id?: never;
+          kind: string;
+          last_error?: string | null;
+          locked_at?: string | null;
+          max_attempts?: number;
+          payload?: NonNullable<Json>;
+          run_after?: string;
+          status?: string;
+          updated_at?: string;
+        };
+        Update: {
+          athlete_id?: string | null;
+          attempts?: number;
+          created_at?: string;
+          dedupe_key?: string | null;
+          finished_at?: string | null;
+          id?: never;
+          kind?: string;
+          last_error?: string | null;
+          locked_at?: string | null;
+          max_attempts?: number;
+          payload?: NonNullable<Json>;
+          run_after?: string;
+          status?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "sync_jobs_athlete_id_fkey";
+            columns: ["athlete_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      sync_logs: {
+        Row: {
+          athlete_id: string | null;
+          created_at: string;
+          event: string;
+          id: number;
+          job_id: number | null;
+          level: string;
+          message: string | null;
+          provider: string | null;
+        };
+        ComputedFields: never;
+        Insert: {
+          athlete_id?: string | null;
+          created_at?: string;
+          event: string;
+          id?: never;
+          job_id?: number | null;
+          level: string;
+          message?: string | null;
+          provider?: string | null;
+        };
+        Update: {
+          athlete_id?: string | null;
+          created_at?: string;
+          event?: string;
+          id?: never;
+          job_id?: number | null;
+          level?: string;
+          message?: string | null;
+          provider?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "sync_logs_athlete_id_fkey";
+            columns: ["athlete_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "sync_logs_job_id_fkey";
+            columns: ["job_id"];
+            isOneToOne: false;
+            referencedRelation: "sync_jobs";
             referencedColumns: ["id"];
           },
         ];
@@ -627,6 +1090,25 @@ export type Database = {
     };
     Functions: {
       accept_invitation: { Args: { p_token: string }; Returns: string };
+      admin_connection_counts: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          connections: number;
+          provider: string;
+          status: string;
+        }[];
+      };
+      associate_activity: { Args: { p_activity: string; p_session: string }; Returns: undefined };
+      athlete_sync_status: {
+        Args: { p_athletes: string[] };
+        Returns: {
+          athlete_id: string;
+          last_error: string;
+          last_sync_at: string;
+          provider: string;
+          status: string;
+        }[];
+      };
       athlete_thresholds_at: {
         Args: { p_athlete: string; p_date: string };
         Returns: {
@@ -635,6 +1117,31 @@ export type Database = {
           sport: string;
           value: number;
         }[];
+      };
+      claim_sync_jobs: {
+        Args: { p_limit: number };
+        Returns: {
+          athlete_id: string | null;
+          attempts: number;
+          created_at: string;
+          dedupe_key: string | null;
+          finished_at: string | null;
+          id: number;
+          kind: string;
+          last_error: string | null;
+          locked_at: string | null;
+          max_attempts: number;
+          payload: NonNullable<Json>;
+          run_after: string;
+          status: string;
+          updated_at: string;
+        }[];
+        SetofOptions: {
+          from: "*";
+          to: "sync_jobs";
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
       };
       copy_planned_week: {
         Args: { p_athlete: string; p_from: string; p_state?: string; p_to: string };
@@ -649,6 +1156,7 @@ export type Database = {
         }[];
       };
       current_user_is_admin: { Args: Record<PropertyKey, never>; Returns: boolean };
+      dissociate_activity: { Args: { p_activity: string; p_session: string }; Returns: undefined };
       duplicate_planned_session: { Args: { p_date: string; p_session: string }; Returns: string };
       get_invitation_preview: {
         Args: { p_token: string };
@@ -660,9 +1168,11 @@ export type Database = {
         }[];
       };
       publish_session_draft: { Args: { p_prefer?: string; p_session: string }; Returns: Json };
+      purge_my_expired_activities: { Args: Record<PropertyKey, never>; Returns: number };
       rebase_session_draft: { Args: { p_prefer: string; p_session: string }; Returns: Json };
       revoke_coach_link: { Args: { p_link_id: string }; Returns: undefined };
       revoke_invitation: { Args: { p_invitation_id: string }; Returns: undefined };
+      run_maintenance: { Args: Record<PropertyKey, never>; Returns: Json };
       save_planned_session: {
         Args: { p_base: Json; p_session: string; p_values: Json };
         Returns: Json;
@@ -675,6 +1185,7 @@ export type Database = {
         Args: { p_can_edit_plan: boolean; p_can_view_activities: boolean; p_link_id: string };
         Returns: undefined;
       };
+      upsert_strava_activities: { Args: { p_connection: string; p_items: Json }; Returns: number };
     };
     Enums: {
       [_ in never]: never;
