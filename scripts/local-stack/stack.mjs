@@ -46,6 +46,8 @@ export function signJwt(payload) {
 }
 
 export const ANON_KEY = signJwt({ iss: "supabase-local", role: "anon", iat: 1700000000, exp: 2000000000 });
+/** Clé « serveur » locale (rôle service_role), pour les webhooks, tâches et tests d'intégration. */
+export const SERVICE_ROLE_KEY = signJwt({ iss: "supabase-local", role: "service_role", iat: 1700000000, exp: 2000000000 });
 
 function log(message) {
   process.stdout.write(`[stack] ${message}\n`);
@@ -340,7 +342,7 @@ async function start() {
   await gateway();
   writeFileSync(
     path.join(ROOT, ".env.local-stack"),
-    [`NEXT_PUBLIC_SUPABASE_URL=${API_URL}`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${ANON_KEY}`, ""].join("\n"),
+    [`NEXT_PUBLIC_SUPABASE_URL=${API_URL}`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=${ANON_KEY}`, `SUPABASE_SECRET_KEY=${SERVICE_ROLE_KEY}`, ""].join("\n"),
   );
   log(`prête : API ${API_URL}, base ${DB_URL}`);
   log("variables de l'application dans .env.local-stack");

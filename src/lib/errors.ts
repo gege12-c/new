@@ -26,6 +26,9 @@ const DB_MESSAGES: Record<string, string> = {
   invalid_session_payload: "Données de séance invalides.",
   week_must_start_monday: "Une semaine commence un lundi.",
   same_week: "Choisissez une autre semaine que celle copiée.",
+  activity_not_found: "Cette activité n’existe plus ou ne vous est pas accessible.",
+  connection_not_found: "Aucune connexion Strava pour ce compte.",
+  invalid_activity_payload: "Données d’activité invalides.",
 };
 
 const AUTH_MESSAGES: Record<string, string> = {
