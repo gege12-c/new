@@ -497,6 +497,99 @@ export type Database = {
           },
         ];
       };
+      notification_preferences: {
+        Row: {
+          disabled_kinds: string[];
+          updated_at: string;
+          user_id: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          disabled_kinds?: string[];
+          updated_at?: string;
+          user_id?: string;
+        };
+        Update: {
+          disabled_kinds?: string[];
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "notification_preferences_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: true;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      notifications: {
+        Row: {
+          actor_id: string | null;
+          athlete_id: string | null;
+          created_at: string;
+          id: string;
+          kind: string;
+          payload: NonNullable<Json>;
+          read_at: string | null;
+          recipient_id: string;
+          session_id: string | null;
+        };
+        ComputedFields: never;
+        Insert: {
+          actor_id?: string | null;
+          athlete_id?: string | null;
+          created_at?: string;
+          id?: string;
+          kind: string;
+          payload?: NonNullable<Json>;
+          read_at?: string | null;
+          recipient_id: string;
+          session_id?: string | null;
+        };
+        Update: {
+          actor_id?: string | null;
+          athlete_id?: string | null;
+          created_at?: string;
+          id?: string;
+          kind?: string;
+          payload?: NonNullable<Json>;
+          read_at?: string | null;
+          recipient_id?: string;
+          session_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "notifications_actor_id_fkey";
+            columns: ["actor_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "notifications_athlete_id_fkey";
+            columns: ["athlete_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "notifications_recipient_id_fkey";
+            columns: ["recipient_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "notifications_session_id_fkey";
+            columns: ["session_id"];
+            isOneToOne: false;
+            referencedRelation: "planned_sessions";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       oauth_tokens: {
         Row: {
           access_token: string;
@@ -1244,6 +1337,8 @@ export type Database = {
           status: string;
         }[];
       };
+      mark_notifications_read: { Args: { p_session?: string }; Returns: number };
+      notify_missing_feedback: { Args: { p_day?: string }; Returns: number };
       publish_session_draft: { Args: { p_prefer?: string; p_session: string }; Returns: Json };
       purge_my_expired_activities: { Args: Record<PropertyKey, never>; Returns: number };
       rebase_session_draft: { Args: { p_prefer: string; p_session: string }; Returns: Json };
