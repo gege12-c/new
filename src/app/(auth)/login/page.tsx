@@ -7,6 +7,11 @@ import { LoginForm } from "./login-form";
 
 export const metadata: Metadata = { title: "Connexion" };
 
+/** Messages affichables : un lien ne peut pas faire écrire n'importe quel texte sur cette page. */
+const ERRORS: Record<string, string> = {
+  link: "Lien de confirmation invalide ou expiré. Connectez-vous, ou demandez un nouveau lien.",
+};
+
 export default function LoginPage({ searchParams }: PageProps<"/login">) {
   return (
     <div>
@@ -22,14 +27,23 @@ async function LoginContent({ searchParams }: Pick<PageProps<"/login">, "searchP
   const params = await searchParams;
   const read = (key: string) => (typeof params[key] === "string" ? (params[key] as string) : undefined);
   const next = safeNextPath(read("next"));
-  const error = read("error");
+  const error = ERRORS[read("error") ?? ""];
   const confirmed = read("confirmed") === "1";
+  const deleted = read("deleted");
 
   return (
     <>
       {confirmed ? (
         <Notice tone="success" className="mt-4">
           Adresse confirmée. Connectez-vous pour continuer.
+        </Notice>
+      ) : null}
+      {deleted === "1" || deleted === "strava" ? (
+        <Notice tone="success" className="mt-4">
+          Votre compte et toutes vos données ont été supprimés.
+          {deleted === "strava"
+            ? " Strava n’a pas confirmé le retrait de l’accès : retirez TriCoach dans les réglages de votre compte Strava (Applications)."
+            : null}
         </Notice>
       ) : null}
       {error ? (

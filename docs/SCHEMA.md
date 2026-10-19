@@ -185,6 +185,17 @@ Sécurité : chacun ne lit que ses notifications et ne peut modifier que `read_a
 
 Migration `20261021100000_admin_accounts.sql` : `admin_accounts()` liste les comptes pour un administrateur (nom, email, mode coach, administrateur, inscription, dernière connexion, nombre de relations), sans aucune donnée sportive ; `admin_set_admin(compte, oui/non)` donne ou retire le rôle d'administrateur, jamais au dernier administrateur. Les deux vérifient l'appelant (`forbidden` sinon).
 
+## Suppression du compte (phase 5)
+
+Migration `20261022000000_account_deletion.sql` : `delete_my_account()`, sans paramètre, supprime le compte de l'utilisateur connecté, en une transaction :
+
+- partent avec lui (cascade depuis `auth.users`) : profil, profil sportif, seuils, compétitions, séances, modifications en attente, commentaires, déclarations, activités et rapprochements, exports, notifications et réglages, connexions et jetons, relations, invitations, modèles, rôle d'administrateur ;
+- en tant que coach : ses modifications en attente et les séances restées brouillon chez ses athlètes sont effacées ; ses séances publiées restent chez l'athlète, sans auteur (`created_by`, `updated_by` et `template_id` passent à null) ;
+- journal d'audit : les entrées qui concernent le compte (ses données, ses invitations) sont effacées ; ses actions dans l'historique des autres deviennent anonymes (`actor_id` à null) ;
+- `guard_planned_session` n'inscrit plus comme dernier éditeur qu'un profil existant : sans ce changement, la clé étrangère « on delete set null » réécrivait les séances du coach avec son propre identifiant et la suppression échouait.
+
+L'application révoque l'accès Strava avant l'appel (elle seule déchiffre les jetons) ; si Strava ne répond pas, la connexion et les jetons sont tout de même effacés et l'utilisateur est prévenu de retirer TriCoach dans ses réglages Strava. L'export des données personnelles (`GET /api/me/export`) lit tout sous les droits de l'utilisateur, sans les activités Strava ni leurs rapprochements.
+
 ## Journal d'audit
 
 Chaque création, modification et suppression sur les profils sportifs, relations, invitations, seuils, compétitions et séances est enregistrée avec son auteur. Pour une modification, seules les colonnes changées sont conservées (ancienne et nouvelle valeur). Le contenu structuré d'une séance est noté « modifié » sans être recopié, car l'enregistrement automatique le réécrit souvent.

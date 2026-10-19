@@ -1,6 +1,6 @@
 # Avancement
 
-Dernière mise à jour : 19 octobre 2026 (nuit), phases 4 et 5 livrées (exports, application installable, progression, notifications).
+Dernière mise à jour : 19 octobre 2026 (nuit), phases 4 et 5 livrées (exports, application installable, progression, notifications, vos données).
 
 ## Phase 5 — Mise en production : livrée, à confirmer sur votre téléphone
 
@@ -12,6 +12,7 @@ Vérification :
 - `e2e/stats.spec.ts` : l'athlète voit sa progression (réalisé d'après un fichier FIT, séance « faite » d'après son retour, record de puissance, tableau) ; le coach voit l'onglet « Progression » de son athlète.
 - `e2e/notifications.spec.ts` : le coach publie une séance, l'athlète la voit dans la cloche, ouvre la séance depuis la notification, la notification passe en lue ; un commentaire de l'athlète prévient le coach ; un type coupé dans les réglages ne prévient plus.
 - `e2e/admin.spec.ts` : l'administrateur voit les comptes et leurs rôles, sans donnée sportive ; 3 tests de base (`tests/db/admin.test.ts`) : liste, accès refusé aux autres, rôle donné et retiré, jamais au dernier administrateur.
+- `e2e/account.spec.ts` : un compte neuf télécharge ses données (fichier JSON relu, refusé sans connexion), puis supprime son compte en tapant SUPPRIMER ; il est déconnecté et ne peut plus se connecter. 4 tests de base (`tests/db/account-deletion.test.ts`) : un coach part (séances publiées conservées chez l'athlète sans auteur et toujours modifiables par l'autre coach, brouillons et modifications en attente effacés, historique anonymisé, aucune notification déclenchée) ; une athlète part (plus aucune ligne à son nom, nulle part, ni son identifiant dans l'historique) ; connexion Strava et jetons effacés ; fonction sans paramètre, donc impossible de viser un autre compte.
 - 8 tests de base (`tests/db/notifications.test.ts`) : destinataires, regroupements, auteur jamais prévenu, notes privées muettes, droits (lecture et marquage des seules notifications reçues, aucune écriture directe), réglages, reconnexion Strava, export échoué, rappel quotidien unique ; 10 tests unitaires (statistiques, manifeste et icônes).
 
 Livré :
@@ -20,6 +21,8 @@ Livré :
 - **Progression** (athlète, et onglet de la fiche athlète côté coach) : volume prévu par semaine et par discipline sur 12 semaines (enchaînements découpés par discipline) et réalisé d'après les fichiers FIT ; intensité prévue par zone sur 4 semaines ; suivi des séances passées (retours de l'athlète, fichiers FIT) ; évolution des seuils (FTP, allure seuil, CSS, FC seuil) ; records tirés des fichiers FIT. Chaque bloc dit ce qui manque au lieu de calculer sur trop peu de données ; tableau des valeurs ; couleurs de graphique contrôlées (contraste, daltonisme) en clair et en sombre.
 - **Notifications** dans l'application : cloche avec le nombre de non lues, page des notifications, ouverture directe de la séance, « Tout marquer comme lu », réglage par type dans les réglages. Séance publiée, modifiée, déplacée ou annulée ; commentaire partagé ; reconnexion Strava nécessaire ; export impossible chez un athlète (pour ses coachs) ; rappel le lendemain d'une séance sans retour.
 - **Administration, comptes et rôles** : liste des comptes (nom, email, mode coach, administrateur, relations, inscription, dernière connexion) et rôle d'administrateur donné ou retiré depuis la page Administration, sans aucune donnée sportive ; jamais le dernier administrateur.
+- **Vos données** (réglages) : téléchargement de toutes ses données dans un fichier JSON (lues sous les droits de l'utilisateur ; les activités Strava restent chez Strava) ; suppression définitive du compte après avoir tapé SUPPRIMER : l'accès Strava est d'abord révoqué, puis tout est effacé en une transaction. Pour un coach, les séances déjà publiées restent chez ses athlètes ; ses brouillons, modèles, invitations et relations disparaissent.
+- **En-têtes de sécurité** sur toutes les pages : pas d'affichage dans un cadre d'un autre site, types de fichiers stricts, adresse d'origine limitée, caméra, micro, position et paiement désactivés.
 - **Sauvegardes** : procédure d'export documentée (README, « Sauvegardes ») ; l'offre gratuite de Supabase n'en fait pas automatiquement.
 
 Pas fait (hors de portée cette nuit ou dépendant de vous) : notifications par email (il faut un service SMTP) et notifications push sur téléphone (clés VAPID à créer et à saisir dans Vercel) ; statistiques sur les activités Strava (interdites par Strava sans accord écrit).
@@ -131,6 +134,8 @@ Livré :
 | Seuils des statistiques | ceux en vigueur à la date de chaque séance | même règle que les durées estimées et les exports |
 | Notifications | écrites par la base (triggers), dans l'application seulement, regroupées, réglables par type ; aucune donnée Strava | rien ne peut être oublié par un chemin de l'application ; sobres par construction ; email et push demandent des comptes et des secrets que vous créez |
 | Rappel « séance sans retour » | une fois par séance, le lendemain (date locale de l'athlète), par la tâche quotidienne | pas de harcèlement ; fonctionne même sans Strava |
+| Suppression du compte | fonction `delete_my_account()` sans paramètre, une seule transaction ; l'application révoque Strava juste avant ; séances publiées d'un coach conservées chez l'athlète, sans auteur ; brouillons et modifications en attente du coach effacés ; journal d'audit effacé pour ce compte, anonymisé ailleurs | droit à l'effacement (RGPD) et accord Strava (§7.4) ; une séance publiée appartient à l'athlète ; aucune clé secrète nécessaire, impossible de viser un autre compte |
+| Export des données personnelles | fichier JSON lu sous les droits de l'utilisateur (RLS), sans les activités Strava ni leurs rapprochements | droit d'accès et de portabilité ; TriCoach ne garde les données Strava que quelques jours, l'athlète les télécharge chez Strava |
 | Administration | page `/admin` : configuration (présente ou non, jamais les valeurs), abonnement webhook, file, quotas, journal ; génération des valeurs secrètes dans le navigateur | vous saisissez les secrets vous-même, sans les écrire dans une conversation |
 
 ## Phases 1 et 2 : terminées
@@ -142,7 +147,7 @@ Livré :
 
 | Élément | État |
 | --- | --- |
-| Base Supabase `supabase-rose-candle` (`ugqtfkuisaqjdnwxvogm`, Zurich, PostgreSQL 17) | phases 1 et 2 à jour. **Migrations des phases 3, 4 et 5 en attente**, réunies dans un seul fichier à coller dans l'éditeur SQL : `supabase/production/pending.sql` (voir « À faire de votre côté »). Le connecteur Supabase ne peut pas les appliquer sans une confirmation qui ne s'affiche pas ici. Elles n'ajoutent que des tables, fonctions et triggers ; une seule transaction, tout ou rien |
+| Base Supabase `supabase-rose-candle` (`ugqtfkuisaqjdnwxvogm`, Zurich, PostgreSQL 17) | phases 1 et 2 à jour. **Migrations des phases 3, 4 et 5 en attente**, réunies dans un seul fichier à coller dans l'éditeur SQL : `supabase/production/pending.sql` (voir « À faire de votre côté »). Le connecteur Supabase ne peut pas les appliquer sans une confirmation qui ne s'affiche pas ici. Elles ajoutent des tables, fonctions et triggers et remplacent une fonction existante (`guard_planned_session`, qui n'inscrit plus comme dernier éditeur qu'un compte existant) ; une seule transaction, tout ou rien |
 | Code des phases 3, 4 et 5 | fusionné dans `main` et déployé. En attendant la mise à jour de la base, les écrans concernés l'indiquent (« disponible après la mise à jour de la base ») au lieu d'échouer ; la cloche des notifications n'apparaît qu'une fois la base à jour. Fonctionnent déjà : exports Zwift et Garmin (seul leur historique attend la base), application installable, progression (volumes prévus, intensité, seuils). Dès la base à jour, tout s'active sans nouveau déploiement |
 | Projet Vercel `new` | en ligne sur https://new-bay-one-76.vercel.app ; variables de Strava à ajouter (README, « Activer Strava ») |
 | Réglages d'authentification Supabase | faits le 18 octobre (Site URL, Redirect URLs, confirmation d'email désactivée en attendant un SMTP) |
@@ -150,7 +155,7 @@ Livré :
 
 Accès des connecteurs : Vercel lit le projet, les variables (noms) et crée des déploiements, mais ses journaux de build et d'exécution sont refusés (403 sur l'espace `geraldegea12-9585`) ; Supabase lit et interroge la base, mais ses migrations demandent une confirmation qui ne s'affiche pas ici : elles s'appliquent depuis l'éditeur SQL.
 
-Avertissements de l'analyseur Supabase acceptés : les fonctions d'invitation et de relation coach-athlète (`create_invitation`, `accept_invitation`, `get_invitation_preview`, `revoke_invitation`, `revoke_coach_link`, `set_coach_permissions`, `current_user_is_admin`) et celles des phases 3 à 5 appelables par un utilisateur (`associate_activity`, `dissociate_activity`, `purge_my_expired_activities`, `athlete_sync_status`, `admin_connection_counts`, `mark_notifications_read`, `admin_accounts`, `admin_set_admin`) vérifient elles-mêmes l'appelant. « Leaked password protection » : réglage d'authentification à activer.
+Avertissements de l'analyseur Supabase acceptés : les fonctions d'invitation et de relation coach-athlète (`create_invitation`, `accept_invitation`, `get_invitation_preview`, `revoke_invitation`, `revoke_coach_link`, `set_coach_permissions`, `current_user_is_admin`) et celles des phases 3 à 5 appelables par un utilisateur (`associate_activity`, `dissociate_activity`, `purge_my_expired_activities`, `athlete_sync_status`, `admin_connection_counts`, `mark_notifications_read`, `admin_accounts`, `admin_set_admin`, `delete_my_account`) vérifient elles-mêmes l'appelant. « Leaked password protection » : réglage d'authentification à activer.
 
 ## Limites connues
 
