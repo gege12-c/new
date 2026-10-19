@@ -82,7 +82,7 @@ Après chaque déploiement de `main` réussi, le workflow GitHub « Production �
 
 ### Mettre à jour la base de production
 
-Les migrations pas encore appliquées en production (en ce moment celles des phases 3, 4 et 5) sont réunies dans un seul fichier, [`supabase/production/pending.sql`](supabase/production/pending.sql), généré par `node scripts/production-sql.mjs` à partir de `supabase/migrations` (la CI vérifie qu'il est à jour et qu'il s'applique en une fois). Pour l'appliquer : ouvrez sa version brute sur GitHub, copiez tout le texte, puis Supabase > **SQL Editor** > **New query**, collez et cliquez sur **Run**. Résultat attendu : « Success. No rows returned ». C'est tout ou rien : en cas d'erreur, la base reste inchangée. Une fois la mise à jour faite, les versions passent dans `supabase/production/applied.txt` et le fichier est régénéré.
+Les migrations pas encore appliquées en production (en ce moment celles des phases 3, 4 et 5) sont réunies dans un seul fichier, [`supabase/production/pending.sql`](supabase/production/pending.sql), généré par `node scripts/production-sql.mjs` à partir de `supabase/migrations` (la CI vérifie qu'il est à jour et qu'il s'applique en une fois). Pour l'appliquer : ouvrez sa version brute sur GitHub, copiez tout le texte, puis Supabase > **SQL Editor** > **New query**, collez et cliquez sur **Run** (si Supabase signale une « destructive operation », confirmez : ce sont des fonctions qui effacent sur demande, rien n'est supprimé à l'application du fichier). Résultat attendu : « Success. No rows returned ». C'est tout ou rien : en cas d'erreur, la base reste inchangée. Une fois la mise à jour faite, les versions passent dans `supabase/production/applied.txt` et le fichier est régénéré.
 
 ### Sauvegardes
 
