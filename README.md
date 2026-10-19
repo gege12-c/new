@@ -76,6 +76,10 @@ Un administrateur voit la configuration des intégrations, la file de synchronis
 
 Règles de Strava appliquées : les activités Strava ne sont visibles que de l'athlète (son coach voit ses retours de séance et ses fichiers FIT), elles sont effacées au bout de 6 jours (7 au plus autorisés), une suppression sur Strava est répercutée sous 48 h, et une déconnexion efface tout aussitôt. Aucune donnée Strava n'est transmise à un outil d'IA.
 
+### Contrôle automatique de la production
+
+Après chaque déploiement de `main` réussi, le workflow GitHub « Production » lance `node scripts/production-smoke.mjs` contre le site en ligne : santé et Supabase (`/api/health`), version déployée, page de connexion, en-têtes de sécurité, HTTPS imposé, manifeste, icônes et service worker, refus des visiteurs anonymes. Aucun compte ni secret n'est utilisé ; il se lance aussi à la main (Actions > Production > Run workflow).
+
 ### Mettre à jour la base de production
 
 Les migrations pas encore appliquées en production (en ce moment celles des phases 3, 4 et 5) sont réunies dans un seul fichier, [`supabase/production/pending.sql`](supabase/production/pending.sql), généré par `node scripts/production-sql.mjs` à partir de `supabase/migrations` (la CI vérifie qu'il est à jour et qu'il s'applique en une fois). Pour l'appliquer : ouvrez sa version brute sur GitHub, copiez tout le texte, puis Supabase > **SQL Editor** > **New query**, collez et cliquez sur **Run**. Résultat attendu : « Success. No rows returned ». C'est tout ou rien : en cas d'erreur, la base reste inchangée. Une fois la mise à jour faite, les versions passent dans `supabase/production/applied.txt` et le fichier est régénéré.

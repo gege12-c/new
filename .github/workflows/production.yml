@@ -1,0 +1,24 @@
+name: Production
+
+# Après chaque déploiement de production réussi (statut « Vercel » d'un commit de main), et à la
+# demande : contrôle de la production en ligne, sans compte ni secret (scripts/production-smoke.mjs).
+on:
+  status:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.context == 'Vercel' && github.event.state == 'success' && contains(github.event.branches.*.name, 'main'))
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Contrôle de la production
+        run: node scripts/production-smoke.mjs https://new-bay-one-76.vercel.app ${{ github.event_name == 'status' && github.event.sha || '' }}
