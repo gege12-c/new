@@ -1260,6 +1260,20 @@ export type Database = {
     };
     Functions: {
       accept_invitation: { Args: { p_token: string }; Returns: string };
+      admin_accounts: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          athletes: number;
+          coaches: number;
+          created_at: string;
+          display_name: string;
+          email: string;
+          id: string;
+          is_admin: boolean;
+          is_coach: boolean;
+          last_sign_in_at: string;
+        }[];
+      };
       admin_connection_counts: {
         Args: Record<PropertyKey, never>;
         Returns: {
@@ -1268,6 +1282,7 @@ export type Database = {
           status: string;
         }[];
       };
+      admin_set_admin: { Args: { p_admin: boolean; p_user: string }; Returns: undefined };
       associate_activity: { Args: { p_activity: string; p_session: string }; Returns: undefined };
       athlete_sync_status: {
         Args: { p_athletes: string[] };
