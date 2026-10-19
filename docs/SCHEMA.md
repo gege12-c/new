@@ -32,7 +32,7 @@ erDiagram
 | `profiles` | un profil par compte | `is_coach` déclaratif ; fuseau horaire validé |
 | `admin_users` | administrateurs | écrite uniquement par la clé de service ou l'éditeur SQL |
 | `athlete_profiles` | objectifs, niveau, volume visé, notes | créé à l'inscription pour tout compte |
-| `coach_athlete_links` | relation coach-athlète | `active` ou `revoked` ; permissions `can_edit_plan`, `can_view_activities` réglées par l'athlète |
+| `coach_athlete_links` | relation coach-athlète | `active` ou `revoked` ; permissions `can_edit_plan`, `can_view_activities` réglées par l'athlète ; `share_strava` et `strava_shared_at` : autorisation expresse de l'athlète à ce coach de voir ses activités Strava, désactivée par défaut, remise à zéro quand la relation est retirée ou rétablie |
 | `invitations` | invitations à usage unique | seule l'empreinte SHA-256 du jeton est stockée ; nominative (email) ou par lien |
 | `athlete_thresholds` | seuils historisés (FTP, FC seuil, allure seuil, CSS, FC max…) | une valeur par seuil et par date d'effet ; bornes plausibles contrôlées |
 | `athlete_events` | compétitions | priorité A, B ou C |
@@ -126,13 +126,13 @@ erDiagram
 | --- | --- | --- |
 | Connexion Strava | l'athlète | le serveur seul (clé secrète) |
 | Jetons OAuth | personne par l'API | le serveur seul |
-| Activités Strava | **l'athlète seul**, et jusqu'à leur expiration (politique Strava : affichage réservé à l'athlète, cache de 7 jours au plus) | le serveur seul |
+| Activités Strava | **l'athlète**, et les coachs qu'il autorise expressément (`share_strava`), jusqu'à leur expiration (politique Strava : consentement exprès, §5.13 ; cache de 7 jours au plus, §6.2) | le serveur seul |
 | Activités importées (FIT) | l'athlète, et ses coachs qu'il autorise à « voir ses activités importées » | l'athlète (import, suppression) |
-| Rapprochements | comme l'activité et la séance concernées (un coach ne voit jamais un rapprochement avec une activité Strava) | fonctions `associate_activity` et `dissociate_activity`, et le rapprochement automatique |
+| Rapprochements | comme l'activité et la séance concernées (un coach ne voit un rapprochement avec une activité Strava que si l'athlète l'autorise) | fonctions `associate_activity` et `dissociate_activity` (pour une activité Strava : l'athlète seul), et le rapprochement automatique |
 | Retour de séance | l'athlète et ses coachs actifs | l'athlète |
 | File, journal, état Strava | les administrateurs (sans les paramètres des jobs) | le serveur seul |
 
-Temps réel : ce qui touche une activité Strava part sur le canal `self:<id>`, que seul l'athlète peut écouter ; les retours de séance et les fichiers FIT sur `athlete:<id>` (athlète et coachs actifs).
+Temps réel : ce qui touche une activité Strava part sur le canal `self:<id>`, que seul l'athlète peut écouter, et sur `strava:<id>` quand au moins un coach est autorisé à voir ses activités Strava (l'athlète et ces coachs seulement) ; les retours de séance et les fichiers FIT sur `athlete:<id>` (athlète et coachs actifs).
 
 ### Fonctions des activités
 
@@ -144,6 +144,7 @@ Temps réel : ce qui touche une activité Strava part sur le canal `self:<id>`, 
 | `claim_sync_jobs(n)` | serveur : réserve les jobs à exécuter (`skip locked`), reprend ceux bloqués depuis plus de 10 minutes |
 | `run_maintenance()` | serveur : efface les activités Strava expirées, les jobs terminés depuis 7 jours, le journal de plus de 30 jours |
 | `purge_my_expired_activities()` | athlète : efface ses activités Strava expirées sans attendre la tâche quotidienne |
+| `set_strava_sharing(relation, oui/non)` | athlète : autorise un de ses coachs à voir ses activités Strava, ou retire cette autorisation (date du consentement gardée tant qu'il dure) |
 | `athlete_sync_status(athlètes[])` | état des connexions (statut, dernière synchronisation, code d'erreur) des athlètes auxquels l'appelant a accès |
 | `admin_connection_counts()` | administrateur : nombre de comptes reliés par statut (capacité de l'application Strava) |
 

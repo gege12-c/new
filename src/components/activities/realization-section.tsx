@@ -137,6 +137,7 @@ export function RealizationSection({
   status,
   viewer,
   canPlan,
+  stravaShared = false,
   today,
   timeZone,
 }: {
@@ -145,6 +146,8 @@ export function RealizationSection({
   status: SessionStatus;
   viewer: "coach" | "athlete";
   canPlan: boolean;
+  /** Coach : l’athlète l’autorise à voir ses activités Strava. Athlète : au moins un coach autorisé. */
+  stravaShared?: boolean;
   today: string;
   timeZone: string;
 }) {
@@ -230,7 +233,9 @@ export function RealizationSection({
 
       {viewer === "coach" ? (
         <p className="text-[12.5px] leading-snug text-muted">
-          Les activités Strava de l’athlète restent visibles de lui seul (règles de Strava). Vous voyez ses fichiers FIT importés, s’il vous y autorise, et son retour ci-dessous.
+          {stravaShared
+            ? "L’athlète vous autorise à voir ses activités Strava : gardées 6 jours dans TriCoach, elles n’entrent dans aucune statistique (règles de Strava). Vous voyez aussi ses fichiers FIT importés, s’il vous y autorise, et son retour ci-dessous."
+            : "Les activités Strava de l’athlète ne vous sont montrées que s’il vous y autorise, depuis son profil sportif (règles de Strava). Vous voyez ses fichiers FIT importés, s’il vous y autorise, et son retour ci-dessous."}
         </p>
       ) : null}
 
@@ -238,7 +243,12 @@ export function RealizationSection({
         <div className="rounded-[12px] border border-line p-3">
           <h4 className="text-[14px] font-semibold">Votre retour</h4>
           <p className="mb-3 mt-0.5 text-[12.5px] text-muted">
-            Visible par votre coach{status === "done" || status === "partial" ? ", qui ne voit pas vos activités Strava" : ""}.
+            Visible par votre coach.
+            {status === "done" || status === "partial"
+              ? stravaShared
+                ? " Vos activités Strava sont partagées avec le coach que vous avez autorisé."
+                : " Il ne voit pas vos activités Strava, sauf si vous l’y autorisez (profil sportif, « Mon coach »)."
+              : ""}
           </p>
           <CompletionForm key={session.id} sessionId={session.id} completion={completion} />
         </div>

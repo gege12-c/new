@@ -4,6 +4,7 @@ import { ExportSection } from "@/components/exports/export-section";
 import { SportBadge } from "@/components/sport";
 import { relativeProfileNote, WorkoutProfile } from "@/components/workout/workout-profile";
 import { getSessionRealization } from "@/lib/data/activities";
+import { sharesStravaWithCoach } from "@/lib/data/athlete";
 import { getExportHistory } from "@/lib/data/exports";
 import { getSessionComments, getSessionDetail, getSessionHistory, getThresholdsOn } from "@/lib/data/planning";
 import { compatibilityReports } from "@/lib/export/connectors";
@@ -71,6 +72,7 @@ export async function SessionPanel({
   closeHref,
   editHref,
   canPlan,
+  stravaShared,
 }: {
   supabase: ServerSupabase;
   sessionId: string;
@@ -82,6 +84,8 @@ export async function SessionPanel({
   closeHref: string;
   editHref: string | null;
   canPlan: boolean;
+  /** Coach : l’athlète l’autorise à voir ses activités Strava. Athlète : lu ici (au moins un coach autorisé). */
+  stravaShared?: boolean;
 }) {
   const detail = await getSessionDetail(supabase, sessionId, { withDraft: viewer === "coach" || undefined });
   if (!detail) {
@@ -92,13 +96,14 @@ export async function SessionPanel({
     );
   }
   const exportable = detail.state !== "cancelled";
-  const [comments, history, realization, exportHistory, thresholdsOnDate] = await Promise.all([
+  const [comments, history, realization, exportHistory, thresholdsOnDate, shared] = await Promise.all([
     getSessionComments(supabase, sessionId),
     getSessionHistory(supabase, sessionId),
     getSessionRealization(supabase, detail),
     exportable ? getExportHistory(supabase, sessionId) : Promise.resolve(null),
     // Les exports utilisent les seuils en vigueur à la date de la séance (comme le téléchargement).
     exportable ? getThresholdsOn(supabase, detail.athlete_id, detail.scheduled_date) : Promise.resolve(undefined),
+    viewer === "athlete" ? sharesStravaWithCoach(supabase, viewerId) : Promise.resolve(stravaShared === true),
   ]);
   const exportCtx = exportContext(detail, thresholdsOnDate);
   // Contenu normalisé (valeurs par défaut du format) : c'est lui que le téléchargement convertit.
@@ -218,6 +223,7 @@ export async function SessionPanel({
             status={status}
             viewer={viewer}
             canPlan={canPlan}
+            stravaShared={shared}
             today={today}
             timeZone={timeZone}
           />

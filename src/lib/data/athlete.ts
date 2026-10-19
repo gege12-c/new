@@ -51,12 +51,28 @@ export async function getUpcomingSessions(supabase: ServerSupabase, athleteId: s
 export async function getMyCoaches(supabase: ServerSupabase, athleteId: string) {
   const { data, error } = await supabase
     .from("coach_athlete_links")
-    .select("id, can_edit_plan, can_view_activities, created_at, coach:profiles!coach_athlete_links_coach_id_fkey(id, display_name)")
+    // « * » : les colonnes du partage Strava n'existent qu'après la mise à jour de la base.
+    .select("*, coach:profiles!coach_athlete_links_coach_id_fkey(id, display_name)")
     .eq("athlete_id", athleteId)
     .eq("status", "active")
     .order("created_at", { ascending: true });
   if (error) throw error;
-  return data ?? [];
+  return (data ?? []).map((link) => ({
+    id: link.id,
+    can_edit_plan: link.can_edit_plan,
+    can_view_activities: link.can_view_activities,
+    created_at: link.created_at,
+    coach: link.coach,
+    share_strava: link.share_strava === true,
+    strava_shared_at: link.strava_shared_at ?? null,
+  }));
+}
+
+/** L’athlète partage-t-il ses activités Strava avec au moins un de ses coachs ? (non tant que la base n’est pas à jour) */
+export async function sharesStravaWithCoach(supabase: ServerSupabase, athleteId: string): Promise<boolean> {
+  const { data, error } = await supabase.from("coach_athlete_links").select("*").eq("athlete_id", athleteId).eq("status", "active");
+  if (error) throw error;
+  return (data ?? []).some((link) => link.share_strava === true);
 }
 
 export const EXPERIENCE_LABELS: Record<string, string> = {

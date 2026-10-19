@@ -77,7 +77,7 @@ async function CoachAthleteCalendar({ params, searchParams }: PageProps<"/coach/
         canCreate={ctx.canPlan}
         newSessionPath={ctx.canPlan ? `${basePath}/sessions/new` : undefined}
         templates={templates}
-        toolbarExtra={<PlanningLive athleteId={athleteId} className="order-first w-full sm:order-none sm:w-auto" />}
+        toolbarExtra={<PlanningLive athleteId={athleteId} strava={ctx.link.share_strava} className="order-first w-full sm:order-none sm:w-auto" />}
       />
       {query.session ? (
         <SessionPanel
@@ -91,6 +91,7 @@ async function CoachAthleteCalendar({ params, searchParams }: PageProps<"/coach/
           closeHref={calendarHref(basePath, query, { session: null })}
           editHref={`${basePath}/sessions/${query.session}`}
           canPlan={ctx.canPlan}
+          stravaShared={ctx.link.share_strava}
         />
       ) : query.activity ? (
         <ActivityPanel

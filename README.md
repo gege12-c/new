@@ -75,7 +75,7 @@ Résultat attendu : une ligne. « Success. No rows returned » veut dire que l'a
 4. Côté athlète : **Profil sportif**, carte « Activités réalisées », « Connecter Strava ». Les activités des 7 derniers jours arrivent, puis chaque nouvelle activité en quelques minutes.
 5. Une nouvelle application Strava démarre en « single-player mode » : seul votre propre compte peut s'y connecter. Depuis son tableau de bord (API Settings), passez à la capacité de 10 athlètes, sans revue ([documentation Strava](https://developers.strava.com/docs/getting-started/)). Au-delà de 10, Strava demande une revue.
 
-Règles de Strava appliquées : les activités Strava ne sont visibles que de l'athlète (son coach voit ses retours de séance et ses fichiers FIT), elles sont effacées au bout de 6 jours (7 au plus autorisés), une suppression sur Strava est répercutée sous 48 h, et une déconnexion efface tout aussitôt. Aucune donnée Strava n'est transmise à un outil d'IA.
+Règles de Strava appliquées : les activités Strava ne sont visibles que de l'athlète, et du coach qu'il autorise expressément (profil sportif, « Mon coach », « Activités Strava » ; désactivé par défaut, retirable à tout moment) ; elles n'entrent dans aucune statistique, elles sont effacées au bout de 6 jours (7 au plus autorisés), une suppression sur Strava est répercutée sous 48 h, et une déconnexion efface tout aussitôt. Aucune donnée Strava n'est transmise à un outil d'IA.
 
 ### Contrôle automatique de la production
 

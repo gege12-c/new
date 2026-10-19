@@ -342,7 +342,9 @@ export type Database = {
           id: string;
           revoked_at: string | null;
           revoked_by: string | null;
+          share_strava: boolean;
           status: string;
+          strava_shared_at: string | null;
           updated_at: string;
         };
         ComputedFields: never;
@@ -355,7 +357,9 @@ export type Database = {
           id?: string;
           revoked_at?: string | null;
           revoked_by?: string | null;
+          share_strava?: boolean;
           status?: string;
+          strava_shared_at?: string | null;
           updated_at?: string;
         };
         Update: {
@@ -367,7 +371,9 @@ export type Database = {
           id?: string;
           revoked_at?: string | null;
           revoked_by?: string | null;
+          share_strava?: boolean;
           status?: string;
+          strava_shared_at?: string | null;
           updated_at?: string;
         };
         Relationships: [
@@ -1373,6 +1379,7 @@ export type Database = {
         Args: { p_can_edit_plan: boolean; p_can_view_activities: boolean; p_link_id: string };
         Returns: undefined;
       };
+      set_strava_sharing: { Args: { p_link_id: string; p_share: boolean }; Returns: boolean };
       upsert_strava_activities: { Args: { p_connection: string; p_items: Json }; Returns: number };
     };
     Enums: {

@@ -20,13 +20,14 @@ export async function getCoachedAthletes(supabase: ServerSupabase, coachId: stri
 export async function getCoachLink(supabase: ServerSupabase, coachId: string, athleteId: string) {
   const { data, error } = await supabase
     .from("coach_athlete_links")
-    .select("id, can_edit_plan, can_view_activities, created_at")
+    // « * » : les colonnes du partage Strava n'existent qu'après la mise à jour de la base.
+    .select("*")
     .eq("coach_id", coachId)
     .eq("athlete_id", athleteId)
     .eq("status", "active")
     .maybeSingle();
   if (error) throw error;
-  return data;
+  return data ? { id: data.id, can_edit_plan: data.can_edit_plan, can_view_activities: data.can_view_activities, created_at: data.created_at, share_strava: data.share_strava === true } : null;
 }
 
 /** Invitations encore utilisables : ni acceptées, ni annulées, ni expirées. */

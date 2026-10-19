@@ -4,7 +4,7 @@ import { sessionStatus } from "@/lib/planning/status";
 import { calendarHref, readCalendarQuery } from "@/lib/planning/calendar-query";
 import { activityDuration, completionRatio, deviation, realizedTotals } from "./compare";
 import { formatSignedDistance, formatSignedDuration, formatSignedPercent, formatSpeed } from "./format";
-import { unattachedActivities, withRealization, type RealizedRange } from "./realization";
+import { unattachedActivities, withoutStrava, withRealization, type RealizedRange } from "./realization";
 
 const activity = (id: string, fields: Partial<CalendarActivity> = {}): CalendarActivity => ({
   id,
@@ -86,6 +86,29 @@ describe("prévu et réalisé", () => {
     expect(s2.realization.proposals.map((x) => x.id)).toEqual(["b"]);
     expect(s2.realization.completion).toBeNull();
     expect(unattachedActivities(realized).map((x) => x.id)).toEqual(["c", "b"]);
+  });
+
+  it("les bilans laissent de côté Strava, même partagé par l'athlète : la déclaration reste", () => {
+    const sessions = [{ id: "s1" }, { id: "s2" }] as CalendarSession[];
+    const strava = { ...activity("a"), links: [{ session_id: "s1", status: "auto" as const }] };
+    const fit = { ...activity("f", { source: "fit_upload" }), links: [{ session_id: "s2", status: "auto" as const }] };
+    const realized: RealizedRange = {
+      activities: [strava, fit],
+      matches: [
+        { id: "m1", session_id: "s1", activity_id: "a", status: "auto", score: 0.9, activity: strava },
+        { id: "m2", session_id: "s2", activity_id: "f", status: "auto", score: 0.9, activity: fit },
+      ],
+      completions: [completion("partial")],
+    };
+    const kept = withoutStrava(realized);
+    expect(kept.activities.map((x) => x.id)).toEqual(["f"]);
+    expect(kept.matches.map((m) => m.id)).toEqual(["m2"]);
+    const [s1, s2] = withRealization(sessions, kept);
+    expect(s1.realization.attached).toEqual([]);
+    expect(s1.realization.completion?.status).toBe("partial");
+    expect(s2.realization.attached.map((x) => x.id)).toEqual(["f"]);
+    // L'original n'est pas modifié (le calendrier, lui, montre chaque activité partagée).
+    expect(realized.matches).toHaveLength(2);
   });
 
   it("met en forme écarts, allures et vitesses", () => {

@@ -13,11 +13,23 @@ const FALLBACK_INTERVAL_MS = 30_000;
 
 /**
  * Écoute le canal privé « athlete:<id> » (Supabase Realtime, autorisé par la RLS de realtime.messages),
- * et pour l’athlète lui-même « self:<id> », qui signale ses activités Strava.
+ * et pour l’athlète lui-même « self:<id> », qui signale ses activités Strava ; pour un coach que
+ * l’athlète autorise à voir ses activités Strava, « strava:<id> ».
  * Chaque signal relance le rendu serveur de la page : les données sont relues sous les droits
  * de l’utilisateur, le message ne transporte que des identifiants.
  */
-export function PlanningLive({ athleteId, self = false, className }: { athleteId: string; self?: boolean; className?: string }) {
+export function PlanningLive({
+  athleteId,
+  self = false,
+  strava = false,
+  className,
+}: {
+  athleteId: string;
+  self?: boolean;
+  /** Coach autorisé par l’athlète à voir ses activités Strava. */
+  strava?: boolean;
+  className?: string;
+}) {
   const router = useRouter();
   const [state, setState] = useState<LiveState>("connecting");
 
@@ -51,8 +63,8 @@ export function PlanningLive({ athleteId, self = false, className }: { athleteId
         // Pas de jeton : la souscription échouera et le mode de secours prendra le relais.
       }
       if (cancelled) return;
-      // « self:<id> » : ce qui vient de Strava, réservé à l’athlète lui-même.
-      const topics = self ? [`athlete:${athleteId}`, `self:${athleteId}`] : [`athlete:${athleteId}`];
+      // Ce qui vient de Strava : « self:<id> » pour l’athlète lui-même, « strava:<id> » pour ses coachs autorisés.
+      const topics = [`athlete:${athleteId}`, ...(self ? [`self:${athleteId}`] : strava ? [`strava:${athleteId}`] : [])];
       for (const topic of topics) {
         const channel = supabase
           .channel(topic, { config: { private: true } })
@@ -89,7 +101,7 @@ export function PlanningLive({ athleteId, self = false, className }: { athleteId
       stopFallback();
       for (const channel of channels) void supabase.removeChannel(channel);
     };
-  }, [athleteId, self, router]);
+  }, [athleteId, self, strava, router]);
 
   const label = state === "live" ? "En direct" : state === "connecting" ? "Connexion…" : "Actualisation toutes les 30 s";
   const title =
