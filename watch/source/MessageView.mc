@@ -22,14 +22,11 @@ class MessageView extends WatchUi.View {
   }
 }
 
+// Retour : comportement de la montre (ferme l'écran ouvert par-dessus, ou l'application depuis son
+// premier écran). Jamais de popView ici : il est refusé sur le premier écran d'un widget.
 class MessageDelegate extends WatchUi.BehaviorDelegate {
   function initialize() {
     BehaviorDelegate.initialize();
-  }
-
-  function onBack() {
-    WatchUi.popView(WatchUi.SLIDE_RIGHT);
-    return true;
   }
 }
 

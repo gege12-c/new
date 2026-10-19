@@ -35,6 +35,7 @@ class DownloadView extends WatchUi.View {
   var text;
   var started = false;
   var answered = false;
+  var visible = false;
   var timer = null;
   var intent = null;
 
@@ -46,6 +47,7 @@ class DownloadView extends WatchUi.View {
   }
 
   function onShow() {
+    visible = true;
     if (started) {
       return;
     }
@@ -61,6 +63,10 @@ class DownloadView extends WatchUi.View {
     }
   }
 
+  function onHide() {
+    visible = false;
+  }
+
   // Les séances TriCoach déjà chargées sont retirées : la montre ne garde que la dernière.
   function clearPrevious() {
     if (!(PersistedContent has :getAppWorkouts)) {
@@ -71,23 +77,29 @@ class DownloadView extends WatchUi.View {
     while (workout != null) {
       if (workout has :remove) {
         workout.remove();
+        // Elle n'est plus sur la montre : ne plus le prétendre, et la reproposer si besoin.
+        Store.setLoaded(null);
       }
       workout = workouts.next();
     }
   }
 
-  function onTimeout() {
+  function onTimeout() as Void {
     if (!answered) {
       finish(Api.errorText(Communications.NETWORK_REQUEST_TIMED_OUT));
     }
   }
 
-  function finish(message) {
-    answered = true;
+  function stopTimer() {
     if (timer != null) {
       timer.stop();
       timer = null;
     }
+  }
+
+  function finish(message) {
+    answered = true;
+    stopTimer();
     text = message;
     WatchUi.requestUpdate();
   }
@@ -96,62 +108,88 @@ class DownloadView extends WatchUi.View {
     if (answered) {
       return;
     }
-    if (responseCode == 401) {
-      // Montre dissociée depuis TriCoach entre-temps.
-      Store.setToken(null);
-      Checks.stop();
-      finish(WatchUi.loadResource(Rez.Strings.Unauthorized));
-      return;
-    }
     var workouts = data instanceof PersistedContent.Iterator ? data : null;
     var workout = workouts == null ? null : workouts.next();
-    if ((responseCode == 200 && workout == null) || responseCode == 0) {
-      finish(WatchUi.loadResource(Rez.Strings.StorageFull));
+    if (responseCode == 200 && workout != null) {
+      Store.setLoaded(Sessions.key(session));
+      finish(WatchUi.loadResource(Rez.Strings.Saved));
+      intent = workout.toIntent();
+      // La montre demande elle-même s'il faut démarrer la séance ; seulement si cet écran est
+      // encore affiché (pas après un retour pendant le téléchargement).
+      if (visible) {
+        timer = new Timer.Timer();
+        timer.start(method(:launch), 300, false);
+      }
       return;
     }
-    if (responseCode != 200) {
+    if (responseCode == 401) {
+      unpaired();
+      return;
+    }
+    if (responseCode > 0 && responseCode != 200) {
       finish(Api.errorText(responseCode));
       return;
     }
-    Store.setLoaded(Sessions.key(session));
-    finish(WatchUi.loadResource(Rez.Strings.Saved));
-    intent = workout.toIntent();
-    WatchUi.pushView(new WatchUi.Confirmation(WatchUi.loadResource(Rez.Strings.StartNow)), new StartDelegate(self), WatchUi.SLIDE_UP);
-  }
-
-  // Lancement différé (la minuterie vit avec cet écran, qui reste dans la pile) : certaines
-  // montres refusent de quitter l'application depuis un rappel.
-  function startWorkout() {
+    // Code 0, ou réponse sans séance : beaucoup de montres taisent la cause d'un échec de
+    // téléchargement de fichier. TriCoach la dit : montre dissociée, séance modifiée, ou mémoire.
+    stopTimer();
     timer = new Timer.Timer();
-    timer.start(method(:launch), 300, false);
+    timer.start(method(:onTimeout), Load.TIMEOUT_MS, false);
+    text = WatchUi.loadResource(Rez.Strings.Checking);
+    WatchUi.requestUpdate();
+    Api.getSessions(method(:onCheck));
   }
 
-  function launch() {
-    if (intent != null) {
+  function onCheck(responseCode, data) {
+    if (answered) {
+      return;
+    }
+    if (responseCode != 200 || !(data instanceof Dictionary)) {
+      finish(Api.errorText(responseCode));
+      return;
+    }
+    if ("unauthorized".equals(data["status"])) {
+      unpaired();
+      return;
+    }
+    var sessions = data["sessions"];
+    if (!"ok".equals(data["status"]) || !(sessions instanceof Array)) {
+      finish(WatchUi.loadResource(Rez.Strings.Unavailable));
+      return;
+    }
+    var wanted = Sessions.key(session);
+    for (var i = 0; i < sessions.size(); i += 1) {
+      if (wanted.equals(Sessions.key(sessions[i]))) {
+        finish(WatchUi.loadResource(Rez.Strings.StorageFull));
+        return;
+      }
+    }
+    finish(WatchUi.loadResource(Rez.Strings.SessionChanged));
+  }
+
+  // Montre dissociée depuis TriCoach entre-temps.
+  function unpaired() {
+    Store.setToken(null);
+    Checks.stop();
+    finish(WatchUi.loadResource(Rez.Strings.Unauthorized));
+  }
+
+  // Lancement différé (la minuterie vit avec cet écran) : certaines montres refusent de quitter
+  // l'application depuis un rappel. Si la montre refuse, la séance reste dans ses entraînements.
+  function launch() as Void {
+    timer = null;
+    if (intent == null) {
+      return;
+    }
+    try {
       System.exitTo(intent);
+    } catch (e) {
+      finish(WatchUi.loadResource(Rez.Strings.Saved));
     }
   }
 
   function onUpdate(dc) {
     Screen.clear(dc);
     Screen.drawCentered(dc, text, Graphics.FONT_SMALL);
-  }
-}
-
-// « La démarrer ? » Oui : la montre ouvre la séance (écran de départ Garmin).
-// Non : elle reste dans les entraînements de la montre, pour plus tard.
-class StartDelegate extends WatchUi.ConfirmationDelegate {
-  var view;
-
-  function initialize(download) {
-    ConfirmationDelegate.initialize();
-    view = download;
-  }
-
-  function onResponse(response) {
-    if (response == WatchUi.CONFIRM_YES) {
-      view.startWorkout();
-    }
-    return true;
   }
 }

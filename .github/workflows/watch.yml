@@ -125,14 +125,16 @@ jobs:
           openssl pkey -inform DER -in "$key" -check -noout
           echo "WATCH_KEY=$key" >> "$GITHUB_ENV"
 
+      # -l 0 : sans vérification des types, le code Monkey C de TriCoach n'étant pas annoté
+      # (vérification active par défaut depuis le SDK 4.1.6) ; les symboles restent contrôlés.
       - name: Build
         if: steps.access.outputs.ready == 'true'
         run: |
           mkdir -p build/prg
           monkeyc --version
-          monkeyc -f watch/monkey.jungle -e -r -w -y "$WATCH_KEY" -o build/TriCoach.iq
+          monkeyc -f watch/monkey.jungle -e -r -w -l 0 -y "$WATCH_KEY" -o build/TriCoach.iq
           for device in $(grep -o 'iq:product id="[^"]*"' watch/manifest.xml | cut -d'"' -f2); do
-            monkeyc -f watch/monkey.jungle -d "$device" -r -y "$WATCH_KEY" -o "build/prg/TriCoach-$device.prg" > /dev/null
+            monkeyc -f watch/monkey.jungle -d "$device" -r -l 0 -y "$WATCH_KEY" -o "build/prg/TriCoach-$device.prg" > /dev/null
           done
           find build -name '*.debug.xml' -delete
           ls build build/prg | head -20

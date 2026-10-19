@@ -25,7 +25,7 @@ module Sessions {
     var list = new WatchUi.Menu2({ :title => WatchUi.loadResource(Rez.Strings.AppName) });
     for (var i = 0; i < sessions.size(); i += 1) {
       var session = sessions[i];
-      list.addItem(new WatchUi.MenuItem(session["title"], subLabel(session), i, {}));
+      list.addItem(new WatchUi.MenuItem(session["title"], subLabel(session), i, null));
     }
     return list;
   }
@@ -94,7 +94,7 @@ class SessionsDelegate extends WatchUi.Menu2InputDelegate {
     var choices = new WatchUi.Menu2({ :title => WatchUi.loadResource(Rez.Strings.PartsTitle) });
     for (var i = 0; i < parts.size(); i += 1) {
       var part = parts[i];
-      choices.addItem(new WatchUi.MenuItem(Sessions.sportLabel(part["sport"]), part["ok"] == true ? null : part["reason"], i, {}));
+      choices.addItem(new WatchUi.MenuItem(Sessions.sportLabel(part["sport"]), part["ok"] == true ? null : part["reason"], i, null));
     }
     WatchUi.pushView(choices, new PartsDelegate(session), WatchUi.SLIDE_LEFT);
   }

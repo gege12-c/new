@@ -38,7 +38,7 @@ module Store {
   }
 
   function setLoaded(value) {
-    Application.Storage.setValue(LOADED_KEY, value);
+    write(LOADED_KEY, value);
   }
 
   // Séance déjà proposée par la tâche de fond : pas de nouvelle demande pour la même version.
