@@ -457,7 +457,7 @@ function MonthView(props: ViewProps) {
                     scroll={false}
                     className={cn(
                       "figure flex h-6 min-w-6 items-center justify-center rounded-full px-1.5 text-[12.5px]",
-                      isToday ? "bg-ink text-canvas" : inMonth ? "text-ink-soft hover:bg-surface-2" : "text-muted/70 hover:bg-surface-2",
+                      isToday ? "bg-ink text-canvas" : inMonth ? "text-ink-soft hover:bg-surface-2" : "text-muted hover:bg-surface-2",
                     )}
                     aria-label={formatFullDate(day)}
                   >
@@ -535,7 +535,7 @@ function DayColumn({ day, props, size }: { day: ISODate; props: ViewProps; size:
         {dayActivities.map((activity) => (
           <ActivityChip key={activity.id} activity={activity} href={activityHref(activity)} size={size} selected={query.activity === activity.id} />
         ))}
-        {!sessions.length && !dayActivities.length && !(eventsByDate.get(day) ?? []).length ? <p className="px-1 py-2 text-[12px] text-muted/80">Repos</p> : null}
+        {!sessions.length && !dayActivities.length && !(eventsByDate.get(day) ?? []).length ? <p className="px-1 py-2 text-[12px] text-muted">Repos</p> : null}
       </div>
     </section>
   );
@@ -768,7 +768,6 @@ export function SportStatusFilters({ basePath, query, sports }: { basePath: stri
             key={sport}
             href={calendarHref(basePath, query, { sports: toggle(query.sports, sport), session: null })}
             scroll={false}
-            aria-pressed={active}
             className={cn(
               "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[13px] font-medium xl:px-2.5 xl:text-[12.5px]",
               active ? cn("border-transparent", SPORT_STYLES[sport].soft, SPORT_STYLES[sport].ink, "font-semibold") : "border-line-strong bg-surface text-ink-soft",
@@ -776,6 +775,7 @@ export function SportStatusFilters({ basePath, query, sports }: { basePath: stri
           >
             <SportDot sport={sport} />
             {SPORT_LABELS[sport]}
+            {active ? <span className="sr-only"> (filtre actif)</span> : null}
           </Link>
         );
       })}
@@ -787,13 +787,13 @@ export function SportStatusFilters({ basePath, query, sports }: { basePath: stri
             key={status}
             href={calendarHref(basePath, query, { statuses: toggle(query.statuses, status), session: null })}
             scroll={false}
-            aria-pressed={active}
             className={cn(
               "inline-flex h-8 shrink-0 items-center rounded-full border px-3 text-[13px] font-medium xl:px-2.5 xl:text-[12.5px]",
               active ? "border-ink bg-ink text-canvas" : "border-line-strong bg-surface text-ink-soft",
             )}
           >
             {STATUS_LABELS[status]}
+            {active ? <span className="sr-only"> (filtre actif)</span> : null}
           </Link>
         );
       })}
