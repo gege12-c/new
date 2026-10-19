@@ -46,6 +46,11 @@ const SECTIONS: Section[] = [
     key: "connections",
     read: ({ supabase, userId }) => supabase.from("external_connections").select("id, provider, status, scopes, connected_at, last_sync_at").eq("athlete_id", userId),
   },
+  {
+    key: "watches",
+    read: ({ supabase, userId }) =>
+      supabase.from("watch_devices").select("id, device_name, created_at, last_seen_at, revoked_at").eq("athlete_id", userId).order("created_at"),
+  },
   { key: "notifications", read: ({ supabase, userId }) => supabase.from("notifications").select("*").eq("recipient_id", userId).order("created_at") },
   { key: "notification_settings", read: ({ supabase, userId }) => supabase.from("notification_preferences").select("*").eq("user_id", userId).maybeSingle() },
 ];

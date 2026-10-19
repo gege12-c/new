@@ -1126,6 +1126,103 @@ export type Database = {
           },
         ];
       };
+      watch_devices: {
+        Row: {
+          athlete_id: string;
+          connected_at: string | null;
+          created_at: string;
+          device_name: string;
+          id: string;
+          last_seen_at: string | null;
+          revoked_at: string | null;
+          token_hash: string | null;
+        };
+        ComputedFields: never;
+        Insert: {
+          athlete_id: string;
+          connected_at?: string | null;
+          created_at?: string;
+          device_name: string;
+          id?: string;
+          last_seen_at?: string | null;
+          revoked_at?: string | null;
+          token_hash?: string | null;
+        };
+        Update: {
+          athlete_id?: string;
+          connected_at?: string | null;
+          created_at?: string;
+          device_name?: string;
+          id?: string;
+          last_seen_at?: string | null;
+          revoked_at?: string | null;
+          token_hash?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "watch_devices_athlete_id_fkey";
+            columns: ["athlete_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      watch_pairings: {
+        Row: {
+          athlete_id: string | null;
+          claimed_at: string | null;
+          confirmed_at: string | null;
+          created_at: string;
+          device_code_hash: string;
+          device_id: string | null;
+          device_name: string;
+          expires_at: string;
+          id: string;
+          user_code: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          athlete_id?: string | null;
+          claimed_at?: string | null;
+          confirmed_at?: string | null;
+          created_at?: string;
+          device_code_hash: string;
+          device_id?: string | null;
+          device_name: string;
+          expires_at: string;
+          id?: string;
+          user_code: string;
+        };
+        Update: {
+          athlete_id?: string | null;
+          claimed_at?: string | null;
+          confirmed_at?: string | null;
+          created_at?: string;
+          device_code_hash?: string;
+          device_id?: string | null;
+          device_name?: string;
+          expires_at?: string;
+          id?: string;
+          user_code?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "watch_pairings_athlete_id_fkey";
+            columns: ["athlete_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "watch_pairings_device_id_fkey";
+            columns: ["device_id"];
+            isOneToOne: false;
+            referencedRelation: "watch_devices";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       workout_exports: {
         Row: {
           athlete_id: string;
@@ -1334,6 +1431,15 @@ export type Database = {
           isSetofReturn: true;
         };
       };
+      claim_watch_token: {
+        Args: { p_device_code: string };
+        Returns: {
+          athlete_name: string;
+          status: string;
+          token: string;
+        }[];
+      };
+      confirm_watch_pairing: { Args: { p_user_code: string }; Returns: string };
       copy_planned_week: {
         Args: { p_athlete: string; p_from: string; p_state?: string; p_to: string };
         Returns: number;
@@ -1366,6 +1472,7 @@ export type Database = {
       rebase_session_draft: { Args: { p_prefer: string; p_session: string }; Returns: Json };
       revoke_coach_link: { Args: { p_link_id: string }; Returns: undefined };
       revoke_invitation: { Args: { p_invitation_id: string }; Returns: undefined };
+      revoke_watch_device: { Args: { p_device_id: string }; Returns: undefined };
       run_maintenance: { Args: Record<PropertyKey, never>; Returns: Json };
       save_planned_session: {
         Args: { p_base: Json; p_session: string; p_values: Json };
@@ -1380,7 +1487,16 @@ export type Database = {
         Returns: undefined;
       };
       set_strava_sharing: { Args: { p_link_id: string; p_share: boolean }; Returns: boolean };
+      start_watch_pairing: {
+        Args: { p_device_name?: string };
+        Returns: {
+          device_code: string;
+          expires_at: string;
+          user_code: string;
+        }[];
+      };
       upsert_strava_activities: { Args: { p_connection: string; p_items: Json }; Returns: number };
+      watch_sessions: { Args: { p_token: string }; Returns: Json };
     };
     Enums: {
       [_ in never]: never;

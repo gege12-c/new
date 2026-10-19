@@ -34,6 +34,7 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
+      - run: npm run watch:check
       - run: npm run build
 
   # Le fichier de mise à jour de la production (supabase/production/pending.sql) s'applique en une

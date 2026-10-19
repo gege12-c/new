@@ -190,12 +190,31 @@ Migration `20261021100000_admin_accounts.sql` : `admin_accounts()` liste les com
 
 Migration `20261022000000_account_deletion.sql` : `delete_my_account()`, sans paramètre, supprime le compte de l'utilisateur connecté, en une transaction :
 
-- partent avec lui (cascade depuis `auth.users`) : profil, profil sportif, seuils, compétitions, séances, modifications en attente, commentaires, déclarations, activités et rapprochements, exports, notifications et réglages, connexions et jetons, relations, invitations, modèles, rôle d'administrateur ;
+- partent avec lui (cascade depuis `auth.users`) : profil, profil sportif, seuils, compétitions, séances, modifications en attente, commentaires, déclarations, activités et rapprochements, exports, notifications et réglages, connexions et jetons, montres associées, relations, invitations, modèles, rôle d'administrateur ;
 - en tant que coach : ses modifications en attente et les séances restées brouillon chez ses athlètes sont effacées ; ses séances publiées restent chez l'athlète, sans auteur (`created_by`, `updated_by` et `template_id` passent à null) ;
 - journal d'audit : les entrées qui concernent le compte (ses données, ses invitations) sont effacées ; ses actions dans l'historique des autres deviennent anonymes (`actor_id` à null) ;
 - `guard_planned_session` n'inscrit plus comme dernier éditeur qu'un profil existant : sans ce changement, la clé étrangère « on delete set null » réécrivait les séances du coach avec son propre identifiant et la suppression échouait.
 
 L'application révoque l'accès Strava avant l'appel (elle seule déchiffre les jetons) ; si Strava ne répond pas, la connexion et les jetons sont tout de même effacés et l'utilisateur est prévenu de retirer TriCoach dans ses réglages Strava. L'export des données personnelles (`GET /api/me/export`) lit tout sous les droits de l'utilisateur, sans les activités Strava ni leurs rapprochements.
+
+## Montre Garmin (phase 5)
+
+Migration `20261024000000_garmin_watch.sql`. Application de la montre et routes : [GARMIN_WATCH.md](GARMIN_WATCH.md). Association par code, sur le modèle du « device flow » d'OAuth (RFC 8628).
+
+| Table | Rôle | Points clés |
+| --- | --- | --- |
+| `watch_pairings` | associations en cours | code de 8 caractères sans ambiguïté de lecture (`user_code`, unique tant qu'il attend), code de la montre gardé sous forme d'empreinte (`device_code_hash`) ; 10 minutes de validité ; aucune lecture ni écriture par l'API |
+| `watch_devices` | montres associées | « en attente » dès la saisie du code (`connected_at` et `token_hash` nuls), connectée à la remise du jeton (empreinte SHA-256, unique) ; `last_seen_at` = dernier contact ; révocable (`revoked_at`) ; 5 montres actives au plus par athlète ; disparaît avec le compte |
+
+| Fonction | Usage |
+| --- | --- |
+| `start_watch_pairing(nom?)` | montre (sans compte) : nouveau code ; associations abandonnées effacées après un jour ; limitée à 500 demandes par 10 minutes pour tout le service |
+| `confirm_watch_pairing(code)` | athlète connecté : saisie du code (minuscules, tiret et espaces tolérés) ; la montre apparaît aussitôt dans son profil |
+| `claim_watch_token(code de la montre)` | montre : jeton remis une seule fois (`ready`), sinon `pending`, `claimed`, `expired` ou `unknown` |
+| `revoke_watch_device(montre)` | athlète : dissocie sa montre ; le jeton ne vaut plus rien aussitôt |
+| `watch_sessions(jeton)` | montre : séances publiées d'aujourd'hui à J+6 (date locale de l'athlète) et seuils, ou `unauthorized` ; met à jour `last_seen_at` |
+
+Sécurité : RLS active, tous les privilèges retirés sur les deux tables ; l'athlète lit seulement les colonnes non sensibles de ses montres (ni empreinte ni code) ; tout le reste passe par les fonctions, qui vérifient l'appelant.
 
 ## Journal d'audit
 

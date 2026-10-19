@@ -30,6 +30,10 @@ const DB_MESSAGES: Record<string, string> = {
   activity_not_found: "Cette activité n’existe plus ou ne vous est pas accessible.",
   connection_not_found: "Aucune connexion Strava pour ce compte.",
   invalid_activity_payload: "Données d’activité invalides.",
+  pairing_not_found: "Code inconnu ou expiré : vérifiez-le sur la montre, ou rouvrez l’application TriCoach de la montre pour en obtenir un nouveau.",
+  too_many_watches: "Cinq montres au plus : dissociez-en une avant d’en associer une autre.",
+  watch_not_found: "Cette montre n’est plus associée à votre compte.",
+  pairing_unavailable: "Trop de demandes d’association en ce moment : réessayez dans quelques minutes.",
 };
 
 const AUTH_MESSAGES: Record<string, string> = {

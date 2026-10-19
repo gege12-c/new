@@ -131,6 +131,7 @@ npm run dev                  # http://localhost:3000
 | `npm run db:types` | régénère les types TypeScript de la base après une migration |
 | `npm run test:integration` | chaîne Strava complète et lectures du réalisé, contre une pile Supabase démarrée (variables de `.env.local-stack`) et un faux Strava |
 | `npm run test:e2e` | parcours clés dans un navigateur (Playwright), contre l'application lancée sur `http://localhost:3000` |
+| `npm run watch:check` | application de la montre Garmin (`watch/`) : syntaxe Monkey C, textes et manifeste, sans le SDK Garmin (compilation complète : workflow « Montre Garmin », [docs/GARMIN_WATCH.md](docs/GARMIN_WATCH.md)) |
 
 Les tests de base démarrent un PostgreSQL temporaire (binaires trouvés automatiquement, ou `PG_BIN`) ; avec `TEST_DATABASE_URL`, ils utilisent ce serveur à la place.
 
@@ -168,6 +169,7 @@ et lancez `npm run test:e2e` avec `STRAVA_CLIENT_ID=4242` et `SUPABASE_SECRET_KE
 - [docs/WORKOUT_FORMAT.md](docs/WORKOUT_FORMAT.md) : format des séances structurées et calculs.
 - [docs/EXPORTS.md](docs/EXPORTS.md) : exports Zwift et Garmin, conditions des fournisseurs, règles de conversion.
 - [docs/FITNESS.md](docs/FITNESS.md) : condition physique, fatigue et forme (méthode, sources, prévision).
-- [docs/PARTNERS.md](docs/PARTNERS.md) : accès partenaires de Garmin et Suunto pour l'envoi automatique vers les montres (état, demande Suunto prête).
+- [docs/PARTNERS.md](docs/PARTNERS.md) : accès partenaires de Garmin et Suunto pour l'envoi automatique vers les montres (état, demande Suunto prête, pistes étudiées : application Suunto, application Android).
+- [docs/GARMIN_WATCH.md](docs/GARMIN_WATCH.md) : application TriCoach pour montre Garmin (fonctionnement, compilation dans GitHub, installation).
 
 Fonctions de la phase 5 : application installable (manifeste, icônes, page hors connexion, sans aucune donnée gardée sur l'appareil), page « Progression » (athlète et coach), notifications dans l'application (cloche, réglages par type), rubrique « Vos données » des réglages (téléchargement de toutes ses données en JSON, suppression définitive du compte). La tâche quotidienne (`/api/cron/daily`, Vercel Cron) envoie aussi les rappels de séance sans retour ; elle demande `CRON_SECRET` et `SUPABASE_SECRET_KEY`.
