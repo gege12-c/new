@@ -4,7 +4,7 @@ Dernière mise à jour : 19 octobre 2026 (nuit), phases 4 et 5 livrées (exports
 
 ## Phase 5 — Mise en production : livrée, à confirmer sur votre téléphone
 
-Critère de fin : l'application tourne en production et s'installe sur un téléphone. Elle tourne en production (déploiement automatique de `main`) ; l'installation est vérifiée par Chromium lui-même (aucune erreur d'installabilité, manifeste valide) dans la CI ; reste à l'essayer sur votre téléphone (voir « À faire »).
+Critère de fin : l'application tourne en production et s'installe sur un téléphone. Elle tourne en production (déploiement automatique de `main`, contrôlé après chaque déploiement par le workflow « Production » sur le site en ligne) ; l'installation est vérifiée par Chromium lui-même (aucune erreur d'installabilité, manifeste valide) dans la CI ; reste à l'essayer sur votre téléphone (voir « À faire »).
 
 Vérification :
 
@@ -13,6 +13,7 @@ Vérification :
 - `e2e/notifications.spec.ts` : le coach publie une séance, l'athlète la voit dans la cloche, ouvre la séance depuis la notification, la notification passe en lue ; un commentaire de l'athlète prévient le coach ; un type coupé dans les réglages ne prévient plus.
 - `e2e/admin.spec.ts` : l'administrateur voit les comptes et leurs rôles, sans donnée sportive ; 3 tests de base (`tests/db/admin.test.ts`) : liste, accès refusé aux autres, rôle donné et retiré, jamais au dernier administrateur.
 - `e2e/a11y.spec.ts` : audit axe-core (WCAG 2.1, niveaux A et AA) des pages clés du coach sur ordinateur et de l'athlète sur téléphone, en clair et en sombre, calendrier rempli, panneau de séance et éditeur compris, ainsi que les pages publiques : aucune anomalie. Parcours au clavier : « Aller au contenu », ouverture d'une séance avec Entrée, fermeture avec Échap et retour du focus sur la séance du calendrier.
+- `e2e/errors.spec.ts` : une adresse inconnue donne « Page introuvable » (statut 404) avec un retour à l'accueil, une séance inexistante aussi dans l'espace connecté.
 - `e2e/account.spec.ts` : un compte neuf télécharge ses données (fichier JSON relu, refusé sans connexion), puis supprime son compte en tapant SUPPRIMER ; il est déconnecté et ne peut plus se connecter. 4 tests de base (`tests/db/account-deletion.test.ts`) : un coach part (séances publiées conservées chez l'athlète sans auteur et toujours modifiables par l'autre coach, brouillons et modifications en attente effacés, historique anonymisé, aucune notification déclenchée) ; une athlète part (plus aucune ligne à son nom, nulle part, ni son identifiant dans l'historique) ; connexion Strava et jetons effacés ; fonction sans paramètre, donc impossible de viser un autre compte.
 - 8 tests de base (`tests/db/notifications.test.ts`) : destinataires, regroupements, auteur jamais prévenu, notes privées muettes, droits (lecture et marquage des seules notifications reçues, aucune écriture directe), réglages, reconnexion Strava, export échoué, rappel quotidien unique ; 10 tests unitaires (statistiques, manifeste et icônes).
 
@@ -24,6 +25,7 @@ Livré :
 - **Administration, comptes et rôles** : liste des comptes (nom, email, mode coach, administrateur, relations, inscription, dernière connexion) et rôle d'administrateur donné ou retiré depuis la page Administration, sans aucune donnée sportive ; jamais le dernier administrateur.
 - **Vos données** (réglages) : téléchargement de toutes ses données dans un fichier JSON (lues sous les droits de l'utilisateur ; les activités Strava restent chez Strava) ; suppression définitive du compte après avoir tapé SUPPRIMER : l'accès Strava est d'abord révoqué, puis tout est effacé en une transaction. Pour un coach, les séances déjà publiées restent chez ses athlètes ; ses brouillons, modèles, invitations et relations disparaissent.
 - **Accessibilité contrôlée à chaque modification** : contrastes corrigés (texte secondaire, pastilles d'état, jours hors du mois, « Repos »), état des filtres du calendrier annoncé aux lecteurs d'écran ; lien « Aller au contenu » en tête de chaque page ; à la fermeture du panneau de séance, le clavier reprend sur la séance qui l'avait ouvert. Au passage, l'éditeur ne plante plus sur une séance écrite hors de l'éditeur (par l'API) : le contenu est complété par le schéma, sans fausse modification.
+- **Pages d'état en français** : « Page introuvable » (404) et « Cette page n'a pas pu s'afficher » (erreur imprévue, avec « Réessayer » et le code à rapprocher des journaux du serveur), la navigation restant disponible autour.
 - **En-têtes de sécurité** sur toutes les pages : pas d'affichage dans un cadre d'un autre site, types de fichiers stricts, adresse d'origine limitée, caméra, micro, position et paiement désactivés.
 - **Sauvegardes** : procédure d'export documentée (README, « Sauvegardes ») ; l'offre gratuite de Supabase n'en fait pas automatiquement.
 

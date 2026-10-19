@@ -124,8 +124,11 @@ test("au clavier : aller au contenu, ouvrir une séance puis la refermer sans pe
   await page.keyboard.press("Enter");
   await expect(page.locator("main#contenu")).toBeFocused();
 
+  // Le calendrier arrive en flux : on attend qu'il soit en place avant d'y poser le focus.
   const card = page.locator(`a[href*="session=${sessionId}"]`).first();
+  await expect(card).toBeVisible();
   await card.focus();
+  await expect(card).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(new RegExp(`session=${sessionId}`));
   const panel = page.locator("aside[data-panel]");
