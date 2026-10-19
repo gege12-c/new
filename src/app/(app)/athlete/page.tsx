@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { MiniProfile } from "@/components/calendar/session-chip";
 import { StatusGlyph } from "@/components/calendar/status-glyph";
 import { PageContainer } from "@/components/layout/page";
+import { InstallCard } from "@/components/pwa/install-app";
 import { PlanningLive } from "@/components/realtime/planning-live";
 import { PriorityBadge, SPORT_STYLES, SportBadge, SportDot } from "@/components/sport";
 import { EmptyState, Notice, SectionSkeleton } from "@/components/ui/feedback";
@@ -169,6 +170,8 @@ async function AthleteHome({ searchParams }: Pick<PageProps<"/athlete">, "search
       </header>
 
       {params.joined === "1" ? <Notice tone="success">Invitation acceptée : votre coach peut désormais suivre et planifier votre entraînement.</Notice> : null}
+
+      <InstallCard />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(300px,1fr)]">
         <div className="min-w-0 space-y-4">
