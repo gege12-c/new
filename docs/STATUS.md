@@ -150,7 +150,7 @@ Livré :
 
 Accès des connecteurs : Vercel lit le projet, les variables (noms) et crée des déploiements, mais ses journaux de build et d'exécution sont refusés (403 sur l'espace `geraldegea12-9585`) ; Supabase lit et interroge la base, mais ses migrations demandent une confirmation qui ne s'affiche pas ici : elles s'appliquent depuis l'éditeur SQL.
 
-Avertissements de l'analyseur Supabase acceptés : les fonctions d'invitation et de relation coach-athlète (`create_invitation`, `accept_invitation`, `get_invitation_preview`, `revoke_invitation`, `revoke_coach_link`, `set_coach_permissions`, `current_user_is_admin`) et celles de la phase 3 appelables par un utilisateur (`associate_activity`, `dissociate_activity`, `purge_my_expired_activities`, `athlete_sync_status`, `admin_connection_counts`) vérifient elles-mêmes l'appelant. « Leaked password protection » : réglage d'authentification à activer.
+Avertissements de l'analyseur Supabase acceptés : les fonctions d'invitation et de relation coach-athlète (`create_invitation`, `accept_invitation`, `get_invitation_preview`, `revoke_invitation`, `revoke_coach_link`, `set_coach_permissions`, `current_user_is_admin`) et celles des phases 3 à 5 appelables par un utilisateur (`associate_activity`, `dissociate_activity`, `purge_my_expired_activities`, `athlete_sync_status`, `admin_connection_counts`, `mark_notifications_read`, `admin_accounts`, `admin_set_admin`) vérifient elles-mêmes l'appelant. « Leaked password protection » : réglage d'authentification à activer.
 
 ## Limites connues
 
@@ -160,6 +160,7 @@ Avertissements de l'analyseur Supabase acceptés : les fonctions d'invitation et
 - La synchronisation de secours tourne une fois par jour (limite de l'offre Hobby de Vercel) ; les webhooks font l'essentiel en quelques minutes.
 - Exports : fichiers validés par le SDK FIT officiel et par un décodeur indépendant, mais pas encore essayés sur une vraie montre ni dans Zwift (impossible d'ici). En course, Zwift rapporte les allures à l'allure 10 km de son profil, assimilée ici à l'allure seuil. Pas d'envoi direct vers Garmin, Wahoo ou Suunto : leurs API exigent une approbation de partenaire (hors V1).
 - Sans service d'envoi d'emails (SMTP), Supabase n'envoie d'emails qu'aux membres de l'organisation : confirmation d'email désactivée, mot de passe oublié limité à ces membres. Une invitation nominative ne prouve donc pas l'adresse de l'athlète : le lien à usage unique reste le secret.
+- Notifications dans l'application seulement : ni email (il faut un SMTP) ni notification push sur téléphone (clés VAPID à créer).
 - Avertissements `npm audit` sur des dépendances de développement uniquement.
 
 ## À faire de votre côté
