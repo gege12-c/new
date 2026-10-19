@@ -35,6 +35,7 @@ async function NewSession({ params, searchParams }: PageProps<"/coach/athletes/[
   }
   const date = isISODate(sp.date) ? sp.date : ctx.today;
   const sport: SessionSport = typeof sp.sport === "string" && (SESSION_SPORTS as readonly string[]).includes(sp.sport) ? (sp.sport as SessionSport) : "bike";
+  const thresholds = await getThresholdsOn(ctx.supabase, athleteId, date);
   const template = typeof sp.template === "string" ? await getTemplate(ctx.supabase, sp.template).catch(() => null) : null;
   const templateContent = template ? WorkoutSchema.safeParse(template.content) : null;
 
@@ -56,10 +57,9 @@ async function NewSession({ params, searchParams }: PageProps<"/coach/athletes/[
           objective: "",
           description: "",
           nutrition_notes: "",
-          content: defaultWorkout(sport),
+          content: defaultWorkout(sport, thresholds),
         };
 
-  const thresholds = await getThresholdsOn(ctx.supabase, athleteId, date);
   return (
     <SessionEditor
       mode="session"

@@ -1,6 +1,6 @@
 import { AlertTriangle, Info } from "lucide-react";
 import { SportDot } from "@/components/sport";
-import { WorkoutProfile } from "@/components/workout/workout-profile";
+import { profileCaption, WorkoutProfile } from "@/components/workout/workout-profile";
 import { computeTotals, type QuantityTotal } from "@/lib/workout/compute";
 import { formatDistance, formatDuration, summarizeNodes } from "@/lib/workout/format";
 import { SPORT_LABELS, type Workout } from "@/lib/workout/schema";
@@ -52,9 +52,9 @@ export function WorkoutPreview({
     <div className="space-y-5">
       <div className="rounded-[14px] border border-line bg-surface p-4">
         <WorkoutProfile workout={workout} thresholds={thresholds} height={120} thresholdLine className="text-ink" />
-        <div className="mt-2 flex justify-between text-[11px] text-muted">
+        <div className="mt-2 flex justify-between gap-3 text-[11px] text-muted">
           <span>Début</span>
-          <span>Pointillés : seuil {athleteName ? `de ${athleteName}` : ""}</span>
+          <span className="text-right">{profileCaption(workout, thresholds, athleteName)}</span>
         </div>
         <dl className="mt-4 grid grid-cols-2 gap-4 border-t border-line pt-4">
           <Figure label="Durée" total={totals.duration} format={formatDuration} />

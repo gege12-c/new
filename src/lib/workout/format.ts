@@ -76,7 +76,8 @@ export function describeTarget(target: Target, sport?: SegmentSport): string {
     case "pace.sec_per_100m":
       return `${range(min, max, formatClock)} /100 m`;
     case "pace.percent_threshold":
-      return `${range(min, max)} % ${sport === "swim" ? "CSS" : "allure seuil"}`;
+      // Pourcentage de la vitesse au seuil (110 % = plus vite) : « vitesse », pour ne pas le lire comme une allure.
+      return `${range(min, max)} % ${sport === "swim" ? "CSS" : "vitesse seuil"}`;
     case "pace.zone":
       return `${range(min, max, (n) => `Z${n}`)} allure`;
     case "speed.kmh":
@@ -120,10 +121,12 @@ export function summarizeNodes(nodes: WorkoutNode[], sport: SegmentSport): strin
     .join(" · ");
 }
 
+/** « Échauffement 15 min à 55–70 % FTP » : le nom de l’étape d’abord, puis sa mesure et sa cible. */
 function summarizeStep(step: Extract<WorkoutNode, { kind: "step" }>, sport: SegmentSport): string {
   const length = describeLength(step.length, sport);
-  const target = step.targets[0] ? ` ${describeTarget(step.targets[0], sport)}` : "";
+  const first = step.targets[0];
+  const target = first ? ` ${first.unit === "zone" ? "en" : "à"} ${describeTarget(first, sport)}` : "";
   const label = step.label ?? (step.type === "active" ? "" : STEP_TYPE_LABELS[step.type]);
-  const sendOff = step.sendOffSeconds ? ` départ ${formatClock(step.sendOffSeconds)}` : "";
-  return [length + target + sendOff, label].filter(Boolean).join(" ");
+  const sendOff = step.sendOffSeconds ? `, départ ${formatClock(step.sendOffSeconds)}` : "";
+  return [label, length + target + sendOff].filter(Boolean).join(" ");
 }

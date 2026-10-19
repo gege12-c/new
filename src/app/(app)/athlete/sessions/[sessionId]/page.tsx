@@ -33,6 +33,7 @@ async function EditOwnSession({ params }: Pick<PageProps<"/athlete/sessions/[ses
   return (
     <SessionEditor
       mode="session"
+      self
       athlete={{ id: userId, name: profile.display_name, thresholds }}
       sessionId={detail.id}
       templateId={detail.template_id}

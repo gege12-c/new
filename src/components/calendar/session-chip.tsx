@@ -3,7 +3,7 @@
 import Link from "next/link";
 import type { CSSProperties, DragEvent } from "react";
 import { SPORT_ICONS } from "@/components/sport";
-import { profileBars, zoneClass } from "@/components/workout/workout-profile";
+import { barClass, profileBars } from "@/components/workout/workout-profile";
 import { completionRatio, realizedTotals } from "@/lib/activities/compare";
 import type { CalendarSession } from "@/lib/data/planning-types";
 import { sessionStatus, STATUS_LABELS, type SessionStatus } from "@/lib/planning/status";
@@ -35,7 +35,7 @@ export function MiniProfile({ session, thresholds, height = 14, className }: { s
       {bars.map((bar) => (
         <span
           key={bar.key}
-          className={cn("min-w-px rounded-t-[1px]", zoneClass(bar.percent), bar.unknownLength && "opacity-50")}
+          className={cn("min-w-px rounded-t-[1px]", barClass(bar), bar.unknownLength && "opacity-50")}
           style={{ flexGrow: bar.grow, flexBasis: 0, height: `${bar.ratio * 100}%` } as CSSProperties}
         />
       ))}

@@ -148,6 +148,19 @@ export function resolveTarget(
  * Puissance : % FTP ; FC : % FC seuil ; allure : % de vitesse seuil ; RPE : RPE × 10.
  * Renvoie null si l’intensité ne peut pas être exprimée sans inventer de valeur.
  */
+/**
+ * Effort ressenti (échelle de 1 à 10) en intensité équivalente, en % du seuil, calée sur les zones :
+ * RPE 1–2 récupération, 3–4 endurance, 5–6 tempo, 7–8 seuil, 9 VO2max, 10 au-delà.
+ */
+const RPE_PERCENT = [45, 52, 62, 70, 80, 87, 95, 102, 113, 125];
+
+export function rpePercent(rpe: number): number {
+  const value = Math.min(Math.max(rpe, 1), 10);
+  const low = Math.floor(value);
+  const high = Math.ceil(value);
+  return RPE_PERCENT[low - 1] + (RPE_PERCENT[high - 1] - RPE_PERCENT[low - 1]) * (value - low);
+}
+
 export function intensityPercent(
   step: Step,
   sport: SegmentSport,
@@ -183,7 +196,7 @@ export function intensityPercent(
         return ((secPerMeter * meters) / mid) * 100;
       }
     }
-    if (key === "rpe.scale") return mid * 10;
+    if (key === "rpe.scale") return rpePercent(mid);
   }
   return null;
 }

@@ -259,7 +259,7 @@ describe("mise en forme", () => {
   it("résume une séance en une ligne", () => {
     const w = parse(bikeThreshold);
     expect(summarizeNodes(w.segments[0].steps, "bike")).toBe(
-      "15 min 55–70 % FTP Échauffement · 4 × (8 min 95–100 % FTP / 3 min Z1 puissance Récupération) · 10 min 50–60 % FTP Retour au calme",
+      "Échauffement 15 min à 55–70 % FTP · 4 × (8 min à 95–100 % FTP / Récupération 3 min en Z1 puissance) · Retour au calme 10 min à 50–60 % FTP",
     );
   });
 });
