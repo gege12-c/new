@@ -1,6 +1,28 @@
 # Avancement
 
-Dernière mise à jour : 19 octobre 2026, fin de la phase 3 (Strava et activités réalisées).
+Dernière mise à jour : 19 octobre 2026 (nuit), fin de la phase 4 (exports Zwift et Garmin).
+
+## Phase 4 — Exports : terminée
+
+Critère de fin : une même séance produit un .zwo et un FIT valides, avec la procédure d'import documentée.
+
+Vérification :
+
+- Parcours Playwright `e2e/exports.spec.ts`, dans un navigateur : sur un enchaînement vélo + course, l'athlète voit le contrôle de compatibilité avant de télécharger (course impossible sur Zwift sans allure seuil, marche à suivre affichée, bouton désactivé) ; il télécharge le .zwo du vélo (fichier relu : intervalles au bon pourcentage de FTP) et le FIT de la course (décodé avec le SDK FIT officiel : type séance, allure convertie en vitesse) ; l'historique compte deux exports ; le coach les voit, avec l'auteur. L'API refuse un visiteur non connecté (401), une demande invalide (400), une séance inaccessible (404), et renvoie la raison d'un export impossible (422).
+- 21 tests unitaires (`src/lib/export/export.test.ts`) : la même séance donne un .zwo et un FIT valides et de même durée totale (69 min), rampes, intervalles, zones, watts sans FTP, course en durée et en distance, blocages expliqués, natation (distances, CSS en vitesse, matériel, départs), FC, répétitions imbriquées, textes trop longs, fichier abîmé détecté, enchaînement en deux fichiers, fiche texte.
+- 7 tests de base (`tests/db/exports.test.ts`) : historique sous RLS (l'athlète et ses coachs ; un coach non autorisé ne lit ni n'ajoute rien ; brouillon invisible de l'athlète ; ni modification ni suppression ; incohérences refusées ; effacé avec la séance) ; 3 tests du fichier de mise à jour de la production (à jour, appliqué en une fois, tout ou rien).
+- Contrôle croisé : les FIT produits relus aussi par un décodeur indépendant (`fitdecode`), CRC vérifié, valeurs identiques.
+- CI : contrôles et parcours de bout en bout au vert (voir « Mise en production »).
+
+Livré :
+
+- Rubrique « Exporter vers mes appareils » dans chaque fiche de séance (athlète et coach) : pour Zwift et Garmin, contrôle de compatibilité affiché avant le téléchargement (« Compatible, sans perte », « 2 approximations » avec le détail étape par étape, ou « Export impossible » avec la marche à suivre), un fichier par discipline pour un enchaînement, téléchargement relu avant d'être servi, message clair et « Réessayer » après un échec, procédure d'import officielle pas à pas ; historique des exports, avec l'alerte « séance modifiée depuis ce téléchargement ».
+- ZwiftExporter : fichier .zwo vélo et course (rampes, intervalles, sortie libre, allures de course rapportées à l'allure 10 km du profil Zwift), limites de Zwift contrôlées (250 blocs, 64 Ko).
+- GarminConnector : fichier FIT de type séance écrit avec le SDK FIT officiel de Garmin et relu avec lui (cibles de puissance, FC, allure, cadence, cible secondaire, répétitions, matériel de natation, notes).
+- Wahoo et Suunto : « envoi direct non configuré », avec les conditions officielles d'accès à leurs API et la méthode manuelle ; fiche texte de la séance à copier (valeurs absolues calculées avec les seuils de l'athlète).
+- Panneau « Appareils et applications » du profil sportif : pour chaque fournisseur, les quatre cas (séance prévue vers l'appareil, téléchargement manuel, synchronisation automatique, activité réalisée vers TriCoach) avec leur état réel et les sources officielles.
+- Détail des règles de conversion et des conditions des fournisseurs : [EXPORTS.md](EXPORTS.md).
+- Un seul fichier SQL pour mettre la production à jour (phases 3 et 4) : `supabase/production/pending.sql`, généré à partir des migrations et contrôlé par la CI.
 
 ## Phase 3 — Strava : terminée, mise en production à finaliser
 
@@ -72,6 +94,16 @@ Livré :
 | Temps réel des activités | canal `self:<id>` réservé à l'athlète pour tout ce qui touche Strava ; `athlete:<id>` pour les retours et les fichiers FIT | aucun signal lié à Strava n'atteint le coach |
 | Mise en ligne avant la migration | le code détecte une table ou une fonction absente (codes `PGRST205`, `PGRST202`, `42P01`…) et affiche « disponible après la mise à jour de la base » | le déploiement ne dépend plus de l'ordre code/base ; rien n'est simulé |
 | `pg_safeupdate` | aucune instruction DELETE ou UPDATE sans WHERE dans les migrations, contrôlé par un test statique (`tests/db/migrations-lint.test.ts`) | Supabase refuse ces instructions pour l'API, même dans une fonction ou un trigger ; la CI l'a révélé (la création de séances aurait échoué en production), les bases de test locales n'ont pas cette extension |
+| Exports : un fichier par discipline | un enchaînement donne un .zwo et un FIT par segment | un fichier de séance FIT ne porte qu'un sport ; Zwift ne connaît pas l'enchaînement |
+| Exports : aucune correction silencieuse | chaque écart est classé (bloquant, perte, information) et affiché avant le téléchargement ; un fichier qui échoue à la relecture n'est jamais servi | « rien de simulé », et le coach sait exactement ce que l'athlète recevra |
+| Zwift et la course | intensité en fraction de l'allure 10 km du profil Zwift (`pace="2"`), assimilée à l'allure seuil ; étape facile sans allure à 80 %, étape de travail sans allure bloquée | Zwift exige une intensité en course ; l'hypothèse d'allure facile est celle des calculs de durée |
+| Zone 1 vers une valeur unique (Zwift) | haut de la plage (80 à 100 % de la borne haute) au lieu du centre | « moins de 55 % FTP » ne veut pas dire 27 % |
+| FIT : cibles relatives | % FTP gardé relatif (l'appareil applique sa FTP) ; zones de puissance et de FC converties en plages (% FTP, bpm) avec le modèle de TriCoach | les zones réglées sur la montre peuvent différer de celles du coach |
+| FIT : répétitions imbriquées | la répétition extérieure reste une répétition, l'intérieure est déroulée | prise en charge inégale des répétitions imbriquées selon les appareils |
+| Seuils des exports | ceux en vigueur à la date de la séance | même règle que les durées estimées |
+| Historique des exports | chaque tentative, réussie ou non, sous les droits de l'utilisateur ; un échec d'écriture de l'historique ne bloque pas un fichier valide (signalé) | traçabilité sans priver l'athlète de sa séance |
+| Contenu des séances à la lecture | normalisé par le schéma (valeurs par défaut) avant affichage et export | une séance écrite hors de l'éditeur (API) ne fait plus échouer le panneau |
+| Mise à jour de la production | un fichier SQL unique (`supabase/production/pending.sql`), une seule transaction, inscrit aussi les migrations dans l'historique Supabase | une seule manipulation, tout ou rien ; le connecteur Supabase ne peut pas appliquer de migration sans confirmation affichée |
 | Administration | page `/admin` : configuration (présente ou non, jamais les valeurs), abonnement webhook, file, quotas, journal ; génération des valeurs secrètes dans le navigateur | vous saisissez les secrets vous-même, sans les écrire dans une conversation |
 
 ## Phases 1 et 2 : terminées
@@ -83,9 +115,9 @@ Livré :
 
 | Élément | État |
 | --- | --- |
-| Base Supabase `supabase-rose-candle` (`ugqtfkuisaqjdnwxvogm`, Zurich, PostgreSQL 17) | phases 1 et 2 à jour. **Migration de la phase 3 `20261019000000_activities.sql` en attente** : le connecteur Supabase a refusé de l'appliquer cette nuit (demande de confirmation impossible à afficher, comme en phase 2), elle se colle dans l'éditeur SQL (voir « À faire de votre côté »). Elle n'ajoute que des tables, fonctions et triggers |
-| Code de la phase 3 | fusionné dans `main` et déployé : en attendant la migration, les écrans concernés l'indiquent (« disponible après la mise à jour de la base ») au lieu d'échouer, et tout le reste fonctionne comme avant ; dès la migration appliquée, tout s'active sans nouveau déploiement. Vérifié en local en masquant les tables de la phase 3 |
-| Projet Vercel `new` | en ligne sur https://new-bay-one-76.vercel.app (phase 2) ; variables de la phase 3 à ajouter (voir le README, « Activer Strava ») |
+| Base Supabase `supabase-rose-candle` (`ugqtfkuisaqjdnwxvogm`, Zurich, PostgreSQL 17) | phases 1 et 2 à jour. **Migrations des phases 3 et 4 en attente**, réunies dans un seul fichier à coller dans l'éditeur SQL : `supabase/production/pending.sql` (voir « À faire de votre côté »). Le connecteur Supabase ne peut pas les appliquer sans une confirmation qui ne s'affiche pas ici. Elles n'ajoutent que des tables, fonctions et triggers ; une seule transaction, tout ou rien |
+| Code des phases 3 et 4 | fusionné dans `main` et déployé. En attendant la mise à jour de la base, les écrans concernés l'indiquent (« disponible après la mise à jour de la base ») au lieu d'échouer. Les exports Zwift et Garmin fonctionnent déjà (seul leur historique attend la base). Dès la base à jour, tout s'active sans nouveau déploiement |
+| Projet Vercel `new` | en ligne sur https://new-bay-one-76.vercel.app ; variables de Strava à ajouter (README, « Activer Strava ») |
 | Réglages d'authentification Supabase | faits le 18 octobre (Site URL, Redirect URLs, confirmation d'email désactivée en attendant un SMTP) |
 | Realtime en production | contrôlé le 18 octobre ; le canal `self:<id>` de la phase 3 utilise la même politique |
 
@@ -99,24 +131,25 @@ Avertissements de l'analyseur Supabase acceptés : les fonctions d'invitation et
 - Bouton officiel « Connect with Strava » et logo « Powered by Strava » : les fichiers officiels n'ont pas pu être téléchargés ici ; un bouton texte « Connecter Strava » les remplace. À intégrer avant toute revue Strava (au-delà de 10 athlètes).
 - Le coach ne voit pas les activités Strava de ses athlètes (règle de Strava) : pour lui, une séance est « terminée » grâce au retour de l'athlète ou à un fichier FIT importé.
 - La synchronisation de secours tourne une fois par jour (limite de l'offre Hobby de Vercel) ; les webhooks font l'essentiel en quelques minutes.
+- Exports : fichiers validés par le SDK FIT officiel et par un décodeur indépendant, mais pas encore essayés sur une vraie montre ni dans Zwift (impossible d'ici). En course, Zwift rapporte les allures à l'allure 10 km de son profil, assimilée ici à l'allure seuil. Pas d'envoi direct vers Garmin, Wahoo ou Suunto : leurs API exigent une approbation de partenaire (hors V1).
 - Sans service d'envoi d'emails (SMTP), Supabase n'envoie d'emails qu'aux membres de l'organisation : confirmation d'email désactivée, mot de passe oublié limité à ces membres. Une invitation nominative ne prouve donc pas l'adresse de l'athlète : le lien à usage unique reste le secret.
-- Les boutons d'export (Zwift, Garmin) arrivent en phase 4.
 - Avertissements `npm audit` sur des dépendances de développement uniquement.
 
-## Phase 4 — Exports : prochaine session
+## Phase 5 — Mise en production : prochaine session
 
-À livrer : connecteurs d'export avec une interface commune et leurs capacités réelles ; fichier .zwo (Zwift) et fichier FIT de séance (Garmin, SDK FIT officiel, relu pour validation) ; Wahoo et Suunto « non configurés » avec la méthode manuelle officielle ; contrôle de compatibilité, historique et relance des exports.
+À livrer : statistiques (sans données Strava agrégées), notifications sobres et configurables, application installable sur téléphone (PWA), déploiement final et sauvegardes.
 
-Critère de fin : une même séance produit un .zwo et un FIT valides, avec la procédure d'import documentée.
+Critère de fin : l'application tourne en production et s'installe sur un téléphone.
 
 ## À faire de votre côté
 
 Dépôt GitHub : `gege12-c/new`.
 
-1. Mettre la base à jour (2 minutes) : ouvrez https://raw.githubusercontent.com/gege12-c/new/main/supabase/migrations/20261019000000_activities.sql, sélectionnez tout le texte (Ctrl+A puis Ctrl+C) ; dans Supabase, SQL Editor, « New query », collez, puis « Run ». Résultat attendu : « Success. No rows returned ». Le site se met à jour tout seul (la page Administration n'affiche plus d'avertissement). Dites-le-moi ensuite : je vérifie la base et je l'inscris à l'historique des migrations.
+1. Mettre la base à jour (2 minutes) : ouvrez https://raw.githubusercontent.com/gege12-c/new/main/supabase/production/pending.sql, sélectionnez tout le texte (Ctrl+A puis Ctrl+C) ; dans Supabase, SQL Editor, « New query », collez, puis « Run ». Résultat attendu : « Success. No rows returned ». Si un message d'erreur apparaît, rien n'a été modifié : envoyez-le-moi. Le site se met à jour tout seul (la page Administration n'affiche plus d'avertissement). Dites-le-moi ensuite : je vérifie la base et je mets à jour le suivi des migrations.
 2. Créer l'application Strava et saisir les variables dans Vercel : README, sections « Projet Vercel » (variables serveur) et « Activer Strava ». Ne me communiquez aucune de ces valeurs.
 3. Vous déclarer administrateur (README, « Devenir administrateur »), puis ouvrir la page Administration de TriCoach et cliquer sur « Activer la réception des activités ».
 4. Tester en vrai : connectez votre compte Strava depuis votre profil (compte athlète), faites ou importez une activité qui correspond à une séance du jour, et vérifiez qu'elle s'affiche rattachée en quelques minutes.
-5. Sur la page de votre application Strava, passer la capacité de 1 à 10 athlètes.
-6. Pour une future revue Strava : téléchargez le pack officiel des boutons « Connect with Strava » et des logos « Powered by Strava » (developers.strava.com, rubrique Guidelines) et envoyez-le-moi dans une session ; je les intégrerai.
-7. Toujours valable : activer « Leaked password protection » dans Supabase ; plus tard (au plus tard en phase 5), configurer un service d'envoi d'emails (SMTP) puis réactiver « Confirm email ».
+5. Essayer les exports sur vos appareils : ouvrez une séance dans votre calendrier, rubrique « Exporter vers mes appareils ». Garmin : téléchargez le FIT et copiez-le dans le dossier GARMIN/NewFiles de la montre branchée en USB (procédure affichée sous le bouton). Zwift : téléchargez le .zwo sur l'ordinateur de Zwift et suivez la procédure affichée. Dites-moi ce que l'appareil affiche (noms d'étapes, cibles) : c'est le seul test que je ne peux pas faire d'ici.
+6. Sur la page de votre application Strava, passer la capacité de 1 à 10 athlètes.
+7. Pour une future revue Strava : téléchargez le pack officiel des boutons « Connect with Strava » et des logos « Powered by Strava » (developers.strava.com, rubrique Guidelines) et envoyez-le-moi dans une session ; je les intégrerai.
+8. Toujours valable : activer « Leaked password protection » dans Supabase ; plus tard (au plus tard en phase 5), configurer un service d'envoi d'emails (SMTP) puis réactiver « Confirm email ».

@@ -35,6 +35,7 @@ interface Converter {
 
 const fraction = (percent: number) => Math.round(percent * 10) / 1000;
 const num = (value: number) => String(Math.round(value * 1000) / 1000);
+const percent = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 });
 const rounded = (value: number) => Math.max(1, Math.round(value));
 
 function where(step: Step, index: number): string {
@@ -214,7 +215,7 @@ function noteSingleValue(c: Converter, at: string, range: { lo: number; hi: numb
   c.issues.push({
     severity: "loss",
     where: at,
-    message: `Plage ${Math.round(range.lo)}–${Math.round(range.hi)} % ramenée à ${Math.round(midpoint(range) * 1000) / 10} % (Zwift vise une valeur unique).`,
+    message: `Plage ${percent.format(range.lo)}–${percent.format(range.hi)} % ramenée à ${percent.format(midpoint(range) * 100)} % (Zwift vise une valeur unique).`,
   });
 }
 
