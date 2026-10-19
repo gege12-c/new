@@ -1,0 +1,7 @@
+# Migrations déjà appliquées à la base de production (une version par ligne).
+# Mis à jour quand la mise à jour de production est confirmée ; voir scripts/production-sql.mjs.
+20261018184313
+20261018184402
+20261018184442
+20261018184505
+20261018200000

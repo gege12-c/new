@@ -8,6 +8,7 @@ import { ConnectionsPanel } from "@/components/athlete/connections-panel";
 import { CoachPermissionsForm } from "@/components/athlete/coach-permissions-form";
 import { ConfirmSubmit } from "@/components/ui/confirm-submit";
 import { EventsPanel } from "@/components/athlete/events-panel";
+import { DevicesPanel } from "@/components/exports/devices-panel";
 import { ThresholdsPanel } from "@/components/athlete/thresholds-panel";
 import { EmptyState, SectionSkeleton } from "@/components/ui/feedback";
 import { PageHeader, Panel } from "@/components/ui/panel";
@@ -56,6 +57,7 @@ async function ProfileContent({ searchParams }: Pick<PageProps<"/athlete/profile
       <div className="space-y-6">
       <ThresholdsPanel athleteId={userId} rows={thresholds} today={today} canEdit />
       <ConnectionsPanel supabase={supabase} timeZone={profile.timezone} callbackStatus={typeof params.strava === "string" ? params.strava : undefined} />
+      <DevicesPanel />
       <Panel title="Mon coach" description="Vous choisissez ce que chaque coach peut faire, et vous pouvez retirer son accès à tout moment.">
         {coaches.length === 0 ? (
           <EmptyState title="Pas encore de coach">Demandez à votre coach un lien d’invitation : il suffit de l’ouvrir pour lui donner accès.</EmptyState>

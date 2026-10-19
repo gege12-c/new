@@ -158,6 +158,16 @@ Temps réel : ce qui touche une activité Strava part sur le canal `self:<id>`, 
 
 Statut affiché d'une séance publiée : le retour de l'athlète s'il existe (faite, partielle, manquée) ; sinon une activité rattachée (terminée au-delà de 80 % du prévu, partielle en deçà) ; sinon « à rapprocher » si elle est passée. Une séance n'est jamais supposée manquée.
 
+## Exports de séances (phase 4)
+
+Migration `20261020000000_workout_exports.sql`. Règles de conversion : [EXPORTS.md](EXPORTS.md).
+
+| Table | Rôle | Points clés |
+| --- | --- | --- |
+| `workout_exports` | historique des exports de séances prévues (.zwo, FIT) | une ligne par tentative, réussie (`succeeded` : nom, taille, empreinte SHA-256 du fichier) ou non (`failed` : message) ; `provider` = `zwift` (format `zwo`) ou `garmin` (format `fit`) ; `segment_index` = partie d'un enchaînement ; `session_version` = version de la séance exportée (le panneau signale un fichier périmé) ; `issues` = écarts du contrôle de compatibilité ; `athlete_id` recopié de la séance et `requested_by` fixé à l'utilisateur connecté par trigger ; disparaît avec la séance |
+
+Sécurité : lecture par l'athlète et ses coachs actifs ; ajout par l'un d'eux, pour une séance qu'il peut lire (la politique interroge `planned_sessions` sous ses propres droits : un athlète n'exporte pas un brouillon qu'il ne voit pas) ; ni modification ni suppression par l'API.
+
 ## Journal d'audit
 
 Chaque création, modification et suppression sur les profils sportifs, relations, invitations, seuils, compétitions et séances est enregistrée avec son auteur. Pour une modification, seules les colonnes changées sont conservées (ancienne et nouvelle valeur). Le contenu structuré d'une séance est noté « modifié » sans être recopié, car l'enregistrement automatique le réécrit souvent.
