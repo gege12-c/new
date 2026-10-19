@@ -11,7 +11,10 @@ const failures = [];
 
 function check(ok, label, detail = "") {
   console.log(`${ok ? "ok  " : "ÉCHEC"} ${label}${detail ? ` : ${detail}` : ""}`);
-  if (!ok) failures.push(label);
+  if (ok) return;
+  failures.push(label);
+  // Dans GitHub Actions, chaque échec devient une annotation lisible sans ouvrir le journal.
+  if (process.env.GITHUB_ACTIONS) console.log(`::error title=Production::${label}${detail ? ` : ${detail.replaceAll("\n", " ")}` : ""}`);
 }
 
 async function get(path) {
@@ -27,8 +30,15 @@ async function get(path) {
   }
 }
 
-const health = await get("/api/health");
-const report = await health.json().catch(() => null);
+// Vercel annonce le déploiement terminé un peu avant de basculer l'adresse de production : on attend
+// que la version servie soit celle attendue (3 minutes au plus) avant de tout contrôler.
+let health = await get("/api/health");
+let report = await health.json().catch(() => null);
+for (let waited = 0; expectedCommit && report?.commit !== expectedCommit.slice(0, 7) && waited < 180; waited += 10) {
+  await new Promise((resolve) => setTimeout(resolve, 10_000));
+  health = await get("/api/health");
+  report = await health.json().catch(() => null);
+}
 check(health.status === 200 && report?.ok === true && report?.supabase === "ok", "santé et Supabase (/api/health)", JSON.stringify(report));
 if (expectedCommit) check(report?.commit === expectedCommit.slice(0, 7), "version déployée", `${report?.commit ?? "inconnue"}, attendue ${expectedCommit.slice(0, 7)}`);
 check(report?.auth?.signup === "enabled", "inscriptions ouvertes");
