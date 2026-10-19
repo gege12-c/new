@@ -11,7 +11,7 @@ import { ConfirmSubmit } from "@/components/ui/confirm-submit";
 import { EmptyState, SectionSkeleton } from "@/components/ui/feedback";
 import { PageHeader, Panel } from "@/components/ui/panel";
 import { getProfile, requireSession } from "@/lib/auth/dal";
-import { withRealization } from "@/lib/activities/realization";
+import { withoutStrava, withRealization } from "@/lib/activities/realization";
 import { getRealizedInRange } from "@/lib/data/activities";
 import { getAthletesOverview, getCoachDashboard, getCoachedAthletes, getPendingInvitations, getSyncStatuses, type SyncStatus } from "@/lib/data/coach";
 import { addDays, daysBetween, formatDayMonth, formatWeekRange, formatWeekdayShort, relativeDay, startOfWeek } from "@/lib/planning/dates";
@@ -79,7 +79,8 @@ async function CoachContent() {
     getRealizedInRange(supabase, ids, addDays(today, -7), today),
     getSyncStatuses(supabase, ids),
   ]);
-  const allSessions = withRealization(dashboard.sessions, realized);
+  // Bilans : sans les activités Strava, même partagées par l’athlète (aucune statistique tirée de Strava).
+  const allSessions = withRealization(dashboard.sessions, withoutStrava(realized));
   const drafts = allSessions.filter((s) => s.state === "draft" && s.scheduled_date >= monday).length;
 
   return (
@@ -240,8 +241,8 @@ async function CoachContent() {
             </ul>
           )}
           <p className="mt-3 max-w-3xl text-[12px] leading-snug text-muted">
-            Les activités Strava restent visibles de l’athlète seul (règles de Strava). Vous voyez ses retours de séance (faite, ressenti, note) et les fichiers
-            FIT qu’il importe, s’il vous y autorise.
+            Vous voyez les retours de séance de vos athlètes (faite, ressenti, note), les fichiers FIT qu’ils importent et leurs activités Strava s’ils vous y
+            autorisent. Ces bilans ne comptent pas les activités Strava, qui n’entrent dans aucune statistique (règles de Strava).
           </p>
         </section>
 

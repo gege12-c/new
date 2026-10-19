@@ -9,6 +9,7 @@ import { CoachPermissionsForm } from "@/components/athlete/coach-permissions-for
 import { ConfirmSubmit } from "@/components/ui/confirm-submit";
 import { EventsPanel } from "@/components/athlete/events-panel";
 import { DevicesPanel } from "@/components/exports/devices-panel";
+import { StravaSharingForm } from "@/components/athlete/strava-sharing-form";
 import { ThresholdsPanel } from "@/components/athlete/thresholds-panel";
 import { EmptyState, SectionSkeleton } from "@/components/ui/feedback";
 import { PageHeader, Panel } from "@/components/ui/panel";
@@ -79,7 +80,15 @@ async function ProfileContent({ searchParams }: Pick<PageProps<"/athlete/profile
                     </ConfirmSubmit>
                   </form>
                 </div>
-                <CoachPermissionsForm linkId={link.id} canEditPlan={link.can_edit_plan} canViewActivities={link.can_view_activities} />
+                <div className="space-y-3">
+                  <CoachPermissionsForm linkId={link.id} canEditPlan={link.can_edit_plan} canViewActivities={link.can_view_activities} />
+                  <StravaSharingForm
+                    linkId={link.id}
+                    coachName={link.coach?.display_name ?? "Votre coach"}
+                    sharedAt={link.share_strava ? link.strava_shared_at : null}
+                    timeZone={profile.timezone}
+                  />
+                </div>
               </li>
             ))}
           </ul>

@@ -11,6 +11,7 @@ import { done, fail, firstIssue, type ActionState } from "@/lib/action-state";
 import { getSession } from "@/lib/auth/dal";
 import { friendlyError } from "@/lib/errors";
 import { getSiteUrl } from "@/lib/site";
+import { isMissingSchema, SCHEMA_PENDING_MESSAGE } from "@/lib/supabase/schema";
 import { parseThresholdValue, thresholdDef } from "@/lib/thresholds";
 
 const uuid = z.uuid("Identifiant invalide.");
@@ -247,4 +248,25 @@ export async function setCoachPermissions(_prev: ActionState, formData: FormData
   if (error) return fail(friendlyError(error));
   refresh();
   return done("Permissions mises à jour.");
+}
+
+const stravaSharingSchema = z.object({
+  link_id: uuid,
+  share: z.enum(["on", "off"]),
+});
+
+/**
+ * Autorisation expresse de l'athlète, coach par coach : ce coach voit, ou ne voit plus, ses
+ * activités Strava (politique API de Strava, §5.13). La base vérifie que l'appelant est l'athlète.
+ */
+export async function setStravaSharing(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  const parsed = stravaSharingSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return fail(firstIssue(parsed.error));
+  const { supabase } = await sessionOrFail();
+  const share = parsed.data.share === "on";
+  const { error } = await supabase.rpc("set_strava_sharing", { p_link_id: parsed.data.link_id, p_share: share });
+  if (isMissingSchema(error)) return fail(SCHEMA_PENDING_MESSAGE);
+  if (error) return fail(friendlyError(error));
+  refresh();
+  return done(share ? "Partage activé : votre coach voit vos activités Strava." : "Partage arrêté : votre coach ne voit plus vos activités Strava.");
 }

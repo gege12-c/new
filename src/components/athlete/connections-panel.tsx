@@ -115,7 +115,7 @@ export async function ConnectionsPanel({ supabase, timeZone, callbackStatus }: {
             </>
           )}
           <ul className="space-y-1 text-[12.5px] leading-snug text-muted">
-            <li>Vos données Strava ne sont visibles que de vous : votre coach voit vos retours de séance et vos fichiers FIT, pas vos activités Strava (règles de Strava).</li>
+            <li>Vos activités Strava ne sont visibles que de vous, sauf pour le coach que vous autorisez expressément (rubrique « Mon coach »). Elles n’entrent dans aucune statistique (règles de Strava).</li>
             <li>TriCoach les efface au bout de 6 jours (Strava interdit de les garder plus de 7 jours) ; vos retours de séance, eux, restent.</li>
             <li>Déconnecter Strava efface aussitôt toutes vos données Strava de TriCoach.</li>
           </ul>

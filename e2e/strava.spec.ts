@@ -194,6 +194,32 @@ test("une activité Strava arrive par webhook, sans doublon, rattachée à la bo
   await coach.reload();
   await expect(coachPanel.getByText(/Retour de l’athlète : Faite/)).toContainText("RPE 6/10");
   await expect(coachPanel.getByText("Bonnes jambes")).toBeVisible();
+
+  // Sur autorisation expresse de l'athlète, le coach voit l'activité Strava, en lecture seule ;
+  // le partage arrêté, il ne la voit plus.
+  const { coach: coachAccount } = accounts();
+  await athlete.goto("/athlete/profile");
+  const myCoach = athlete.locator("section", { has: athlete.getByRole("heading", { name: "Mon coach", exact: true }) });
+  await expect(myCoach.getByText(`${coachAccount.name} ne voit pas vos activités Strava.`)).toBeVisible();
+  await myCoach.getByRole("button", { name: `Autoriser ${coachAccount.name} à voir mes activités Strava` }).click();
+  await expect(myCoach.getByText("Partage activé : votre coach voit vos activités Strava.")).toBeVisible();
+  await expect(myCoach.getByText(new RegExp(`${coachAccount.name} voit vos activités Strava depuis le`))).toBeVisible();
+
+  await coach.reload();
+  await expect(coachPanel.getByText("Seuil au parc")).toBeVisible();
+  await expect(coachPanel.getByRole("link", { name: /View on Strava/ })).toHaveCount(1);
+  await expect(coachPanel.getByText(/Réalisé à/)).toContainText("97");
+  await expect(coachPanel.getByText(/L’athlète vous autorise à voir ses activités Strava/)).toBeVisible();
+  await expect(coachPanel.getByRole("button", { name: "Détacher" })).toHaveCount(0);
+  await expect(coach.getByRole("link", { name: new RegExp(`Seuil soir ${stamp}, terminée`) })).toContainText("Réalisé 58 min (97 %)");
+
+  await myCoach.getByRole("button", { name: "Arrêter le partage" }).click();
+  await expect(myCoach.getByText("Partage arrêté : votre coach ne voit plus vos activités Strava.")).toBeVisible();
+  await expect(myCoach.getByText(`${coachAccount.name} ne voit pas vos activités Strava.`)).toBeVisible();
+  await coach.reload();
+  await expect(coachPanel.getByText(/Retour de l’athlète : Faite/)).toBeVisible();
+  await expect(coach.getByText("Seuil au parc")).toHaveCount(0);
+  await expect(coach.getByRole("link", { name: /View on Strava/ })).toHaveCount(0);
 });
 
 test("un fichier FIT importé par l'athlète est visible de son coach", async ({ browser }) => {

@@ -50,3 +50,15 @@ export function withRealization<T extends Pick<CalendarSession, "id">>(sessions:
 export function unattachedActivities(realized: RealizedRange): LinkedActivity[] {
   return realized.activities.filter((a) => !a.links.some(isAttached)).sort(byStart);
 }
+
+/**
+ * Le réalisé sans les activités Strava ni leurs rapprochements, pour les bilans : Strava interdit
+ * d'en tirer des statistiques, même dérivées (politique API §5.4), y compris pour un coach autorisé.
+ */
+export function withoutStrava(realized: RealizedRange): RealizedRange {
+  return {
+    ...realized,
+    activities: realized.activities.filter((a) => a.source !== "strava"),
+    matches: realized.matches.filter((m) => m.activity.source !== "strava"),
+  };
+}

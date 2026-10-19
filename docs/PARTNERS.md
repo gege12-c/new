@@ -2,7 +2,7 @@
 
 Demandé le 19 octobre 2026 : qu'une séance créée dans TriCoach arrive seule sur la montre, et que l'activité faite revienne seule, visible du coach. Garmin, Suunto, Zwift et MyWhoosh n'ouvrent cet accès qu'à des partenaires agréés ; vérifications faites le 19 octobre 2026 (sources en fin de page).
 
-Choix de l'utilisateur (19 octobre) : passer par les accès directs de Garmin et de Suunto, sans intermédiaire. Le relais par intervals.icu (déjà agréé par les quatre) et la question à Strava sur le partage avec le coach ont été écartés pour l'instant.
+Choix de l'utilisateur (19 octobre) : passer par les accès directs de Garmin et de Suunto, sans intermédiaire ; le relais par intervals.icu (déjà agréé par les quatre) est écarté pour l'instant. Le même jour, Strava a confirmé à l'utilisateur que le coach peut voir les activités Strava d'un athlète qui l'y autorise : le partage est en place (voir [STATUS.md](STATUS.md)).
 
 | Fournisseur | Accès pour TriCoach | État |
 | --- | --- | --- |
