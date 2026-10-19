@@ -168,6 +168,23 @@ Migration `20261020000000_workout_exports.sql`. Règles de conversion : [EXPORTS
 
 Sécurité : lecture par l'athlète et ses coachs actifs ; ajout par l'un d'eux, pour une séance qu'il peut lire (la politique interroge `planned_sessions` sous ses propres droits : un athlète n'exporte pas un brouillon qu'il ne voit pas) ; ni modification ni suppression par l'API.
 
+## Notifications (phase 5)
+
+Migration `20261021000000_notifications.sql`.
+
+| Table | Rôle | Points clés |
+| --- | --- | --- |
+| `notifications` | notifications dans l'application | écrites par la base seule (triggers, tâche quotidienne), jamais par l'API ; `kind` = `session_published`, `session_updated`, `session_cancelled`, `comment`, `reconnect`, `export_failed`, `missing_feedback` ; `payload` = libellés figés (titre et date de séance, fournisseur, extrait de commentaire), jamais de donnée Strava ; l'auteur d'un changement n'est jamais prévenu ; plusieurs séances publiées en dix minutes par le même auteur donnent une notification groupée, plusieurs modifications d'une même séance une seule notification mise à jour ; effacées après 60 jours |
+| `notification_preferences` | types coupés par l'utilisateur | `disabled_kinds` ; tout est actif par défaut |
+
+Qui est prévenu : l'athlète et ses coachs actifs pour une séance publiée, modifiée, déplacée ou annulée et pour un commentaire partagé (jamais une note privée ; un brouillon ne concerne que les coachs) ; l'athlète seul pour une reconnexion Strava et pour une séance de la veille sans retour ni activité rattachée (tâche quotidienne, date locale de l'athlète, une fois par séance) ; les coachs autorisés à planifier quand un export de l'athlète échoue.
+
+Sécurité : chacun ne lit que ses notifications et ne peut modifier que `read_at` (fonction `mark_notifications_read`) ; ses réglages sont les siens ; `notify_missing_feedback` est réservée à la clé de service.
+
+## Comptes et rôles (phase 5)
+
+Migration `20261021100000_admin_accounts.sql` : `admin_accounts()` liste les comptes pour un administrateur (nom, email, mode coach, administrateur, inscription, dernière connexion, nombre de relations), sans aucune donnée sportive ; `admin_set_admin(compte, oui/non)` donne ou retire le rôle d'administrateur, jamais au dernier administrateur. Les deux vérifient l'appelant (`forbidden` sinon).
+
 ## Journal d'audit
 
 Chaque création, modification et suppression sur les profils sportifs, relations, invitations, seuils, compétitions et séances est enregistrée avec son auteur. Pour une modification, seules les colonnes changées sont conservées (ancienne et nouvelle valeur). Le contenu structuré d'une séance est noté « modifié » sans être recopié, car l'enregistrement automatique le réécrit souvent.

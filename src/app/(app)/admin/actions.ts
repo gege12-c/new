@@ -71,3 +71,18 @@ export async function runJobsNow(): Promise<Result> {
   refresh();
   return { status: "ok", message: `${report.done} job(s) terminé(s), ${report.failed} en échec, ${report.deferred} reporté(s) pour quota.` };
 }
+
+/** Donne ou retire le rôle d'administrateur (vérifié par la base : réservé aux administrateurs). */
+export async function setAdminRole(userId: string, admin: boolean): Promise<Result> {
+  const session = await getSession();
+  if (!session) return { status: "error", message: "Votre session a expiré : reconnectez-vous." };
+  if (!/^[0-9a-f-]{36}$/i.test(userId)) return { status: "error", message: "Compte inconnu." };
+  const { error } = await session.supabase.rpc("admin_set_admin", { p_user: userId, p_admin: admin });
+  if (error) {
+    if (error.message.includes("last_admin")) return { status: "error", message: "Il faut au moins un administrateur : donnez d’abord ce rôle à un autre compte." };
+    if (error.message.includes("forbidden")) return { status: "error", message: "Réservé aux administrateurs." };
+    return { status: "error", message: "Le rôle n’a pas été modifié." };
+  }
+  refresh();
+  return { status: "ok", message: admin ? "Rôle d’administrateur donné." : "Rôle d’administrateur retiré." };
+}

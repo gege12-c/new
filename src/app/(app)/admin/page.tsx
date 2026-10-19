@@ -9,6 +9,7 @@ import { getSiteUrl } from "@/lib/site";
 import { integrationReadiness, isStravaReady } from "@/lib/strava/config";
 import { isMissingSchema } from "@/lib/supabase/schema";
 import { cn } from "@/lib/utils";
+import { AccountsPanel, type AdminAccount } from "@/components/admin/accounts-panel";
 import { SecretGenerator, WebhookControls } from "./admin-controls";
 
 export const metadata: Metadata = { title: "Administration" };
@@ -53,7 +54,7 @@ function Check2({ ok, label, hint }: { ok: boolean; label: string; hint: string 
 }
 
 async function AdminContent() {
-  const [{ supabase }, profile, isAdmin] = await Promise.all([requireSession("/admin"), getProfile(), getIsAdmin()]);
+  const [{ supabase, userId }, profile, isAdmin] = await Promise.all([requireSession("/admin"), getProfile(), getIsAdmin()]);
   if (!isAdmin) {
     return (
       <EmptyState title="Réservé aux administrateurs">
@@ -63,7 +64,7 @@ async function AdminContent() {
   }
   const readiness = integrationReadiness();
   const site = await getSiteUrl();
-  const [state, counts, problems, logs, connections] = await Promise.all([
+  const [state, counts, problems, logs, connections, accounts] = await Promise.all([
     supabase.from("provider_state").select("subscription_id, subscription_callback, rate_limit, rate_observed_at, blocked_until").eq("provider", "strava").maybeSingle(),
     Promise.all(
       JOB_STATUSES.map(async ({ status }) => {
@@ -74,6 +75,7 @@ async function AdminContent() {
     supabase.from("sync_jobs").select("id, kind, status, attempts, max_attempts, run_after, last_error, updated_at").in("status", ["failed", "dead"]).order("updated_at", { ascending: false }).limit(10),
     supabase.from("sync_logs").select("id, created_at, level, provider, event, message").in("level", ["warn", "error"]).order("created_at", { ascending: false }).limit(25),
     supabase.rpc("admin_connection_counts"),
+    supabase.rpc("admin_accounts"),
   ]);
   const schemaPending = isMissingSchema(state.error) || isMissingSchema(connections.error) || isMissingSchema(logs.error);
   const subscription = state.data?.subscription_id ? state.data : null;
@@ -83,10 +85,10 @@ async function AdminContent() {
 
   return (
     <div className="space-y-6">
-      {schemaPending ? (
+      {schemaPending || isMissingSchema(accounts.error) ? (
         <Notice tone="warning">
-          La base de données n’a pas encore la mise à jour des activités (migration <code className="font-mono">20261019000000_activities</code>). Collez
-          le fichier dans l’éditeur SQL de Supabase puis cliquez sur « Run » : tout ce qui suit fonctionnera aussitôt.
+          La base de données n’a pas encore les mises à jour des phases 3 à 5. Collez le fichier <code className="font-mono">supabase/production/pending.sql</code> dans
+          l’éditeur SQL de Supabase puis cliquez sur « Run » : tout ce qui suit fonctionnera aussitôt.
         </Notice>
       ) : null}
       <div className="grid gap-6 lg:grid-cols-2">
@@ -196,6 +198,13 @@ async function AdminContent() {
           </Panel>
         </div>
       </div>
+      {accounts.data ? (
+        <AccountsPanel
+          accounts={accounts.data.map((a) => ({ ...a, athletes: Number(a.athletes), coaches: Number(a.coaches) }) satisfies AdminAccount)}
+          currentUserId={userId}
+          timeZone={profile.timezone}
+        />
+      ) : null}
     </div>
   );
 }

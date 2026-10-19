@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { supabaseEnv } from "./env";
 
 /** Espaces réservés aux comptes connectés. */
-export const PROTECTED_PREFIXES = ["/athlete", "/coach", "/settings", "/home", "/reset-password"];
+export const PROTECTED_PREFIXES = ["/athlete", "/coach", "/settings", "/notifications", "/home", "/reset-password"];
 const AUTH_PAGES = ["/login", "/signup", "/forgot-password"];
 
 const isProtected = (pathname: string) =>

@@ -36,6 +36,37 @@ jobs:
       - run: npm test
       - run: npm run build
 
+  # Le fichier de mise à jour de la production (supabase/production/pending.sql) s'applique en une
+  # seule fois sur la pile Supabase officielle, remise au niveau de la production actuelle.
+  production-sql:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.121.0
+      - name: Keep only the migrations already applied in production
+        run: |
+          mkdir -p "$RUNNER_TEMP/pending"
+          for f in supabase/migrations/*.sql; do
+            v="$(basename "$f" | cut -c1-14)"
+            grep -qx "$v" supabase/production/applied.txt || mv "$f" "$RUNNER_TEMP/pending/"
+          done
+          ls supabase/migrations "$RUNNER_TEMP/pending"
+      - name: Start Supabase at the production level
+        run: supabase start -x storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+      - name: Apply the production SQL file (one transaction)
+        run: |
+          test -f supabase/production/pending.sql || { echo "Rien à appliquer."; exit 0; }
+          psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -q -f supabase/production/pending.sql
+      - name: Check the recorded migrations
+        run: |
+          expected="$(ls "$RUNNER_TEMP/pending" | cut -c1-14 | sort)"
+          recorded="$(psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -At -c "select version from supabase_migrations.schema_migrations order by version" | sort)"
+          for v in $expected; do echo "$recorded" | grep -qx "$v" || { echo "::error::migration $v non inscrite"; exit 1; }; done
+          echo "Inscrites : $expected"
+
   # Parcours clés dans un vrai navigateur, contre la pile Supabase officielle (Docker) :
   # critère de la phase 2 (une séance publiée apparaît chez l'athlète sans rechargement, grâce
   # à Supabase Realtime) et de la phase 3 (une activité Strava arrive par webhook, sans doublon,

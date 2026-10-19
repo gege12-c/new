@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Suspense } from "react";
 import { BottomNav, MobileSettingsLink, SidebarNav, type NavGroup, type NavKey } from "@/components/app-nav";
 import { Brand } from "@/components/brand";
+import { NotificationBell } from "@/components/notifications/bell";
 import { Skeleton } from "@/components/ui/feedback";
 import { getIsAdmin, getProfile } from "@/lib/auth/dal";
 import { initials } from "@/lib/utils";
@@ -13,7 +14,12 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-dvh lg:flex">
       <aside className="hidden border-r border-line bg-surface lg:sticky lg:top-0 lg:flex lg:h-dvh lg:w-[232px] lg:shrink-0 lg:flex-col lg:px-3 lg:pb-4 lg:pt-5">
-        <Brand href="/home" className="px-3" />
+        <div className="flex items-center justify-between pr-1">
+          <Brand href="/home" className="px-3" />
+          <Suspense fallback={<span className="size-9" />}>
+            <NotificationBell />
+          </Suspense>
+        </div>
         <nav aria-label="Navigation principale" className="mt-9 flex-1 overflow-y-auto">
           <Suspense fallback={<NavFallback />}>
             <Sidebar />
@@ -27,9 +33,14 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       <div className="min-w-0 flex-1">
         <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-line bg-surface/90 px-4 backdrop-blur-md lg:hidden">
           <Brand href="/home" />
-          <Suspense fallback={<span className="size-9" />}>
-            <MobileSettingsLink />
-          </Suspense>
+          <div className="flex items-center gap-1">
+            <Suspense fallback={<span className="size-9" />}>
+              <NotificationBell />
+            </Suspense>
+            <Suspense fallback={<span className="size-9" />}>
+              <MobileSettingsLink />
+            </Suspense>
+          </div>
         </header>
         {children}
       </div>

@@ -78,7 +78,20 @@ Règles de Strava appliquées : les activités Strava ne sont visibles que de l'
 
 ### Mettre à jour la base de production
 
-Les migrations pas encore appliquées en production sont réunies dans un seul fichier, [`supabase/production/pending.sql`](supabase/production/pending.sql), généré par `node scripts/production-sql.mjs` à partir de `supabase/migrations` (la CI vérifie qu'il est à jour et qu'il s'applique en une fois). Pour l'appliquer : ouvrez sa version brute sur GitHub, copiez tout le texte, puis Supabase > **SQL Editor** > **New query**, collez et cliquez sur **Run**. Résultat attendu : « Success. No rows returned ». C'est tout ou rien : en cas d'erreur, la base reste inchangée. Une fois la mise à jour faite, les versions passent dans `supabase/production/applied.txt` et le fichier est régénéré.
+Les migrations pas encore appliquées en production (en ce moment celles des phases 3, 4 et 5) sont réunies dans un seul fichier, [`supabase/production/pending.sql`](supabase/production/pending.sql), généré par `node scripts/production-sql.mjs` à partir de `supabase/migrations` (la CI vérifie qu'il est à jour et qu'il s'applique en une fois). Pour l'appliquer : ouvrez sa version brute sur GitHub, copiez tout le texte, puis Supabase > **SQL Editor** > **New query**, collez et cliquez sur **Run**. Résultat attendu : « Success. No rows returned ». C'est tout ou rien : en cas d'erreur, la base reste inchangée. Une fois la mise à jour faite, les versions passent dans `supabase/production/applied.txt` et le fichier est régénéré.
+
+### Sauvegardes
+
+L'offre gratuite de Supabase ne comprend pas de sauvegarde automatique ; Supabase recommande d'exporter régulièrement ses données ([documentation](https://supabase.com/docs/guides/platform/backups)). L'offre Pro garde les 7 dernières sauvegardes quotidiennes. Export manuel, depuis un ordinateur :
+
+```bash
+npx supabase login
+npx supabase link --project-ref ugqtfkuisaqjdnwxvogm
+npx supabase db dump -f tricoach-schema.sql
+npx supabase db dump --data-only -f tricoach-donnees.sql
+```
+
+Gardez ces fichiers hors du dépôt GitHub (il est public) : ils contiennent les données des athlètes.
 
 ### Nouveau projet Supabase (développement, test)
 
@@ -147,3 +160,5 @@ et lancez `npm run test:e2e` avec `STRAVA_CLIENT_ID=4242` et `SUPABASE_SECRET_KE
 - [docs/SCHEMA.md](docs/SCHEMA.md) : tables, relations, sécurité.
 - [docs/WORKOUT_FORMAT.md](docs/WORKOUT_FORMAT.md) : format des séances structurées et calculs.
 - [docs/EXPORTS.md](docs/EXPORTS.md) : exports Zwift et Garmin, conditions des fournisseurs, règles de conversion.
+
+Fonctions de la phase 5 : application installable (manifeste, icônes, page hors connexion, sans aucune donnée gardée sur l'appareil), page « Progression » (athlète et coach), notifications dans l'application (cloche, réglages par type). La tâche quotidienne (`/api/cron/daily`, Vercel Cron) envoie aussi les rappels de séance sans retour ; elle demande `CRON_SECRET` et `SUPABASE_SECRET_KEY`.

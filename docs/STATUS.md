@@ -1,6 +1,28 @@
 # Avancement
 
-Dernière mise à jour : 19 octobre 2026 (nuit), fin de la phase 4 (exports Zwift et Garmin).
+Dernière mise à jour : 19 octobre 2026 (nuit), phases 4 et 5 livrées (exports, application installable, progression, notifications).
+
+## Phase 5 — Mise en production : livrée, à confirmer sur votre téléphone
+
+Critère de fin : l'application tourne en production et s'installe sur un téléphone. Elle tourne en production (déploiement automatique de `main`) ; l'installation est vérifiée par Chromium lui-même (aucune erreur d'installabilité, manifeste valide) dans la CI ; reste à l'essayer sur votre téléphone (voir « À faire »).
+
+Vérification :
+
+- `e2e/pwa.spec.ts` : manifeste et icônes servis, Chromium considère l'application comme installable (contrôle DevTools), page claire hors connexion puis retour en ligne, explications d'installation iPhone et Android dans les réglages.
+- `e2e/stats.spec.ts` : l'athlète voit sa progression (réalisé d'après un fichier FIT, séance « faite » d'après son retour, record de puissance, tableau) ; le coach voit l'onglet « Progression » de son athlète.
+- `e2e/notifications.spec.ts` : le coach publie une séance, l'athlète la voit dans la cloche, ouvre la séance depuis la notification, la notification passe en lue ; un commentaire de l'athlète prévient le coach ; un type coupé dans les réglages ne prévient plus.
+- `e2e/admin.spec.ts` : l'administrateur voit les comptes et leurs rôles, sans donnée sportive ; 3 tests de base (`tests/db/admin.test.ts`) : liste, accès refusé aux autres, rôle donné et retiré, jamais au dernier administrateur.
+- 8 tests de base (`tests/db/notifications.test.ts`) : destinataires, regroupements, auteur jamais prévenu, notes privées muettes, droits (lecture et marquage des seules notifications reçues, aucune écriture directe), réglages, reconnexion Strava, export échoué, rappel quotidien unique ; 10 tests unitaires (statistiques, manifeste et icônes).
+
+Livré :
+
+- **Application installable** (PWA) : manifeste, icônes (dont masquables), écran d'accueil iPhone, page hors connexion. Le service worker ne garde aucune donnée sur l'appareil : seules les pages hors connexion sont servies sans réseau. Carte « TriCoach sur votre écran d'accueil » sur l'accueil athlète (téléphone) et rubrique « Application sur téléphone » dans les réglages.
+- **Progression** (athlète, et onglet de la fiche athlète côté coach) : volume prévu par semaine et par discipline sur 12 semaines (enchaînements découpés par discipline) et réalisé d'après les fichiers FIT ; intensité prévue par zone sur 4 semaines ; suivi des séances passées (retours de l'athlète, fichiers FIT) ; évolution des seuils (FTP, allure seuil, CSS, FC seuil) ; records tirés des fichiers FIT. Chaque bloc dit ce qui manque au lieu de calculer sur trop peu de données ; tableau des valeurs ; couleurs de graphique contrôlées (contraste, daltonisme) en clair et en sombre.
+- **Notifications** dans l'application : cloche avec le nombre de non lues, page des notifications, ouverture directe de la séance, « Tout marquer comme lu », réglage par type dans les réglages. Séance publiée, modifiée, déplacée ou annulée ; commentaire partagé ; reconnexion Strava nécessaire ; export impossible chez un athlète (pour ses coachs) ; rappel le lendemain d'une séance sans retour.
+- **Administration, comptes et rôles** : liste des comptes (nom, email, mode coach, administrateur, relations, inscription, dernière connexion) et rôle d'administrateur donné ou retiré depuis la page Administration, sans aucune donnée sportive ; jamais le dernier administrateur.
+- **Sauvegardes** : procédure d'export documentée (README, « Sauvegardes ») ; l'offre gratuite de Supabase n'en fait pas automatiquement.
+
+Pas fait (hors de portée cette nuit ou dépendant de vous) : notifications par email (il faut un service SMTP) et notifications push sur téléphone (clés VAPID à créer et à saisir dans Vercel) ; statistiques sur les activités Strava (interdites par Strava sans accord écrit).
 
 ## Phase 4 — Exports : terminée
 
@@ -22,7 +44,7 @@ Livré :
 - Wahoo et Suunto : « envoi direct non configuré », avec les conditions officielles d'accès à leurs API et la méthode manuelle ; fiche texte de la séance à copier (valeurs absolues calculées avec les seuils de l'athlète).
 - Panneau « Appareils et applications » du profil sportif : pour chaque fournisseur, les quatre cas (séance prévue vers l'appareil, téléchargement manuel, synchronisation automatique, activité réalisée vers TriCoach) avec leur état réel et les sources officielles.
 - Détail des règles de conversion et des conditions des fournisseurs : [EXPORTS.md](EXPORTS.md).
-- Un seul fichier SQL pour mettre la production à jour (phases 3 et 4) : `supabase/production/pending.sql`, généré à partir des migrations et contrôlé par la CI.
+- Un seul fichier SQL pour mettre la production à jour (phases 3 à 5) : `supabase/production/pending.sql`, généré à partir des migrations ; la CI vérifie qu'il est à jour et qu'il s'applique en une fois sur la pile Supabase officielle remise au niveau de la production.
 
 ## Phase 3 — Strava : terminée, mise en production à finaliser
 
@@ -104,6 +126,11 @@ Livré :
 | Historique des exports | chaque tentative, réussie ou non, sous les droits de l'utilisateur ; un échec d'écriture de l'historique ne bloque pas un fichier valide (signalé) | traçabilité sans priver l'athlète de sa séance |
 | Contenu des séances à la lecture | normalisé par le schéma (valeurs par défaut) avant affichage et export | une séance écrite hors de l'éditeur (API) ne fait plus échouer le panneau |
 | Mise à jour de la production | un fichier SQL unique (`supabase/production/pending.sql`), une seule transaction, inscrit aussi les migrations dans l'historique Supabase | une seule manipulation, tout ou rien ; le connecteur Supabase ne peut pas appliquer de migration sans confirmation affichée |
+| Application installable | manifeste + service worker limité à une page hors connexion, sans cache de données | installable (Chrome exige un service worker pour proposer l'installation) sans jamais montrer une séance périmée ni garder de données d'athlète sur l'appareil |
+| Statistiques et Strava | volumes réalisés, suivi et records calculés sur les seuls fichiers FIT et retours de séance ; une séance confirmée seulement par Strava compte « sans retour » | accord API Strava §5.4 (aucune agrégation, même dérivée) |
+| Seuils des statistiques | ceux en vigueur à la date de chaque séance | même règle que les durées estimées et les exports |
+| Notifications | écrites par la base (triggers), dans l'application seulement, regroupées, réglables par type ; aucune donnée Strava | rien ne peut être oublié par un chemin de l'application ; sobres par construction ; email et push demandent des comptes et des secrets que vous créez |
+| Rappel « séance sans retour » | une fois par séance, le lendemain (date locale de l'athlète), par la tâche quotidienne | pas de harcèlement ; fonctionne même sans Strava |
 | Administration | page `/admin` : configuration (présente ou non, jamais les valeurs), abonnement webhook, file, quotas, journal ; génération des valeurs secrètes dans le navigateur | vous saisissez les secrets vous-même, sans les écrire dans une conversation |
 
 ## Phases 1 et 2 : terminées
@@ -115,8 +142,8 @@ Livré :
 
 | Élément | État |
 | --- | --- |
-| Base Supabase `supabase-rose-candle` (`ugqtfkuisaqjdnwxvogm`, Zurich, PostgreSQL 17) | phases 1 et 2 à jour. **Migrations des phases 3 et 4 en attente**, réunies dans un seul fichier à coller dans l'éditeur SQL : `supabase/production/pending.sql` (voir « À faire de votre côté »). Le connecteur Supabase ne peut pas les appliquer sans une confirmation qui ne s'affiche pas ici. Elles n'ajoutent que des tables, fonctions et triggers ; une seule transaction, tout ou rien |
-| Code des phases 3 et 4 | fusionné dans `main` et déployé. En attendant la mise à jour de la base, les écrans concernés l'indiquent (« disponible après la mise à jour de la base ») au lieu d'échouer. Les exports Zwift et Garmin fonctionnent déjà (seul leur historique attend la base). Dès la base à jour, tout s'active sans nouveau déploiement |
+| Base Supabase `supabase-rose-candle` (`ugqtfkuisaqjdnwxvogm`, Zurich, PostgreSQL 17) | phases 1 et 2 à jour. **Migrations des phases 3, 4 et 5 en attente**, réunies dans un seul fichier à coller dans l'éditeur SQL : `supabase/production/pending.sql` (voir « À faire de votre côté »). Le connecteur Supabase ne peut pas les appliquer sans une confirmation qui ne s'affiche pas ici. Elles n'ajoutent que des tables, fonctions et triggers ; une seule transaction, tout ou rien |
+| Code des phases 3, 4 et 5 | fusionné dans `main` et déployé. En attendant la mise à jour de la base, les écrans concernés l'indiquent (« disponible après la mise à jour de la base ») au lieu d'échouer ; la cloche des notifications n'apparaît qu'une fois la base à jour. Fonctionnent déjà : exports Zwift et Garmin (seul leur historique attend la base), application installable, progression (volumes prévus, intensité, seuils). Dès la base à jour, tout s'active sans nouveau déploiement |
 | Projet Vercel `new` | en ligne sur https://new-bay-one-76.vercel.app ; variables de Strava à ajouter (README, « Activer Strava ») |
 | Réglages d'authentification Supabase | faits le 18 octobre (Site URL, Redirect URLs, confirmation d'email désactivée en attendant un SMTP) |
 | Realtime en production | contrôlé le 18 octobre ; le canal `self:<id>` de la phase 3 utilise la même politique |
@@ -135,21 +162,17 @@ Avertissements de l'analyseur Supabase acceptés : les fonctions d'invitation et
 - Sans service d'envoi d'emails (SMTP), Supabase n'envoie d'emails qu'aux membres de l'organisation : confirmation d'email désactivée, mot de passe oublié limité à ces membres. Une invitation nominative ne prouve donc pas l'adresse de l'athlète : le lien à usage unique reste le secret.
 - Avertissements `npm audit` sur des dépendances de développement uniquement.
 
-## Phase 5 — Mise en production : prochaine session
-
-À livrer : statistiques (sans données Strava agrégées), notifications sobres et configurables, application installable sur téléphone (PWA), déploiement final et sauvegardes.
-
-Critère de fin : l'application tourne en production et s'installe sur un téléphone.
-
 ## À faire de votre côté
 
 Dépôt GitHub : `gege12-c/new`.
 
-1. Mettre la base à jour (2 minutes) : ouvrez https://raw.githubusercontent.com/gege12-c/new/main/supabase/production/pending.sql, sélectionnez tout le texte (Ctrl+A puis Ctrl+C) ; dans Supabase, SQL Editor, « New query », collez, puis « Run ». Résultat attendu : « Success. No rows returned ». Si un message d'erreur apparaît, rien n'a été modifié : envoyez-le-moi. Le site se met à jour tout seul (la page Administration n'affiche plus d'avertissement). Dites-le-moi ensuite : je vérifie la base et je mets à jour le suivi des migrations.
-2. Créer l'application Strava et saisir les variables dans Vercel : README, sections « Projet Vercel » (variables serveur) et « Activer Strava ». Ne me communiquez aucune de ces valeurs.
-3. Vous déclarer administrateur (README, « Devenir administrateur »), puis ouvrir la page Administration de TriCoach et cliquer sur « Activer la réception des activités ».
-4. Tester en vrai : connectez votre compte Strava depuis votre profil (compte athlète), faites ou importez une activité qui correspond à une séance du jour, et vérifiez qu'elle s'affiche rattachée en quelques minutes.
-5. Essayer les exports sur vos appareils : ouvrez une séance dans votre calendrier, rubrique « Exporter vers mes appareils ». Garmin : téléchargez le FIT et copiez-le dans le dossier GARMIN/NewFiles de la montre branchée en USB (procédure affichée sous le bouton). Zwift : téléchargez le .zwo sur l'ordinateur de Zwift et suivez la procédure affichée. Dites-moi ce que l'appareil affiche (noms d'étapes, cibles) : c'est le seul test que je ne peux pas faire d'ici.
-6. Sur la page de votre application Strava, passer la capacité de 1 à 10 athlètes.
-7. Pour une future revue Strava : téléchargez le pack officiel des boutons « Connect with Strava » et des logos « Powered by Strava » (developers.strava.com, rubrique Guidelines) et envoyez-le-moi dans une session ; je les intégrerai.
-8. Toujours valable : activer « Leaked password protection » dans Supabase ; plus tard (au plus tard en phase 5), configurer un service d'envoi d'emails (SMTP) puis réactiver « Confirm email ».
+1. Mettre la base à jour (2 minutes) : ouvrez https://raw.githubusercontent.com/gege12-c/new/main/supabase/production/pending.sql, sélectionnez tout le texte (Ctrl+A puis Ctrl+C) ; dans Supabase, SQL Editor, « New query », collez, puis « Run ». Résultat attendu : « Success. No rows returned ». Si un message d'erreur apparaît, rien n'a été modifié : envoyez-le-moi. Le site se met à jour tout seul (la page Administration n'affiche plus d'avertissement, la cloche apparaît). Dites-le-moi ensuite : je vérifie la base et je mets à jour le suivi des migrations.
+2. Installer l'application sur votre téléphone : ouvrez https://new-bay-one-76.vercel.app dans Safari (iPhone : Partager, puis « Sur l'écran d'accueil ») ou Chrome (Android : menu ⋮, « Installer l'application »). Dites-moi si l'icône et l'ouverture en plein écran vous conviennent.
+3. Créer l'application Strava et saisir les variables dans Vercel : README, sections « Projet Vercel » (variables serveur) et « Activer Strava ». Ne me communiquez aucune de ces valeurs.
+4. Vous déclarer administrateur (README, « Devenir administrateur »), puis ouvrir la page Administration de TriCoach et cliquer sur « Activer la réception des activités ».
+5. Tester en vrai : connectez votre compte Strava depuis votre profil (compte athlète), faites ou importez une activité qui correspond à une séance du jour, et vérifiez qu'elle s'affiche rattachée en quelques minutes.
+6. Essayer les exports sur vos appareils : ouvrez une séance dans votre calendrier, rubrique « Exporter vers mes appareils ». Garmin : téléchargez le FIT et copiez-le dans le dossier GARMIN/NewFiles de la montre branchée en USB (procédure affichée sous le bouton). Zwift : téléchargez le .zwo sur l'ordinateur de Zwift et suivez la procédure affichée. Dites-moi ce que l'appareil affiche (noms d'étapes, cibles) : c'est le seul test que je ne peux pas faire d'ici.
+7. Sur la page de votre application Strava, passer la capacité de 1 à 10 athlètes.
+8. Pour une future revue Strava : téléchargez le pack officiel des boutons « Connect with Strava » et des logos « Powered by Strava » (developers.strava.com, rubrique Guidelines) et envoyez-le-moi dans une session ; je les intégrerai.
+9. Sauvegardes : l'offre gratuite de Supabase n'en fait pas ; exportez la base de temps en temps (README, « Sauvegardes ») ou passez à l'offre Pro (sauvegardes quotidiennes).
+10. Toujours valable : activer « Leaked password protection » dans Supabase ; configurer un service d'envoi d'emails (SMTP) puis réactiver « Confirm email » (il permettra aussi des notifications par email).
