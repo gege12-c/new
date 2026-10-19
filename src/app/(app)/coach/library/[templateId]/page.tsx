@@ -6,6 +6,7 @@ import { SessionEditor } from "@/components/editor/session-editor";
 import { EditorSkeleton } from "@/components/layout/skeletons";
 import { getProfile, requireSession } from "@/lib/auth/dal";
 import { getTemplate } from "@/lib/data/planning";
+import { editableContent } from "@/lib/planning/editor-values";
 import { todayIn } from "@/lib/time";
 
 export const metadata: Metadata = { title: "Modèle" };
@@ -39,7 +40,7 @@ async function TemplateEditor({ params }: Pick<PageProps<"/coach/library/[templa
         objective: template.objective ?? "",
         description: template.description ?? "",
         nutrition_notes: "",
-        content: template.content,
+        content: editableContent(template.content),
       }}
       pendingSince={null}
       lastSavedAt={template.updated_at}

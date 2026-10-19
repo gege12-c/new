@@ -15,6 +15,7 @@ import {
   viewRange,
   viewTitle,
 } from "./dates";
+import { snapshotToValues } from "./editor-values";
 import { changedFields, normalizeTime, SessionValuesSchema, snapshotOf } from "./snapshot";
 import { sessionStatus } from "./status";
 import { plannedVolume } from "./volume";
@@ -108,5 +109,22 @@ describe("statut et volumes", () => {
     expect(summary.totalSeconds).toBe(5400);
     expect(summary.unknownDuration).toBe(1);
     expect(summary.bySport[1].meters).toBe(10000);
+  });
+});
+
+describe("valeurs de l'éditeur", () => {
+  it("complète un contenu écrit hors de l'éditeur, sans toucher au reste", () => {
+    const partial = {
+      schemaVersion: 1,
+      segments: [{ id: "bike", sport: "bike", steps: [{ kind: "step", id: "cd", type: "cooldown", length: { unit: "time", seconds: 600 } }] }],
+    };
+    const snapshot = { scheduled_date: "2026-10-19", start_time: "18:00:00", title: "Retour au calme", content: partial } as unknown as Parameters<typeof snapshotToValues>[0];
+    const values = snapshotToValues(snapshot);
+    expect(values.start_time).toBe("18:00");
+    const step = values.content.segments[0].steps[0];
+    expect(step.kind === "step" && step.targets).toEqual([]);
+    // Un contenu invalide n'est pas réécrit en silence : il reste tel quel.
+    const invalid = { schemaVersion: 1, segments: [] };
+    expect(snapshotToValues({ ...snapshot, content: invalid } as unknown as Parameters<typeof snapshotToValues>[0]).content).toBe(invalid);
   });
 });

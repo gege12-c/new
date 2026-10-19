@@ -1,5 +1,5 @@
 /** Valeurs de l’éditeur de séance, partagées entre les pages (serveur) et l’éditeur (client). */
-import type { Workout } from "@/lib/workout/schema";
+import { WorkoutSchema, type Workout } from "@/lib/workout/schema";
 import type { SessionSnapshot } from "./snapshot";
 
 /** Valeurs éditées. Le sport se déduit du contenu ; les totaux sont recalculés par le serveur. */
@@ -13,6 +13,15 @@ export interface EditorValues {
   content: Workout;
 }
 
+/**
+ * Contenu complété par le schéma (valeurs par défaut) : une séance écrite hors de l'éditeur, par
+ * l'API, peut omettre des champs facultatifs. La base de la fusion, elle, reste la valeur stockée.
+ */
+export function editableContent(content: SessionSnapshot["content"]): Workout {
+  const parsed = WorkoutSchema.safeParse(content);
+  return parsed.success ? parsed.data : content;
+}
+
 export function snapshotToValues(snapshot: SessionSnapshot): EditorValues {
   return {
     scheduled_date: snapshot.scheduled_date,
@@ -21,6 +30,6 @@ export function snapshotToValues(snapshot: SessionSnapshot): EditorValues {
     objective: snapshot.objective ?? "",
     description: snapshot.description ?? "",
     nutrition_notes: snapshot.nutrition_notes ?? "",
-    content: snapshot.content,
+    content: editableContent(snapshot.content),
   };
 }
