@@ -29,7 +29,7 @@ export function AthleteHeader({
   thresholds: ThresholdRow[];
   nextEvent: { name: string; event_date: string; priority: string } | null;
   today: string;
-  active: "calendar" | "profile";
+  active: "calendar" | "profile" | "stats";
   readOnly: boolean;
 }) {
   const current = currentThresholds(thresholds, today);
@@ -37,6 +37,7 @@ export function AthleteHeader({
   const tabs = [
     { key: "calendar", label: "Calendrier", href: `/coach/athletes/${athleteId}` },
     { key: "profile", label: "Profil et seuils", href: `/coach/athletes/${athleteId}/profile` },
+    { key: "stats", label: "Progression", href: `/coach/athletes/${athleteId}/stats` },
   ] as const;
   return (
     <header className="mb-5">

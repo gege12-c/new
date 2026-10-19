@@ -1,17 +1,18 @@
 "use client";
 
-import { CalendarDays, Gauge, LibraryBig, Settings, ShieldCheck, Sunrise, UsersRound, type LucideIcon } from "lucide-react";
+import { CalendarDays, ChartColumn, Gauge, LibraryBig, Settings, ShieldCheck, Sunrise, UsersRound, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
-export type NavKey = "today" | "calendar" | "profile" | "athletes" | "library" | "settings" | "admin";
+export type NavKey = "today" | "calendar" | "progress" | "profile" | "athletes" | "library" | "settings" | "admin";
 
 const ITEMS: Record<NavKey, { href: string; label: string; short: string; icon: LucideIcon }> = {
   athletes: { href: "/coach", label: "Athlètes", short: "Athlètes", icon: UsersRound },
   library: { href: "/coach/library", label: "Bibliothèque", short: "Modèles", icon: LibraryBig },
   today: { href: "/athlete", label: "Aujourd’hui", short: "Aujourd’hui", icon: Sunrise },
   calendar: { href: "/athlete/calendar", label: "Calendrier", short: "Calendrier", icon: CalendarDays },
+  progress: { href: "/athlete/stats", label: "Progression", short: "Progrès", icon: ChartColumn },
   profile: { href: "/athlete/profile", label: "Profil sportif", short: "Profil", icon: Gauge },
   settings: { href: "/settings", label: "Réglages", short: "Réglages", icon: Settings },
   admin: { href: "/admin", label: "Administration", short: "Admin", icon: ShieldCheck },

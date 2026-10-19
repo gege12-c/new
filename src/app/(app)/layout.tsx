@@ -48,7 +48,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
 async function navGroups(): Promise<NavGroup[]> {
   const [profile, isAdmin] = await Promise.all([getProfile(), getIsAdmin()]);
-  const training: NavKey[] = ["today", "calendar", "profile"];
+  const training: NavKey[] = ["today", "calendar", "progress", "profile"];
   const account: NavKey[] = isAdmin ? ["settings", "admin"] : ["settings"];
   if (!profile.is_coach) return [{ keys: [...training, ...account] }];
   return [
@@ -64,7 +64,7 @@ async function Sidebar() {
 
 async function Bottom() {
   const profile = await getProfile();
-  const keys: NavKey[] = profile.is_coach ? ["athletes", "library", "today", "calendar", "profile"] : ["today", "calendar", "profile"];
+  const keys: NavKey[] = profile.is_coach ? ["athletes", "library", "today", "calendar", "profile"] : ["today", "calendar", "progress", "profile"];
   return <BottomNav keys={keys} />;
 }
 
