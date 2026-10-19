@@ -114,8 +114,34 @@ for (const colorScheme of ["light", "dark"] as const) {
   });
 }
 
+test("au clavier : aller au contenu, ouvrir une séance puis la refermer sans perdre sa place", async ({ browser }) => {
+  const page = await signedIn(browser, "athlete");
+  await page.goto("/athlete/calendar");
+  await page.keyboard.press("Tab");
+  const skip = page.getByRole("link", { name: "Aller au contenu" });
+  await expect(skip).toBeFocused();
+  await expect(skip).toBeVisible();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("main#contenu")).toBeFocused();
+
+  // Le calendrier arrive en flux : on attend qu'il soit en place avant d'y poser le focus.
+  const card = page.locator(`a[href*="session=${sessionId}"]`).first();
+  await expect(card).toBeVisible();
+  await card.focus();
+  await expect(card).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(new RegExp(`session=${sessionId}`));
+  const panel = page.locator("aside[data-panel]");
+  await expect(panel.getByRole("heading", { name: /Seuil 4 × 8 min/ })).toBeVisible();
+  await expect(panel.locator(":focus")).toHaveCount(1);
+  await page.keyboard.press("Escape");
+  await expect(page).not.toHaveURL(/session=/);
+  await expect(panel).toHaveCount(0);
+  await expect(page.locator(`a[href*="session=${sessionId}"]`).first()).toBeFocused();
+});
+
 test("pages publiques", async ({ page }) => {
   const problems: string[] = [];
-  for (const path of ["/login", "/signup", "/forgot-password"]) problems.push(...(await audit(page, path, "public")));
+  for (const path of ["/login", "/signup", "/forgot-password", "/cette-page-n-existe-pas"]) problems.push(...(await audit(page, path, "public")));
   expect(problems, problems.join("\n")).toEqual([]);
 });

@@ -13,6 +13,12 @@ import { signOut } from "../(auth)/actions";
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-dvh lg:flex">
+      <a
+        href="#contenu"
+        className="sr-only rounded-[8px] bg-ink px-4 py-2.5 text-[14px] font-semibold text-canvas focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50"
+      >
+        Aller au contenu
+      </a>
       <aside className="hidden border-r border-line bg-surface lg:sticky lg:top-0 lg:flex lg:h-dvh lg:w-[232px] lg:shrink-0 lg:flex-col lg:px-3 lg:pb-4 lg:pt-5">
         <div className="flex items-center justify-between pr-1">
           <Brand href="/home" className="px-3" />

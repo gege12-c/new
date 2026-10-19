@@ -4,7 +4,7 @@
  */
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
-import { accounts, takeHydrationErrors } from "./fixtures";
+import { accounts, signedIn, takeHydrationErrors } from "./fixtures";
 
 test.afterEach(() => expect(takeHydrationErrors()).toEqual([]));
 
@@ -20,6 +20,15 @@ test("télécharger ses données puis supprimer son compte", async ({ browser })
   await page.getByLabel("Mot de passe").fill(password);
   await page.getByRole("button", { name: "Créer mon compte" }).click();
   await expect(page).not.toHaveURL(/\/signup/);
+
+  // Le même compte, ouvert sur un second appareil.
+  const otherDevice = await browser.newContext();
+  const other = await otherDevice.newPage();
+  await other.goto("/login");
+  await other.getByLabel("Email").fill(email);
+  await other.getByLabel("Mot de passe").fill(password);
+  await other.getByRole("button", { name: "Se connecter" }).click();
+  await expect(other).not.toHaveURL(/\/login/);
 
   await page.goto("/settings");
   const panel = page.locator("section", { has: page.getByRole("heading", { name: "Vos données" }) });
@@ -50,5 +59,25 @@ test("télécharger ses données puis supprimer son compte", async ({ browser })
   await page.getByLabel("Mot de passe").fill(password);
   await page.getByRole("button", { name: "Se connecter" }).click();
   await expect(page.getByText("Email ou mot de passe incorrect.")).toBeVisible();
+
+  // Sur le second appareil, la session d'un compte supprimé se referme : retour à la connexion, sans page d'erreur.
+  await other.goto("/settings");
+  await expect(other).toHaveURL(/\/login/);
+  await expect(other.getByRole("heading", { name: "Connexion" })).toBeVisible();
+  await otherDevice.close();
   await context.close();
+});
+
+test("le lien de fermeture de session ne déconnecte jamais un compte qui existe", async ({ browser }) => {
+  const page = await signedIn(browser, "coach");
+  await page.goto("/auth/signout?reason=missing");
+  await expect(page).not.toHaveURL(/\/login/);
+  await page.goto("/settings");
+  await expect(page).toHaveURL(/\/settings/);
+  const anonymous = await browser.newContext();
+  const visitor = await anonymous.newPage();
+  await visitor.goto("/auth/signout?reason=missing");
+  await expect(visitor).toHaveURL(/\/login$/);
+  await expect(visitor.getByText("Votre compte et toutes vos données ont été supprimés.")).toHaveCount(0);
+  await anonymous.close();
 });

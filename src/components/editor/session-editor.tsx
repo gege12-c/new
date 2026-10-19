@@ -553,7 +553,7 @@ export function SessionEditor(props: SessionEditorProps) {
   };
 
   return (
-    <div className="pb-28 lg:pb-12" data-editor-ready={ready || undefined}>
+    <main id="contenu" tabIndex={-1} className="pb-28 outline-none lg:pb-12" data-editor-ready={ready || undefined}>
       <header className="sticky top-14 z-10 border-b border-line bg-canvas/92 backdrop-blur-md lg:top-0">
         <div className="mx-auto flex max-w-[1500px] flex-wrap items-center gap-3 px-4 py-3 sm:px-6 lg:px-8">
           <button
@@ -759,7 +759,7 @@ export function SessionEditor(props: SessionEditorProps) {
       >
         Les modifications non publiées seront perdues. L’athlète garde la version publiée.
       </ConfirmDialog>
-    </div>
+    </main>
   );
 }
 

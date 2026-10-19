@@ -46,8 +46,10 @@ export const getProfile = cache(async (): Promise<Profile> => {
     .from("profiles")
     .select("id, display_name, timezone, is_coach")
     .eq("id", userId)
-    .single();
-  if (error || !data) throw new Error("Profil introuvable pour ce compte.");
+    .maybeSingle();
+  if (error) throw new Error("Profil illisible pour le moment.");
+  // Jeton encore valide d'un compte supprimé (depuis un autre appareil) : on ferme la session.
+  if (!data) redirect("/auth/signout?reason=missing");
   return data;
 });
 
