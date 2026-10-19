@@ -7,9 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Notice } from "@/components/ui/feedback";
 import type { ExportHistoryEntry } from "@/lib/data/exports";
 import { GARMIN, SUUNTO, WAHOO, ZWIFT, type ConnectorInfo } from "@/lib/export/providers";
+import type { SuuntoPlan } from "@/lib/export/suunto-steps";
 import type { CompatibilityIssue, CompatibilityReport, FileProviderId } from "@/lib/export/types";
 import { SPORT_LABELS } from "@/lib/workout/schema";
 import { cn } from "@/lib/utils";
+import { SuuntoSteps } from "./suunto-steps";
 
 type Download =
   | { status: "loading" }
@@ -139,6 +141,8 @@ export function ExportSection({
   reports,
   history,
   sheet,
+  suunto,
+  dateLabel,
   multiSegment,
   timeZone,
 }: {
@@ -147,6 +151,10 @@ export function ExportSection({
   reports: CompatibilityReport[];
   history: ExportHistoryEntry[] | null;
   sheet: string;
+  /** La séance écrite comme le créateur d'entraînements de l'application Suunto. */
+  suunto: SuuntoPlan;
+  /** Date de la séance, en toutes lettres (à reporter dans Suunto). */
+  dateLabel: string;
   multiSegment: boolean;
   timeZone: string;
 }) {
@@ -155,6 +163,8 @@ export function ExportSection({
   const [copied, setCopied] = useState<"ok" | "error" | null>(null);
   // La fiche n'est rendue qu'à l'ouverture : elle reprend tout le texte de la séance.
   const [sheetOpen, setSheetOpen] = useState(false);
+  // De même pour les étapes Suunto, gardées ensuite (les étapes cochées restent cochées).
+  const [suuntoShown, setSuuntoShown] = useState(false);
 
   const set = (key: string, value: Download) => setDownloads((current) => ({ ...current, [key]: value }));
 
@@ -278,14 +288,20 @@ export function ExportSection({
               {info.name} <span className="font-normal text-muted">· envoi direct non configuré</span>
             </p>
             <p className="mt-0.5 text-[13px] leading-snug text-muted">{info.capabilities.planned.detail}</p>
-            <details className="mt-2">
-              <summary className="cursor-pointer text-[13px] font-medium text-ink-soft hover:text-ink">En attendant : méthode manuelle</summary>
+            <details
+              className="mt-2"
+              onToggle={info.id === "suunto" ? (event) => event.currentTarget.open && setSuuntoShown(true) : undefined}
+            >
+              <summary className="cursor-pointer text-[13px] font-medium text-ink-soft hover:text-ink">
+                {info.id === "suunto" ? `Recopier dans l’appli Suunto (${suunto.segments.reduce((n, s) => n + s.stepCount, 0)} étapes)` : "En attendant : méthode manuelle"}
+              </summary>
               <ol className="mt-2 list-decimal space-y-1 pl-5 text-[13px] leading-snug text-ink-soft">
                 {info.procedure.map((step) => (
                   <li key={step}>{step}</li>
                 ))}
               </ol>
-              <p className="mt-2 text-[12px] font-semibold text-ink-soft">Pour un envoi automatique, il faudrait :</p>
+              {info.id === "suunto" && suuntoShown ? <SuuntoSteps plan={suunto} dateLabel={dateLabel} /> : null}
+              <p className="mt-3 text-[12px] font-semibold text-ink-soft">Pour un envoi automatique, il faudrait :</p>
               <ul className="mt-1 list-disc space-y-1 pl-5 text-[12px] leading-snug text-muted">
                 {info.prerequisites.map((step) => (
                   <li key={step}>{step}</li>

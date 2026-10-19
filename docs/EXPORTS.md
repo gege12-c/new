@@ -9,7 +9,7 @@ Une séance prévue s'exporte depuis sa fiche (panneau de séance, rubrique « E
 | Zwift | manuel : fichier .zwo à importer sur ordinateur | disponible (.zwo, vélo et course) | impossible : pas d'API publique d'envoi de séances | par Strava ou fichier FIT |
 | Garmin | manuel : fichier FIT de séance copié par câble USB | disponible (FIT de type séance) | non configuré : API Training réservée aux développeurs approuvés | par Strava ou fichier FIT |
 | Wahoo | non configuré : API Cloud (plans) sur demande et approbation | impossible : aucun import manuel documenté par Wahoo | non configuré | par Strava ou fichier FIT |
-| Suunto | non configuré : API partenaire (guides SuuntoPlus) après examen | impossible : recréer la séance dans l'application Suunto (fiche texte fournie) | non configuré | par Strava ou fichier FIT |
+| Suunto | non configuré : API partenaire (guides SuuntoPlus) après examen | impossible : recopier la séance dans l'application Suunto (fiche « étapes Suunto » fournie) | non configuré | par Strava ou fichier FIT |
 
 Ces capacités sont des données (`src/lib/export/providers.ts`), affichées telles quelles dans l'application : rubrique d'export de chaque séance et panneau « Appareils et applications » du profil sportif.
 
@@ -89,6 +89,28 @@ Au-delà de 50 étapes, l'application prévient que certains appareils peuvent r
 ## Fiche texte
 
 Pour les applications sans import de fichier (Suunto, Wahoo), la fiche reprend chaque étape avec ses cibles, suivies de leur valeur absolue quand les seuils le permettent (« 238–250 W (95–100 % FTP) »), à copier en un clic.
+
+### Fiche « étapes Suunto »
+
+La séance écrite comme le créateur d'entraînements structurés de l'application Suunto la demande (`src/lib/export/suunto-steps.ts`), rubrique « Recopier dans l'appli Suunto » de chaque séance : nom et description à copier (la description s'affiche sur la montre), mode sportif, date (la montre propose alors la séance ce jour-là), puis les étapes dans l'ordre de saisie, à cocher au fur et à mesure.
+
+| TriCoach | Suunto |
+| --- | --- |
+| échauffement | « échauffement » |
+| travail, éducatifs | « intervalle » (éducatifs nommés comme tels) |
+| récupération, repos, transition | « récupération » (repos et transition nommés comme tels) |
+| retour au calme | « retour au calme » |
+| durée, distance | fin en durée, en distance |
+| durée libre, répétitions de renforcement | fin au bouton tour (nombre de répétitions noté à côté) |
+| puissance, % FTP, zones de puissance | objectif de puissance en W (FTP à la date de la séance) |
+| FC, % FC seuil, % FC max, zones cardiaques | objectif de fréquence cardiaque en bpm |
+| allure, % de l'allure seuil ou de la CSS, zones d'allure | objectif d'allure en min:s par km (course) ou par 100 m (natation) |
+| vitesse | objectif de vitesse en km/h |
+| cadence, effort ressenti, matériel, départs, consignes, seconde cible | écrits sous l'étape : Suunto ne les porte pas |
+| répétition dans une répétition | déroulée, pour un seul niveau de répétition |
+| enchaînement | un entraînement Suunto par partie |
+
+Un seuil manquant n'est jamais deviné : l'objectif reste vide, la cible prévue est écrite sous l'étape et le seuil à renseigner est signalé une fois. Source des champs : [Suunto, créer un entraînement structuré](https://www.suunto.com/fr-ch/Assistance/faq-articles/suunto-app/how-can-i-create-structured-workouts-with-suunto-app/) et [Suunto, Plan your interval workouts](https://us.suunto.com/blogs/blog/plan-your-interval-workouts-with-suunto-app) (fins en durée, distance ou bouton tour ; objectifs de fréquence cardiaque, puissance, allure ou vitesse).
 
 ## Tests
 

@@ -10,6 +10,7 @@ import { getSessionComments, getSessionDetail, getSessionHistory, getThresholdsO
 import { compatibilityReports } from "@/lib/export/connectors";
 import { exportContext } from "@/lib/export/session";
 import { workoutSheet } from "@/lib/export/sheet";
+import { suuntoPlan } from "@/lib/export/suunto-steps";
 import type { HistoryEntry } from "@/lib/data/planning-types";
 import { formatFullDate } from "@/lib/planning/dates";
 import { FIELD_LABELS, type EditableField } from "@/lib/planning/snapshot";
@@ -204,6 +205,8 @@ export async function SessionPanel({
             reports={compatibilityReports(parsedContent.data.segments, exportCtx)}
             history={exportHistory}
             sheet={workoutSheet(parsedContent.data, { title: detail.title, thresholds: thresholdsOnDate, description: detail.description })}
+            suunto={suuntoPlan(parsedContent.data, { title: detail.title, thresholds: thresholdsOnDate, description: detail.description })}
+            dateLabel={formatFullDate(detail.scheduled_date)}
             multiSegment={parsedContent.data.segments.length > 1}
             timeZone={timeZone}
           />

@@ -148,14 +148,15 @@ export const SUUNTO: ConnectorInfo & { id: "suunto"; format: null } = {
     auto: { status: "not_configured", detail: "Possible avec l'API partenaire de Suunto une fois l'accès accordé." },
     download: {
       status: "unsupported",
-      detail: "Pas d'import de fichier de séance : recréez la séance dans l'application Suunto à partir de la fiche texte.",
+      detail: "Pas d'import de fichier de séance : recopiez-la dans l'application Suunto avec la fiche « étapes Suunto », écrite comme son créateur d'entraînements.",
     },
   },
   procedure: [
-    "Dans l'application Suunto, ouvrez l'onglet de la montre puis le créateur de séances (Workout planner).",
-    "Recréez les étapes à partir de la fiche texte (durée ou distance, cible de FC, puissance, allure ou vitesse).",
-    "Donnez une date à la séance : elle est synchronisée sur la montre comme guide SuuntoPlus.",
-    "Sur la montre : choisissez le sport, puis Options > SuuntoPlus > Guides et la séance, avant de démarrer.",
+    "Dans l'application Suunto, touchez « + » en haut à droite, puis « Créez un entraînement structuré » (ou : symbole de la montre, « Entraînements structurés », « Créez nouveau »).",
+    "Recopiez le nom, la description, le mode sportif et la date de la fiche ci-dessous : avec la date, la montre propose la séance ce jour-là.",
+    "Ajoutez les étapes et les répétitions dans l'ordre de la fiche : pour chacune, son type, sa fin (durée, distance ou bouton tour) et son objectif.",
+    "Touchez « Suivant », vérifiez le récapitulatif, puis enregistrez : la séance part sur la montre à la synchronisation, parmi les SuuntoPlus Guides.",
+    "Sur la montre, choisissez le sport : la montre propose la séance du jour ; sinon, Options, SuuntoPlus, Guides, puis la séance, avant de démarrer.",
   ],
   prerequisites: [
     "Candidature au programme API de Suunto (réservé aux entreprises proposant un service au public, examen sous deux semaines, contrat API).",
@@ -163,6 +164,7 @@ export const SUUNTO: ConnectorInfo & { id: "suunto"; format: null } = {
   ],
   sources: [
     { label: "Suunto : programme API (APIZone)", url: "https://apizone.suunto.com/" },
+    { label: "Suunto : créer un entraînement structuré dans l'application", url: "https://www.suunto.com/fr-ch/Assistance/faq-articles/suunto-app/how-can-i-create-structured-workouts-with-suunto-app/" },
     { label: "Suunto : planifier des séances fractionnées", url: "https://us.suunto.com/blogs/blog/plan-your-interval-workouts-with-suunto-app" },
   ],
 };
