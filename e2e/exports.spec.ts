@@ -102,6 +102,26 @@ test("l'athlète télécharge un .zwo et un FIT valides de la même séance", as
   await expect(page.getByText(/Exports précédents/)).toContainText("(2)");
 });
 
+test("l'athlète recopie la séance dans l'appli Suunto, étape par étape", async ({ browser }) => {
+  const page = await signedIn(browser, "athlete");
+  await page.goto(`/athlete/calendar?view=week&date=${day}&session=${sessionId}`);
+  const suunto = page.locator('[data-export-provider="suunto"]');
+  await suunto.getByText("Recopier dans l’appli Suunto (6 étapes)").click();
+  const steps = suunto.locator("[data-suunto-steps]");
+  await expect(steps.getByRole("heading", { name: "Partie 1 : vélo" })).toBeVisible();
+  await expect(steps).toContainText(`${title} (1/2 vélo)`);
+  // Cibles en % FTP converties avec la FTP de l'athlète (250 W), une répétition à saisir une fois.
+  await expect(steps).toContainText("Fin : durée 10 min. Objectif : puissance 138–175 W.");
+  await expect(steps).toContainText("Répétition, 3 fois");
+  await expect(steps).toContainText("Fin : durée 5 min. Objectif : puissance 263–275 W.");
+  await expect(steps).toContainText("Récupération « Transition »");
+  await expect(steps).toContainText("Fin : durée 20 min. Objectif : allure 4:30–4:45 /km.");
+  await expect(steps).toContainText("Enchaînement : chaque partie se crée comme un entraînement Suunto à part");
+  const first = steps.getByRole("checkbox").first();
+  await first.check();
+  await expect(first).toBeChecked();
+});
+
 test("le coach voit l'historique des exports de son athlète", async ({ browser }) => {
   const { athlete } = accounts();
   const page = await signedIn(browser, "coach");
