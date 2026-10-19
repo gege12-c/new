@@ -163,6 +163,8 @@ export function ExportSection({
   const [copied, setCopied] = useState<"ok" | "error" | null>(null);
   // La fiche n'est rendue qu'à l'ouverture : elle reprend tout le texte de la séance.
   const [sheetOpen, setSheetOpen] = useState(false);
+  // De même pour les étapes Suunto, gardées ensuite (les étapes cochées restent cochées).
+  const [suuntoShown, setSuuntoShown] = useState(false);
 
   const set = (key: string, value: Download) => setDownloads((current) => ({ ...current, [key]: value }));
 
@@ -286,7 +288,10 @@ export function ExportSection({
               {info.name} <span className="font-normal text-muted">· envoi direct non configuré</span>
             </p>
             <p className="mt-0.5 text-[13px] leading-snug text-muted">{info.capabilities.planned.detail}</p>
-            <details className="mt-2">
+            <details
+              className="mt-2"
+              onToggle={info.id === "suunto" ? (event) => event.currentTarget.open && setSuuntoShown(true) : undefined}
+            >
               <summary className="cursor-pointer text-[13px] font-medium text-ink-soft hover:text-ink">
                 {info.id === "suunto" ? `Recopier dans l’appli Suunto (${suunto.segments.reduce((n, s) => n + s.stepCount, 0)} étapes)` : "En attendant : méthode manuelle"}
               </summary>
@@ -295,7 +300,7 @@ export function ExportSection({
                   <li key={step}>{step}</li>
                 ))}
               </ol>
-              {info.id === "suunto" ? <SuuntoSteps plan={suunto} dateLabel={dateLabel} /> : null}
+              {info.id === "suunto" && suuntoShown ? <SuuntoSteps plan={suunto} dateLabel={dateLabel} /> : null}
               <p className="mt-3 text-[12px] font-semibold text-ink-soft">Pour un envoi automatique, il faudrait :</p>
               <ul className="mt-1 list-disc space-y-1 pl-5 text-[12px] leading-snug text-muted">
                 {info.prerequisites.map((step) => (
