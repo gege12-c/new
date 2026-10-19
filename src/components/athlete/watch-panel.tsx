@@ -15,7 +15,7 @@ type Device = { created_at: string; connected_at: string | null; last_seen_at: s
 function deviceState(device: Device, timeZone: string): string {
   if (!device.connected_at) return "En attente de la montre : laissez l’application TriCoach ouverte, l’association se termine en quelques secondes.";
   const since = `Associée le ${when(device.connected_at, timeZone)}`;
-  return device.last_seen_at ? `${since}, dernières séances chargées le ${when(device.last_seen_at, timeZone)}` : `${since}, pas encore de séance chargée`;
+  return device.last_seen_at ? `${since}, dernier contact le ${when(device.last_seen_at, timeZone)}` : `${since}, aucune séance demandée pour l’instant`;
 }
 
 /** Montres Garmin associées et association d'une nouvelle montre (application TriCoach, Connect IQ). */
@@ -32,7 +32,7 @@ export async function WatchPanel({ supabase, timeZone }: { supabase: ServerSupab
     <Panel
       id="montre"
       title="Montre Garmin"
-      description="Avec l’application TriCoach sur votre montre, vos séances des 7 prochains jours y arrivent en vraies séances Garmin : écrans, alertes et cibles de la montre, sans câble."
+      description="Avec l’application TriCoach sur votre montre, vos séances deviennent de vraies séances Garmin : écrans, alertes et cibles de la montre, sans câble. Toutes les 30 minutes, la montre vérifie seule si une nouvelle séance est à charger et vous la propose."
     >
       {error ? (
         <p className="text-[14px] text-muted">{SCHEMA_PENDING_MESSAGE}</p>
@@ -61,7 +61,22 @@ export async function WatchPanel({ supabase, timeZone }: { supabase: ServerSupab
             <h3 className="text-[15px] font-semibold">{devices.length ? "Associer une autre montre" : "Associer votre montre"}</h3>
             <ol className="list-decimal space-y-1 pl-5 text-[13.5px] text-ink-soft">
               <li>
-                Installez l’application TriCoach sur votre montre. {WATCH_APP.storeUrl ? null : <span className="text-muted">{WATCH_APP.availability}</span>}
+                {WATCH_APP.storeUrl ? (
+                  <>
+                    Installez l’application TriCoach sur votre montre depuis le{" "}
+                    <a className="font-medium text-ink underline decoration-line-strong underline-offset-4 hover:decoration-ink" href={WATCH_APP.storeUrl} target="_blank" rel="noreferrer">
+                      Connect IQ Store
+                    </a>
+                    .
+                  </>
+                ) : (
+                  <>
+                    Installez l’application TriCoach sur votre montre. <span className="text-muted">{WATCH_APP.availability}</span>{" "}
+                    <a className="font-medium text-ink underline decoration-line-strong underline-offset-4 hover:decoration-ink" href={WATCH_APP.guideUrl} target="_blank" rel="noreferrer">
+                      Guide d’installation
+                    </a>
+                  </>
+                )}
               </li>
               <li>Ouvrez-la sur la montre : elle affiche un code de 8 caractères.</li>
               <li>Saisissez ce code ci-dessous.</li>

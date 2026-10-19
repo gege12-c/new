@@ -79,7 +79,7 @@ export const GARMIN: ConnectorInfo & { id: "garmin"; format: "fit" } = {
     auto: {
       status: "not_configured",
       detail:
-        "Application TriCoach pour montre (Connect IQ) : elle charge vos séances des 7 prochains jours en vraies séances Garmin ; en préparation, avant sa publication sur le Connect IQ Store. L'envoi vers le calendrier Garmin Connect (API Training) attend la réouverture des demandes chez Garmin.",
+        "Application TriCoach pour montre (Connect IQ) : elle charge vos séances des 7 prochains jours en vraies séances Garmin et vérifie seule, toutes les 30 minutes, si une séance est à charger (une confirmation sur la montre reste nécessaire : Garmin n'autorise pas l'enregistrement d'une séance en arrière-plan). Pas encore sur le Connect IQ Store : installation par câble en attendant. L'envoi vers le calendrier Garmin Connect (API Training) attend la réouverture des demandes chez Garmin.",
     },
     download: { status: "available", detail: "Fichier FIT de type séance, écrit avec le SDK officiel de Garmin et relu avant téléchargement." },
   },
@@ -91,11 +91,12 @@ export const GARMIN: ConnectorInfo & { id: "garmin"; format: "fit" } = {
     "Garmin Connect (site ou application) n'importe pas les fichiers de séance : seule la copie par câble fonctionne sans l'API.",
   ],
   prerequisites: [
-    "Application TriCoach pour montre : publication sur le Connect IQ Store, ouverte à tout développeur ; l'athlète l'installe puis l'associe à son compte avec le code qu'elle affiche (Profil sportif, « Montre Garmin »).",
+    "Application TriCoach pour montre : installée par câble USB en attendant sa publication sur le Connect IQ Store (ouverte à tout développeur, après examen par Garmin), puis associée au compte de l'athlète avec le code qu'elle affiche (Profil sportif, « Montre Garmin »).",
     "Calendrier Garmin Connect : accès au Garmin Connect Developer Program (API Training), réservé aux entreprises ; nouvelles demandes suspendues par Garmin depuis le printemps 2026.",
   ],
   sources: [
     { label: "Garmin : Connect IQ, contenu téléchargé sur la montre (PersistedContent)", url: "https://developer.garmin.com/connect-iq/api-docs/Toybox/PersistedContent.html" },
+    { label: "Garmin : Connect IQ, tâches de fond et réveil de l'application", url: "https://developer.garmin.com/connect-iq/api-docs/Toybox/Background.html" },
     { label: "Garmin : API Training (Connect Developer Program)", url: "https://developer.garmin.com/gc-developer-program/training-api" },
     { label: "TrainingPeaks : copier une séance FIT sur un appareil Garmin", url: "https://help.trainingpeaks.com/hc/en-us/articles/115001076908-Structured-Workout-Export-for-Garmin-Devices" },
   ],

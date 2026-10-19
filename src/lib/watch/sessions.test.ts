@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { validateFitWorkout } from "@/lib/export/fit-workout";
 import { bikeThreshold, brick } from "@/lib/workout/fixtures";
-import { watchDayLabel, watchFitFile, watchSummary, WatchDataSchema, type WatchData } from "./sessions";
+import { watchDayLabel, watchFitFile, watchNext, watchSummary, watchText, WatchDataSchema, type WatchData } from "./sessions";
 
 const session = (id: string, date: string, title: string, sport: "bike" | "brick", content: unknown) => ({
   id,
@@ -68,7 +68,8 @@ describe("montre Garmin : séances servies", () => {
     const [bike, , combined] = summary.sessions;
     expect(bike.title.length).toBeLessThanOrEqual(40);
     expect(bike.title).toMatch(/^L'exercice du jour/);
-    expect(bike.title.endsWith("…")).toBe(true);
+    expect(bike.title.endsWith("...")).toBe(true);
+    expect(bike.version).toBe(3);
     expect(bike.parts).toEqual([{ index: 0, sport: "bike", ok: true }]);
     expect(combined.parts.map((p) => [p.sport, p.ok])).toEqual([
       ["bike", true],
@@ -76,6 +77,19 @@ describe("montre Garmin : séances servies", () => {
     ]);
     // Le résumé reste petit : la mémoire d'un widget de montre est comptée.
     expect(JSON.stringify(summary).length).toBeLessThan(1500);
+  });
+
+  it("écrit pour les polices des montres : signes typographiques simplifiés, emoji retirés", () => {
+    expect(watchText("L’échauffement — 10 min… cœur 🔥\u202fZ2")).toBe("L'échauffement - 10 min... coeur Z2");
+    expect(watchText("Séance à « allure » spécifique")).toBe("Séance à « allure » spécifique");
+  });
+
+  it("prochaine séance pour la vérification en tâche de fond : clé identifiant:version", () => {
+    const next = watchNext(watchSummary(data));
+    expect(next).toEqual({ key: `${IDS.bike}:3`, date: "2026-10-19", dayNumber: 20261019, day: "Aujourd'hui", title: expect.stringMatching(/^L'exercice/), ready: true });
+    expect(watchNext(watchSummary({ ...data, sessions: [] }))).toBeNull();
+    const broken = watchNext(watchSummary({ ...data, sessions: data.sessions.slice(1) }));
+    expect(broken).toMatchObject({ key: `${IDS.broken}:3`, day: "Demain", ready: false });
   });
 
   it("sert un vrai fichier FIT de séance, relu par le SDK, partie par partie", () => {

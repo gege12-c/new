@@ -54,7 +54,11 @@ export interface WatchPart {
 
 export interface WatchSessionSummary {
   id: string;
+  /** Change à chaque modification de la séance : la montre sait si elle a déjà la dernière version. */
+  version: number;
   date: string;
+  /** La date en nombre AAAAMMJJ : la montre compare des nombres, plus sûr que ses fonctions de texte. */
+  dayNumber: number;
   /** « Aujourd'hui », « Demain », « Mer. 21 ». */
   day: string;
   title: string;
@@ -71,13 +75,32 @@ export interface WatchSummary {
   sessions: WatchSessionSummary[];
 }
 
-/** Écran de montre : titres courts, apostrophe droite (toutes les polices Garmin l'ont). */
+/** Écran de montre : titres courts. */
 const MAX_TITLE = 40;
 const MAX_REASON = 90;
 
+/**
+ * Texte pour les polices des montres : leur jeu de caractères est réduit (lettres accentuées
+ * françaises comprises, mais ni apostrophe courbe, ni points de suspension, ni emoji). Les
+ * signes typographiques sont remplacés par leur équivalent simple, le reste est retiré.
+ */
+export function watchText(text: string): string {
+  return text
+    .replace(/[’‘‛ʼ]/g, "'")
+    .replace(/[“”„]/g, '"')
+    .replace(/[–—−]/g, "-")
+    .replace(/…/g, "...")
+    .replace(/œ/g, "oe")
+    .replace(/Œ/g, "OE")
+    .replace(/[\u00a0\u2007\u202f]/g, " ")
+    .replace(/[^\n\u0020-\u007e\u00a0-\u00ff]/gu, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 const clip = (text: string, max: number) => {
-  const flat = text.replace(/\s+/g, " ").replace(/[’‘]/g, "'").trim();
-  return flat.length <= max ? flat : `${flat.slice(0, max - 1).trimEnd()}…`;
+  const flat = watchText(text);
+  return flat.length <= max ? flat : `${flat.slice(0, max - 3).trimEnd()}...`;
 };
 
 export function watchDayLabel(date: string, today: string): string {
@@ -120,7 +143,9 @@ export function watchSummary(data: WatchData): WatchSummary {
         : [];
       return {
         id: session.id,
+        version: session.version,
         date: session.scheduled_date,
+        dayNumber: Number(session.scheduled_date.replaceAll("-", "")),
         day: watchDayLabel(session.scheduled_date, data.today),
         title: clip(session.title, MAX_TITLE),
         sport: session.sport,
@@ -129,6 +154,35 @@ export function watchSummary(data: WatchData): WatchSummary {
         parts,
       };
     }),
+  };
+}
+
+/**
+ * Ce que la montre vérifie seule, en tâche de fond toutes les 30 minutes : la prochaine séance
+ * (aujourd'hui ou plus tard) et sa version. Si la montre ne l'a pas encore chargée, elle propose
+ * d'ouvrir TriCoach. Réponse minuscule : la mémoire des tâches de fond est très comptée.
+ */
+export interface WatchNext {
+  /** « identifiant:version », comparé par la montre à la séance qu'elle a chargée. */
+  key: string;
+  date: string;
+  dayNumber: number;
+  day: string;
+  title: string;
+  /** Au moins une partie de la séance peut être chargée sur la montre. */
+  ready: boolean;
+}
+
+export function watchNext(summary: WatchSummary): WatchNext | null {
+  const next = summary.sessions[0];
+  if (!next) return null;
+  return {
+    key: `${next.id}:${next.version}`,
+    date: next.date,
+    dayNumber: next.dayNumber,
+    day: next.day,
+    title: next.title,
+    ready: next.parts.some((part) => part.ok),
   };
 }
 

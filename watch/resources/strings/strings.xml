@@ -1,0 +1,31 @@
+<!--
+  Textes de l'application montre, en français. Les polices des montres ont un jeu de caractères
+  réduit : lettres accentuées oui, mais apostrophe droite et trois points (pas de « … »).
+-->
+<strings>
+  <string id="AppName" scope="glance">TriCoach</string>
+  <string id="GlanceEmpty" scope="glance">Ouvrez TriCoach</string>
+  <string id="GlanceToday" scope="glance">Aujourd'hui</string>
+  <string id="GlanceTomorrow" scope="glance">Demain</string>
+  <string id="NoPhone">Connectez votre\ntéléphone :\nTriCoach passe par\nGarmin Connect.</string>
+  <string id="Loading">Chargement...</string>
+  <string id="PressToRetry">Appuyez pour réessayer.</string>
+  <string id="PairHelp">Dans TriCoach :\nProfil sportif,\nMontre Garmin</string>
+  <string id="PairRequesting">Demande du code...</string>
+  <string id="PairWaiting">Saisissez ce code\ndans TriCoach</string>
+  <string id="NoSession">Aucune séance</string>
+  <string id="NoSessionSub">rien de publié\nsur 7 jours</string>
+  <string id="HomeHint">Appuyez pour choisir</string>
+  <string id="OnWatch">Sur la montre</string>
+  <string id="OnWatchShort">sur la montre</string>
+  <string id="PartsTitle">Quelle partie ?</string>
+  <string id="NotDownloadable">Séance impossible\nà charger :</string>
+  <string id="NoDownload">Cette montre ne sait\npas charger de séance.\nCopiez le fichier FIT\npar câble USB.</string>
+  <string id="Downloading">Chargement de\nla séance...</string>
+  <string id="Saved">Séance enregistrée\ndans les entraînements\nde la montre.</string>
+  <string id="StartNow">Séance chargée.\nLa démarrer ?</string>
+  <string id="NetworkError">TriCoach ne répond\npas (code $1$).</string>
+  <string id="Unauthorized">Montre dissociée :\nrouvrez TriCoach\npour l'associer.</string>
+  <string id="Unavailable">TriCoach est en cours\nde mise à jour :\nréessayez plus tard.</string>
+  <string id="StorageFull">La montre n'a pas\nenregistré la séance :\nlibérez de la place.</string>
+</strings>

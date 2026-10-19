@@ -1,0 +1,146 @@
+name: Montre Garmin
+
+# Application TriCoach pour montre Garmin (dossier watch/). À chaque modification : vérifications
+# sans le SDK (syntaxe, textes, manifeste). Puis, quand les accès au SDK officiel de Garmin sont
+# configurés (docs/GARMIN_WATCH.md), compilation : un paquet .iq pour le Connect IQ Store et un
+# fichier .prg par montre, à copier par câble. Déclenché par un push ou à la main, jamais par une
+# demande de fusion venue d'un autre dépôt : les secrets ne quittent pas ce dépôt.
+on:
+  push:
+    paths:
+      - "watch/**"
+      - "scripts/check-watch.mjs"
+      - "scripts/watch-signing-key.py"
+      - ".github/workflows/watch.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run watch:check
+
+  build:
+    needs: check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      GARMIN_USERNAME: ${{ secrets.GARMIN_USERNAME }}
+      GARMIN_PASSWORD: ${{ secrets.GARMIN_PASSWORD }}
+      WATCH_SIGNING_SEED: ${{ secrets.WATCH_SIGNING_SEED }}
+      CIQ_AGREEMENT_HASH: ${{ vars.CIQ_AGREEMENT_HASH }}
+      # Outil en ligne de commande du SDK Garmin (github.com/lindell/connect-iq-sdk-manager-cli).
+      CLI_VERSION: 0.8.4
+    steps:
+      - name: Garmin SDK access
+        id: access
+        run: |
+          if [ -z "$GARMIN_USERNAME" ] || [ -z "$GARMIN_PASSWORD" ]; then
+            echo "::notice title=Montre Garmin::Compilation sautée : secrets GARMIN_USERNAME et GARMIN_PASSWORD absents (docs/GARMIN_WATCH.md)."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v5
+        if: steps.access.outputs.ready == 'true'
+
+      - uses: actions/setup-java@v4
+        if: steps.access.outputs.ready == 'true'
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install the SDK manager
+        if: steps.access.outputs.ready == 'true'
+        run: |
+          base="https://github.com/lindell/connect-iq-sdk-manager-cli/releases/download/v$CLI_VERSION"
+          archive="connect-iq-sdk-manager-cli_${CLI_VERSION}_Linux_x86_64.tar.gz"
+          cd "$RUNNER_TEMP"
+          curl -fsSLO "$base/$archive"
+          curl -fsSLO "$base/checksums.txt"
+          grep " $archive\$" checksums.txt | sha256sum -c -
+          tar xzf "$archive" connect-iq-sdk-manager
+          sudo install connect-iq-sdk-manager /usr/local/bin/
+
+      # Le contrat de licence du SDK est accepté par le propriétaire du dépôt, après lecture :
+      # sans la variable CIQ_AGREEMENT_HASH, l'exécution s'arrête en affichant le contrat et son empreinte.
+      - name: SDK licence agreement
+        if: steps.access.outputs.ready == 'true'
+        run: |
+          connect-iq-sdk-manager agreement view | tee "$RUNNER_TEMP/agreement.txt"
+          if [ -z "$CIQ_AGREEMENT_HASH" ]; then
+            {
+              echo "## Contrat de licence du SDK Garmin à lire"
+              echo
+              echo "Lisez le contrat (lien ci-dessous). Si vous l'acceptez, créez la variable de dépôt **CIQ_AGREEMENT_HASH** avec l'empreinte affichée (« Current Hash »), puis relancez cette exécution. Détails : docs/GARMIN_WATCH.md."
+              echo
+              echo '```'
+              cat "$RUNNER_TEMP/agreement.txt"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error title=Montre Garmin::Contrat du SDK pas encore accepté : lisez-le (résumé de cette exécution), puis enregistrez son empreinte dans la variable CIQ_AGREEMENT_HASH."
+            exit 1
+          fi
+          connect-iq-sdk-manager agreement accept --agreement-hash="$CIQ_AGREEMENT_HASH" || {
+            echo "::error title=Montre Garmin::Garmin a mis à jour son contrat : relisez-le et remplacez CIQ_AGREEMENT_HASH par la nouvelle empreinte (« Current Hash » ci-dessus)."
+            exit 1
+          }
+
+      - name: Download the SDK and the watches
+        if: steps.access.outputs.ready == 'true'
+        run: |
+          connect-iq-sdk-manager login || {
+            echo "::error title=Montre Garmin::Connexion à Garmin refusée : vérifiez GARMIN_USERNAME et GARMIN_PASSWORD (un compte sans validation en deux étapes, docs/GARMIN_WATCH.md)."
+            exit 1
+          }
+          connect-iq-sdk-manager sdk set ">=7.0.0"
+          connect-iq-sdk-manager device download --manifest=watch/manifest.xml
+          connect-iq-sdk-manager sdk current-path --bin >> "$GITHUB_PATH"
+
+      # Même phrase secrète, même clé : le Connect IQ Store exige la même clé à chaque version.
+      # Sans phrase, une clé jetable suffit pour copier l'application par câble.
+      - name: Signing key
+        if: steps.access.outputs.ready == 'true'
+        run: |
+          key="$RUNNER_TEMP/developer_key.der"
+          if [ -n "$WATCH_SIGNING_SEED" ]; then
+            python3 -I scripts/watch-signing-key.py "$key"
+            echo "Clé de signature tirée de WATCH_SIGNING_SEED."
+          else
+            openssl genrsa -out "$RUNNER_TEMP/key.pem" 4096 2>/dev/null
+            openssl pkcs8 -topk8 -inform PEM -outform DER -nocrypt -in "$RUNNER_TEMP/key.pem" -out "$key"
+            rm "$RUNNER_TEMP/key.pem"
+            echo "::warning title=Montre Garmin::Clé de signature jetable : fichiers .prg à copier par câble seulement. Pour le Connect IQ Store, ajoutez le secret WATCH_SIGNING_SEED (docs/GARMIN_WATCH.md)."
+          fi
+          openssl pkey -inform DER -in "$key" -check -noout
+          echo "WATCH_KEY=$key" >> "$GITHUB_ENV"
+
+      - name: Build
+        if: steps.access.outputs.ready == 'true'
+        run: |
+          mkdir -p build/prg
+          monkeyc --version
+          monkeyc -f watch/monkey.jungle -e -r -w -y "$WATCH_KEY" -o build/TriCoach.iq
+          for device in $(grep -o 'iq:product id="[^"]*"' watch/manifest.xml | cut -d'"' -f2); do
+            monkeyc -f watch/monkey.jungle -d "$device" -r -y "$WATCH_KEY" -o "build/prg/TriCoach-$device.prg" > /dev/null
+          done
+          find build -name '*.debug.xml' -delete
+          ls build build/prg | head -20
+          echo "$(ls build/prg | wc -l) montres compilées." >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: steps.access.outputs.ready == 'true'
+        with:
+          name: TriCoach-montre
+          path: build/
+          retention-days: 30

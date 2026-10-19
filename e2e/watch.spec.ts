@@ -10,16 +10,31 @@ import { accounts, addDays, isoDay, signedIn, takeHydrationErrors } from "./fixt
 
 test.afterEach(() => expect(takeHydrationErrors()).toEqual([]));
 
+const coachHeaders = () => {
+  const { coach } = accounts() as ReturnType<typeof accounts> & { coach: { token: string } };
+  return {
+    apikey: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    authorization: `Bearer ${coach.token}`,
+    "content-type": "application/json",
+    prefer: "return=representation",
+  };
+};
+
+/** Le coach renomme une séance : sa version augmente, la montre saura qu'elle est à recharger. */
+async function renameSession(id: string, title: string) {
+  const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/planned_sessions?id=eq.${id}`, {
+    method: "PATCH",
+    headers: coachHeaders(),
+    body: JSON.stringify({ title }),
+  });
+  if (!response.ok) throw new Error(`séance de test : ${response.status} ${await response.text()}`);
+}
+
 async function publishSession(date: string, title: string) {
-  const { coach, athlete } = accounts() as ReturnType<typeof accounts> & { coach: { token: string } };
+  const { athlete } = accounts();
   const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/planned_sessions`, {
     method: "POST",
-    headers: {
-      apikey: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-      authorization: `Bearer ${coach.token}`,
-      "content-type": "application/json",
-      prefer: "return=representation",
-    },
+    headers: coachHeaders(),
     body: JSON.stringify({
       athlete_id: athlete.id,
       scheduled_date: date,
@@ -79,7 +94,13 @@ test("associer une montre Garmin, lui servir ses séances, puis la dissocier", a
   expect(await (await request.post("/api/watch/token", { data: { deviceCode: paired.deviceCode } })).json()).toEqual({ status: "claimed" });
   const auth = { authorization: `Bearer ${claimed.token}` };
   await page.reload();
-  await expect(panel.getByText(/Associée le .*, pas encore de séance chargée/)).toBeVisible();
+  await expect(panel.getByText(/Associée le .*, aucune séance demandée pour l’instant/)).toBeVisible();
+
+  // Vérification en tâche de fond : la prochaine séance et sa version, en très court.
+  const changes = await (await request.get("/api/watch/changes", { headers: auth })).json();
+  expect(changes).toMatchObject({ status: "ok", next: { ready: expect.any(Boolean) } });
+  expect(changes.next.key).toMatch(/^[0-9a-f-]{36}:\d+$/);
+  expect(await (await request.get("/api/watch/changes")).json()).toEqual({ status: "unauthorized" });
 
   // Ses séances des 7 prochains jours, en résumé.
   const summary = await (await request.get("/api/watch/sessions", { headers: auth })).json();
@@ -87,6 +108,11 @@ test("associer une montre Garmin, lui servir ses séances, puis la dissocier", a
   const entry = summary.sessions.find((s: { id: string }) => s.id === soon);
   expect(entry).toMatchObject({ day: "Demain", sport: "run", durationS: 2400, parts: [{ index: 0, sport: "run", ok: true }] });
   expect(summary.sessions.some((s: { id: string }) => s.id === later)).toBe(false);
+
+  // Modifiée par le coach : nouvelle version, que la montre comparera à celle qu'elle a chargée.
+  await renameSession(soon, `Footing montre ${stamp} modifié`);
+  const renamed = (await (await request.get("/api/watch/sessions", { headers: auth })).json()).sessions.find((s: { id: string }) => s.id === soon);
+  expect(renamed.version).toBe(entry.version + 1);
 
   // Le fichier de séance, décodé par le SDK FIT officiel.
   const fit = await request.get(`/api/watch/sessions/${soon}/fit?part=0`, { headers: auth });
@@ -102,12 +128,13 @@ test("associer une montre Garmin, lui servir ses séances, puis la dissocier", a
   expect(await (await request.get("/api/watch/sessions")).json()).toEqual({ status: "unauthorized" });
 
   await page.reload();
-  await expect(panel.getByText(/dernières séances chargées le/)).toBeVisible();
+  await expect(panel.getByText(/dernier contact le/)).toBeVisible();
 
   // Dissociée : la montre n'a plus accès à rien.
   page.once("dialog", (dialog) => dialog.accept());
   await panel.getByRole("button", { name: "Dissocier" }).click();
   await expect(panel.getByText("Forerunner 965", { exact: true })).toHaveCount(0);
   expect(await (await request.get("/api/watch/sessions", { headers: auth })).json()).toEqual({ status: "unauthorized" });
+  expect(await (await request.get("/api/watch/changes", { headers: auth })).json()).toEqual({ status: "unauthorized" });
   expect((await request.get(`/api/watch/sessions/${soon}/fit`, { headers: auth })).status()).toBe(401);
 });

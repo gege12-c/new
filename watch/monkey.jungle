@@ -1,0 +1,2 @@
+# TriCoach pour montre Garmin : compilation avec le SDK Connect IQ (voir docs/GARMIN_WATCH.md).
+project.manifest = manifest.xml
