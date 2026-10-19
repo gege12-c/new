@@ -11,16 +11,18 @@ import { done, fail, firstIssue, type ActionState } from "@/lib/action-state";
 import { getSession } from "@/lib/auth/dal";
 import { friendlyError } from "@/lib/errors";
 import { getSiteUrl } from "@/lib/site";
-import { parsePace, thresholdDef } from "@/lib/thresholds";
+import { parseThresholdValue, thresholdDef } from "@/lib/thresholds";
 
 const uuid = z.uuid("Identifiant invalide.");
 const isoDate = z.iso.date("Date invalide.");
+/** Texte facultatif : vide ou absent du formulaire (le formulaire n'a pas ce champ), il vaut null. */
 const optionalText = (max: number) =>
   z
     .string()
     .trim()
     .max(max, `${max} caractères maximum.`)
-    .transform((v) => (v === "" ? null : v));
+    .optional()
+    .transform((v) => (v ? v : null));
 
 async function sessionOrFail() {
   const session = await getSession();
@@ -107,9 +109,9 @@ export async function addThreshold(_prev: ActionState, formData: FormData): Prom
   const def = thresholdDef(sport, metric);
   if (!def) return fail("Seuil inconnu.");
 
-  const value = def.input === "pace" ? parsePace(parsed.data.value) : Number(parsed.data.value.replace(",", "."));
-  if (value === null || !Number.isFinite(value)) {
-    return fail(def.input === "pace" ? "Allure illisible : utilisez le format min:s, par exemple 4:10." : "Valeur numérique attendue.");
+  const value = parseThresholdValue(def, parsed.data.value);
+  if (value === null) {
+    return fail(def.input === "pace" ? "Allure illisible : utilisez le format min:s, par exemple 4:10." : "Valeur numérique attendue, par exemple 275 ou 72,5.");
   }
   if (value < def.min || value > def.max) return fail(`${def.label} : valeur hors limites.`);
 

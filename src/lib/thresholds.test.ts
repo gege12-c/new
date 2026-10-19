@@ -1,14 +1,29 @@
 import { describe, expect, it } from "vitest";
-import { currentThresholds, formatThresholdValue, parsePace, thresholdDef, toAthleteThresholds } from "./thresholds";
+import { currentThresholds, formatThresholdValue, parsePace, parseThresholdValue, thresholdDef, toAthleteThresholds } from "./thresholds";
 import { safeNextPath } from "./utils";
 
 describe("seuils", () => {
   it("lit une allure au format min:s", () => {
     expect(parsePace("4:35")).toBe(275);
     expect(parsePace(" 1:05 ")).toBe(65);
-    expect(parsePace("90")).toBe(90);
     expect(parsePace("4:75")).toBeNull();
     expect(parsePace("abc")).toBeNull();
+    expect(parsePace("4h10")).toBeNull();
+    // Un nombre seul est ambigu (4:10 ou 410 secondes ?) : refusé plutôt que deviné.
+    expect(parsePace("410")).toBeNull();
+    expect(parsePace("90")).toBeNull();
+  });
+
+  it("lit la valeur d'un seuil dans son unité", () => {
+    const ftp = thresholdDef("bike", "ftp_w")!;
+    const weight = thresholdDef("general", "weight_kg")!;
+    const css = thresholdDef("swim", "css_s_per_100m")!;
+    expect(parseThresholdValue(ftp, "275")).toBe(275);
+    expect(parseThresholdValue(weight, "72,5")).toBe(72.5);
+    expect(parseThresholdValue(weight, "72.5")).toBe(72.5);
+    expect(parseThresholdValue(ftp, "275 W")).toBeNull();
+    expect(parseThresholdValue(ftp, "0x1F")).toBeNull();
+    expect(parseThresholdValue(css, "1:35")).toBe(95);
   });
 
   it("retient la valeur en vigueur à la date demandée", () => {

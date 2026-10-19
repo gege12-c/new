@@ -1,6 +1,7 @@
 /** Définition des seuils saisis par l’athlète ou son coach, et conversion pour les calculs. */
 import type { AthleteThresholds } from "@/lib/workout/zones";
 import { formatClock } from "@/lib/workout/format";
+import { parseNumber, parsePace as parseClockPace } from "@/lib/workout/inputs";
 
 export type ThresholdSport = "bike" | "run" | "swim" | "general";
 
@@ -32,13 +33,15 @@ export const THRESHOLD_DEFS: readonly ThresholdDef[] = [
 export const thresholdDef = (sport: string, metric: string) =>
   THRESHOLD_DEFS.find((d) => d.sport === sport && d.metric === metric);
 
-/** « 4:35 » → 275 ; accepte aussi un nombre de secondes. Renvoie null si illisible. */
-export function parsePace(raw: string): number | null {
-  const text = raw.trim();
-  const match = /^(\d{1,2}):([0-5]\d)$/.exec(text);
-  if (match) return Number(match[1]) * 60 + Number(match[2]);
-  if (/^\d+$/.test(text)) return Number(text);
-  return null;
+/**
+ * « 4:35 » → 275 secondes, comme dans l'éditeur de séances. Un nombre seul est refusé : « 410 »
+ * peut vouloir dire 4:10 aussi bien que 410 secondes (6:50), et rien n'est deviné.
+ */
+export const parsePace = parseClockPace;
+
+/** Valeur saisie pour un seuil, dans son unité (« 72,5 » accepté) ; null si illisible. */
+export function parseThresholdValue(def: ThresholdDef, raw: string): number | null {
+  return def.input === "pace" ? parsePace(raw) : parseNumber(raw);
 }
 
 export function formatThresholdValue(def: ThresholdDef, value: number): string {

@@ -61,18 +61,19 @@ Dans l'éditeur SQL Supabase :
 
 ```sql
 insert into public.admin_users (user_id)
-select id from auth.users where email = 'votre-adresse@exemple.fr';
+select id from auth.users where email = 'votre-adresse@exemple.fr'
+returning user_id;
 ```
 
-Un administrateur voit la configuration des intégrations, la file de synchronisation et le journal technique (page **Administration**), jamais les données sportives.
+Résultat attendu : une ligne. « Success. No rows returned » veut dire que l'adresse ne correspond à aucun compte. Un administrateur voit la configuration des intégrations, la file de synchronisation et le journal technique (page **Administration**), jamais les données sportives.
 
 ### 4. Activer Strava
 
 1. Sur strava.com/settings/api (connecté à votre compte Strava), créez l'application : un nom sans le mot « Strava » (règles de marque), catégorie « Training », site `https://new-bay-one-76.vercel.app`, **Authorization Callback Domain** `new-bay-one-76.vercel.app`. Depuis juin 2026, Strava exige un abonnement Strava actif sur le compte qui crée l'application.
-2. Saisissez dans Vercel les variables ci-dessus, puis relancez un déploiement.
+2. Saisissez dans Vercel les variables ci-dessus, puis relancez un déploiement. `TOKEN_ENCRYPTION_KEY` et `CRON_SECRET` se génèrent sur la page **Administration** : devenez d'abord administrateur (ci-dessus).
 3. Ouvrez TriCoach, page **Administration** : les quatre lignes doivent être vertes. Cliquez sur « Activer la réception des activités » (Strava vérifie aussitôt l'adresse `/api/strava/webhook`).
 4. Côté athlète : **Profil sportif**, carte « Activités réalisées », « Connecter Strava ». Les activités des 7 derniers jours arrivent, puis chaque nouvelle activité en quelques minutes.
-5. Une nouvelle application Strava n'accepte qu'un athlète : sur la page de l'application Strava, passez la capacité à 10 (sans revue). Au-delà, Strava demande une revue.
+5. Une nouvelle application Strava démarre en « single-player mode » : seul votre propre compte peut s'y connecter. Depuis son tableau de bord (API Settings), passez à la capacité de 10 athlètes, sans revue ([documentation Strava](https://developers.strava.com/docs/getting-started/)). Au-delà de 10, Strava demande une revue.
 
 Règles de Strava appliquées : les activités Strava ne sont visibles que de l'athlète (son coach voit ses retours de séance et ses fichiers FIT), elles sont effacées au bout de 6 jours (7 au plus autorisés), une suppression sur Strava est répercutée sous 48 h, et une déconnexion efface tout aussitôt. Aucune donnée Strava n'est transmise à un outil d'IA.
 

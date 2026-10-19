@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { updateAthleteProfile } from "@/app/(app)/actions";
 import { FormMessage } from "@/components/ui/feedback";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
@@ -14,16 +14,21 @@ type Values = {
   notes: string | null;
 };
 
+/** Objectifs de l'athlète. Champs contrôlés : un texte en cours n'est jamais perdu après une erreur. */
 export function AthleteProfileForm({ values }: { values: Values }) {
   const [state, action] = useActionState(updateAthleteProfile, idle);
+  const [goal, setGoal] = useState(values.main_goal ?? "");
+  const [level, setLevel] = useState(values.experience_level ?? "");
+  const [hours, setHours] = useState(values.weekly_hours_target === null ? "" : String(values.weekly_hours_target).replace(".", ","));
+  const [notes, setNotes] = useState(values.notes ?? "");
   return (
     <form action={action} className="space-y-4">
       <Field label="Objectif principal" htmlFor="main_goal">
-        <Input id="main_goal" name="main_goal" defaultValue={values.main_goal ?? ""} maxLength={300} placeholder="Se qualifier pour Kona" />
+        <Input id="main_goal" name="main_goal" value={goal} onChange={(e) => setGoal(e.target.value)} maxLength={300} placeholder="Se qualifier pour Kona" />
       </Field>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Niveau" htmlFor="experience_level">
-          <Select id="experience_level" name="experience_level" defaultValue={values.experience_level ?? ""}>
+          <Select id="experience_level" name="experience_level" value={level} onChange={(e) => setLevel(e.target.value)}>
             <option value="">Non précisé</option>
             <option value="beginner">Débutant</option>
             <option value="intermediate">Intermédiaire</option>
@@ -36,14 +41,15 @@ export function AthleteProfileForm({ values }: { values: Values }) {
             id="weekly_hours_target"
             name="weekly_hours_target"
             inputMode="decimal"
-            defaultValue={values.weekly_hours_target ?? ""}
+            value={hours}
+            onChange={(e) => setHours(e.target.value)}
             className="tabular"
             placeholder="12"
           />
         </Field>
       </div>
       <Field label="Informations pour le coach" htmlFor="notes" hint="Contraintes d’emploi du temps, matériel, antécédents utiles…">
-        <Textarea id="notes" name="notes" defaultValue={values.notes ?? ""} maxLength={2000} />
+        <Textarea id="notes" name="notes" value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={2000} />
       </Field>
       <FormMessage state={state} />
       <SubmitButton variant="secondary">Enregistrer les objectifs</SubmitButton>
