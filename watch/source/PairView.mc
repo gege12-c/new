@@ -74,7 +74,7 @@ class PairView extends WatchUi.View {
     }
   }
 
-  function poll() {
+  function poll() as Void {
     Api.postJson("/api/watch/token", { "deviceCode" => deviceCode }, method(:onToken));
   }
 

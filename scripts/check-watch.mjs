@@ -72,6 +72,21 @@ for (const { name, code } of sources) {
   if (match && /\bRez\./.test(blockAfter(code, match.index))) fail(name, "la classe de l'application ne doit pas utiliser de ressource (Rez) : elle sert aussi à la vue rapide et à la tâche de fond");
 }
 
+// Retour : jamais de popView dans un BehaviorDelegate. Ces délégués servent aux premiers écrans, où
+// popView lève une exception sur les widgets Connect IQ 3 ; le retour par défaut fait le nécessaire.
+for (const { name, code } of sources) {
+  for (const match of code.matchAll(/class (\w+) extends WatchUi\.BehaviorDelegate/g)) {
+    if (/\bpopView\b/.test(blockAfter(code, match.index))) fail(name, `${match[1]} : pas de popView dans un BehaviorDelegate (refusé sur le premier écran d'un widget)`);
+  }
+}
+
+// Minuteries : rappel déclaré « as Void », comme l'attend Timer.start.
+for (const { name, code } of sources) {
+  for (const [, callback] of code.matchAll(/\.start\(method\(:(\w+)\)/g)) {
+    if (!new RegExp(`function ${callback}\\(\\) as Void`).test(code)) fail(name, `rappel de minuterie ${callback} : à déclarer « function ${callback}() as Void »`);
+  }
+}
+
 // Polices des montres : apostrophe droite, trois points.
 for (const [id, { text }] of stringIds) {
   if (/[’‘“”…–—]/.test(text)) fail("strings.xml", `${id} : signe typographique non affichable (’ “ ” … – —)`);

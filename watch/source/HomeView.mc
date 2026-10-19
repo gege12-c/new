@@ -10,6 +10,7 @@ import Toybox.WatchUi;
 class HomeView extends WatchUi.View {
   var sessions;
   var autoChecked = false;
+  var visible = false;
   var timer = null;
 
   function initialize(list) {
@@ -18,6 +19,7 @@ class HomeView extends WatchUi.View {
   }
 
   function onShow() {
+    visible = true;
     if (autoChecked) {
       return;
     }
@@ -32,9 +34,15 @@ class HomeView extends WatchUi.View {
     }
   }
 
-  function autoLoad() {
+  function onHide() {
+    visible = false;
+  }
+
+  function autoLoad() as Void {
     var session = first();
-    Load.start(session, session["parts"][0]);
+    if (visible && session != null) {
+      Load.start(session, session["parts"][0]);
+    }
   }
 
   function first() {
@@ -73,11 +81,6 @@ class HomeDelegate extends WatchUi.BehaviorDelegate {
     if (view.sessions.size() > 0) {
       WatchUi.pushView(Sessions.menu(view.sessions), new SessionsDelegate(view.sessions), WatchUi.SLIDE_LEFT);
     }
-    return true;
-  }
-
-  function onBack() {
-    WatchUi.popView(WatchUi.SLIDE_RIGHT);
     return true;
   }
 }

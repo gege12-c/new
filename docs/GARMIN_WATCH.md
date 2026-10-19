@@ -7,7 +7,8 @@ Pourquoi une application sur la montre : Garmin ne laisse envoyer une séance su
 ## Ce qu'elle fait
 
 - **Association** : à la première ouverture, la montre affiche un code de 8 caractères ; l'athlète le saisit dans TriCoach (Profil sportif, « Montre Garmin »). La montre reçoit alors son jeton, une seule fois. Dissocier la montre dans le profil coupe son accès aussitôt.
-- **Ouverture** : la montre charge la liste des séances publiées d'aujourd'hui à J+6. Si la prochaine séance n'est pas encore sur la montre (nouvelle, ou modifiée par le coach depuis) et tient en une partie, elle se charge seule ; la montre propose ensuite de la démarrer (« Oui » ouvre l'écran de départ Garmin, « Non » la garde dans les entraînements de la montre pour plus tard).
+- **Ouverture** : la montre charge la liste des séances publiées d'aujourd'hui à J+6. Si la prochaine séance n'est pas encore sur la montre (nouvelle, ou modifiée par le coach depuis) et tient en une partie, elle se charge seule ; la montre demande ensuite, avec sa propre fenêtre, s'il faut la démarrer. Refusée, la séance reste dans les entraînements de la montre pour plus tard.
+- **Échec d'un chargement** : beaucoup de montres taisent la cause d'un échec de téléchargement de fichier ; l'application la demande alors à TriCoach et l'affiche (montre dissociée, séance modifiée entre-temps, mémoire pleine). La séance retirée pour faire de la place n'est plus jamais annoncée « sur la montre ».
 - **Liste** : le bouton de sélection ouvre les 7 prochains jours ; un enchaînement se charge partie par partie (une séance Garmin par discipline).
 - **Vérification en tâche de fond** : toutes les 30 minutes, par le téléphone, la montre demande à TriCoach la prochaine séance et sa version. Si elle ne l'a pas encore, elle affiche « TriCoach : séance à charger » ; un appui ouvre l'application, qui la charge. Une seule demande par version de séance, entre 7 h et 21 h, jamais en mode « ne pas déranger ». Garmin interdit l'enregistrement d'une séance en tâche de fond : cette confirmation est le plus près de l'automatique que Garmin permet.
 - **Vue rapide** (glance, montres récentes) : la prochaine séance, sans réseau.
@@ -58,6 +59,7 @@ Par le Connect IQ Store (pour vos athlètes, plus tard) : avec le secret `WATCH_
 
 ## Limites
 
+- Compilée sans vérification des types (`monkeyc -l 0`) : le code Monkey C n'est pas annoté, et cette vérification est active par défaut depuis le SDK 4.1.6 ; les symboles et la syntaxe restent contrôlés.
 - Pas encore compilée ni essayée sur une vraie montre : le SDK Garmin ne se télécharge pas depuis l'environnement de développement de TriCoach. La logique serveur est testée de bout en bout en jouant le rôle de la montre (`e2e/watch.spec.ts`), le code Monkey C est vérifié pour la syntaxe et les ressources ; la première compilation dans GitHub peut révéler des erreurs que je corrigerai.
 - Une confirmation sur la montre reste nécessaire pour charger une séance (règle de Garmin, voir plus haut).
 - Sur les montres sans vue rapide (où les widgets défilent), la prochaine séance ne se charge pas seule à l'ouverture, pour qu'un simple passage dans la boucle des widgets ne déclenche rien : un appui sur le bouton de sélection ouvre la liste.

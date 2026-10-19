@@ -81,9 +81,4 @@ class LoadingDelegate extends WatchUi.BehaviorDelegate {
     }
     return true;
   }
-
-  function onBack() {
-    WatchUi.popView(WatchUi.SLIDE_RIGHT);
-    return true;
-  }
 }

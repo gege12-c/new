@@ -23,7 +23,8 @@
   <string id="NoDownload">Cette montre ne sait\npas charger de séance.\nCopiez le fichier FIT\npar câble USB.</string>
   <string id="Downloading">Chargement de\nla séance...</string>
   <string id="Saved">Séance enregistrée\ndans les entraînements\nde la montre.</string>
-  <string id="StartNow">Séance chargée.\nLa démarrer ?</string>
+  <string id="Checking">Vérification...</string>
+  <string id="SessionChanged">Séance modifiée\nentre-temps : rouvrez\nTriCoach pour la\nrecharger.</string>
   <string id="NetworkError">TriCoach ne répond\npas (code $1$).</string>
   <string id="Unauthorized">Montre dissociée :\nrouvrez TriCoach\npour l'associer.</string>
   <string id="Unavailable">TriCoach est en cours\nde mise à jour :\nréessayez plus tard.</string>
