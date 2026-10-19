@@ -2,6 +2,7 @@ import { PageContainer } from "@/components/layout/page";
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { signOut } from "@/app/(auth)/actions";
+import { InstallPanelBody } from "@/components/pwa/install-app";
 import { AccountForm } from "@/components/settings/account-form";
 import { Button } from "@/components/ui/button";
 import { SectionSkeleton } from "@/components/ui/feedback";
@@ -28,6 +29,9 @@ async function SettingsContent() {
     <div className="space-y-6">
       <Panel title="Compte">
         <AccountForm values={profile} timezones={timezones} />
+      </Panel>
+      <Panel title="Application sur téléphone" description="TriCoach s’installe comme une application, sans passer par un magasin d’applications.">
+        <InstallPanelBody />
       </Panel>
       <Panel title="Connexion">
         <div className="flex flex-wrap items-center justify-between gap-3">
