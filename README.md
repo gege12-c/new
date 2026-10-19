@@ -168,5 +168,6 @@ et lancez `npm run test:e2e` avec `STRAVA_CLIENT_ID=4242` et `SUPABASE_SECRET_KE
 - [docs/WORKOUT_FORMAT.md](docs/WORKOUT_FORMAT.md) : format des séances structurées et calculs.
 - [docs/EXPORTS.md](docs/EXPORTS.md) : exports Zwift et Garmin, conditions des fournisseurs, règles de conversion.
 - [docs/FITNESS.md](docs/FITNESS.md) : condition physique, fatigue et forme (méthode, sources, prévision).
+- [docs/PARTNERS.md](docs/PARTNERS.md) : accès partenaires de Garmin et Suunto pour l'envoi automatique vers les montres (état, demande Suunto prête).
 
 Fonctions de la phase 5 : application installable (manifeste, icônes, page hors connexion, sans aucune donnée gardée sur l'appareil), page « Progression » (athlète et coach), notifications dans l'application (cloche, réglages par type), rubrique « Vos données » des réglages (téléchargement de toutes ses données en JSON, suppression définitive du compte). La tâche quotidienne (`/api/cron/daily`, Vercel Cron) envoie aussi les rappels de séance sans retour ; elle demande `CRON_SECRET` et `SUPABASE_SECRET_KEY`.
