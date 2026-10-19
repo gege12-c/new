@@ -78,7 +78,8 @@ export const GARMIN: ConnectorInfo & { id: "garmin"; format: "fit" } = {
     realized: REALIZED_VIA_STRAVA_OR_FIT,
     auto: {
       status: "not_configured",
-      detail: "L'envoi vers le calendrier Garmin Connect passe par l'API Training de Garmin, réservée aux développeurs approuvés.",
+      detail:
+        "Application TriCoach pour montre (Connect IQ) : elle charge vos séances des 7 prochains jours en vraies séances Garmin ; en préparation, avant sa publication sur le Connect IQ Store. L'envoi vers le calendrier Garmin Connect (API Training) attend la réouverture des demandes chez Garmin.",
     },
     download: { status: "available", detail: "Fichier FIT de type séance, écrit avec le SDK officiel de Garmin et relu avant téléchargement." },
   },
@@ -90,10 +91,11 @@ export const GARMIN: ConnectorInfo & { id: "garmin"; format: "fit" } = {
     "Garmin Connect (site ou application) n'importe pas les fichiers de séance : seule la copie par câble fonctionne sans l'API.",
   ],
   prerequisites: [
-    "Demande d'accès au Garmin Connect Developer Program (API Training), réservée aux entreprises, puis validation par Garmin.",
-    "Une fois l'accès obtenu : connexion du compte Garmin de l'athlète et publication des séances dans son calendrier.",
+    "Application TriCoach pour montre : publication sur le Connect IQ Store, ouverte à tout développeur ; l'athlète l'installe puis l'associe à son compte avec le code qu'elle affiche (Profil sportif, « Montre Garmin »).",
+    "Calendrier Garmin Connect : accès au Garmin Connect Developer Program (API Training), réservé aux entreprises ; nouvelles demandes suspendues par Garmin depuis le printemps 2026.",
   ],
   sources: [
+    { label: "Garmin : Connect IQ, contenu téléchargé sur la montre (PersistedContent)", url: "https://developer.garmin.com/connect-iq/api-docs/Toybox/PersistedContent.html" },
     { label: "Garmin : API Training (Connect Developer Program)", url: "https://developer.garmin.com/gc-developer-program/training-api" },
     { label: "TrainingPeaks : copier une séance FIT sur un appareil Garmin", url: "https://help.trainingpeaks.com/hc/en-us/articles/115001076908-Structured-Workout-Export-for-Garmin-Devices" },
   ],
