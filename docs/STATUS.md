@@ -2,6 +2,28 @@
 
 Dernière mise à jour : 19 octobre 2026 (nuit), phases 4 et 5 livrées (exports, application installable, progression, notifications).
 
+## Phase 5 — Mise en production : livrée, à confirmer sur votre téléphone
+
+Critère de fin : l'application tourne en production et s'installe sur un téléphone. Elle tourne en production (déploiement automatique de `main`) ; l'installation est vérifiée par Chromium lui-même (aucune erreur d'installabilité, manifeste valide) dans la CI ; reste à l'essayer sur votre téléphone (voir « À faire »).
+
+Vérification :
+
+- `e2e/pwa.spec.ts` : manifeste et icônes servis, Chromium considère l'application comme installable (contrôle DevTools), page claire hors connexion puis retour en ligne, explications d'installation iPhone et Android dans les réglages.
+- `e2e/stats.spec.ts` : l'athlète voit sa progression (réalisé d'après un fichier FIT, séance « faite » d'après son retour, record de puissance, tableau) ; le coach voit l'onglet « Progression » de son athlète.
+- `e2e/notifications.spec.ts` : le coach publie une séance, l'athlète la voit dans la cloche, ouvre la séance depuis la notification, la notification passe en lue ; un commentaire de l'athlète prévient le coach ; un type coupé dans les réglages ne prévient plus.
+- `e2e/admin.spec.ts` : l'administrateur voit les comptes et leurs rôles, sans donnée sportive ; 3 tests de base (`tests/db/admin.test.ts`) : liste, accès refusé aux autres, rôle donné et retiré, jamais au dernier administrateur.
+- 8 tests de base (`tests/db/notifications.test.ts`) : destinataires, regroupements, auteur jamais prévenu, notes privées muettes, droits (lecture et marquage des seules notifications reçues, aucune écriture directe), réglages, reconnexion Strava, export échoué, rappel quotidien unique ; 10 tests unitaires (statistiques, manifeste et icônes).
+
+Livré :
+
+- **Application installable** (PWA) : manifeste, icônes (dont masquables), écran d'accueil iPhone, page hors connexion. Le service worker ne garde aucune donnée sur l'appareil : seules les pages hors connexion sont servies sans réseau. Carte « TriCoach sur votre écran d'accueil » sur l'accueil athlète (téléphone) et rubrique « Application sur téléphone » dans les réglages.
+- **Progression** (athlète, et onglet de la fiche athlète côté coach) : volume prévu par semaine et par discipline sur 12 semaines (enchaînements découpés par discipline) et réalisé d'après les fichiers FIT ; intensité prévue par zone sur 4 semaines ; suivi des séances passées (retours de l'athlète, fichiers FIT) ; évolution des seuils (FTP, allure seuil, CSS, FC seuil) ; records tirés des fichiers FIT. Chaque bloc dit ce qui manque au lieu de calculer sur trop peu de données ; tableau des valeurs ; couleurs de graphique contrôlées (contraste, daltonisme) en clair et en sombre.
+- **Notifications** dans l'application : cloche avec le nombre de non lues, page des notifications, ouverture directe de la séance, « Tout marquer comme lu », réglage par type dans les réglages. Séance publiée, modifiée, déplacée ou annulée ; commentaire partagé ; reconnexion Strava nécessaire ; export impossible chez un athlète (pour ses coachs) ; rappel le lendemain d'une séance sans retour.
+- **Administration, comptes et rôles** : liste des comptes (nom, email, mode coach, administrateur, relations, inscription, dernière connexion) et rôle d'administrateur donné ou retiré depuis la page Administration, sans aucune donnée sportive ; jamais le dernier administrateur.
+- **Sauvegardes** : procédure d'export documentée (README, « Sauvegardes ») ; l'offre gratuite de Supabase n'en fait pas automatiquement.
+
+Pas fait (hors de portée cette nuit ou dépendant de vous) : notifications par email (il faut un service SMTP) et notifications push sur téléphone (clés VAPID à créer et à saisir dans Vercel) ; statistiques sur les activités Strava (interdites par Strava sans accord écrit).
+
 ## Phase 4 — Exports : terminée
 
 Critère de fin : une même séance produit un .zwo et un FIT valides, avec la procédure d'import documentée.
@@ -22,7 +44,7 @@ Livré :
 - Wahoo et Suunto : « envoi direct non configuré », avec les conditions officielles d'accès à leurs API et la méthode manuelle ; fiche texte de la séance à copier (valeurs absolues calculées avec les seuils de l'athlète).
 - Panneau « Appareils et applications » du profil sportif : pour chaque fournisseur, les quatre cas (séance prévue vers l'appareil, téléchargement manuel, synchronisation automatique, activité réalisée vers TriCoach) avec leur état réel et les sources officielles.
 - Détail des règles de conversion et des conditions des fournisseurs : [EXPORTS.md](EXPORTS.md).
-- Un seul fichier SQL pour mettre la production à jour (phases 3 et 4) : `supabase/production/pending.sql`, généré à partir des migrations et contrôlé par la CI.
+- Un seul fichier SQL pour mettre la production à jour (phases 3 à 5) : `supabase/production/pending.sql`, généré à partir des migrations ; la CI vérifie qu'il est à jour et qu'il s'applique en une fois sur la pile Supabase officielle remise au niveau de la production.
 
 ## Phase 3 — Strava : terminée, mise en production à finaliser
 
@@ -139,28 +161,6 @@ Avertissements de l'analyseur Supabase acceptés : les fonctions d'invitation et
 - Exports : fichiers validés par le SDK FIT officiel et par un décodeur indépendant, mais pas encore essayés sur une vraie montre ni dans Zwift (impossible d'ici). En course, Zwift rapporte les allures à l'allure 10 km de son profil, assimilée ici à l'allure seuil. Pas d'envoi direct vers Garmin, Wahoo ou Suunto : leurs API exigent une approbation de partenaire (hors V1).
 - Sans service d'envoi d'emails (SMTP), Supabase n'envoie d'emails qu'aux membres de l'organisation : confirmation d'email désactivée, mot de passe oublié limité à ces membres. Une invitation nominative ne prouve donc pas l'adresse de l'athlète : le lien à usage unique reste le secret.
 - Avertissements `npm audit` sur des dépendances de développement uniquement.
-
-## Phase 5 — Mise en production : livrée, à confirmer sur votre téléphone
-
-Critère de fin : l'application tourne en production et s'installe sur un téléphone. Elle tourne en production (déploiement automatique de `main`) ; l'installation est vérifiée par Chromium lui-même (aucune erreur d'installabilité, manifeste valide) dans la CI ; reste à l'essayer sur votre téléphone (voir « À faire »).
-
-Vérification :
-
-- `e2e/pwa.spec.ts` : manifeste et icônes servis, Chromium considère l'application comme installable (contrôle DevTools), page claire hors connexion puis retour en ligne, explications d'installation iPhone et Android dans les réglages.
-- `e2e/stats.spec.ts` : l'athlète voit sa progression (réalisé d'après un fichier FIT, séance « faite » d'après son retour, record de puissance, tableau) ; le coach voit l'onglet « Progression » de son athlète.
-- `e2e/notifications.spec.ts` : le coach publie une séance, l'athlète la voit dans la cloche, ouvre la séance depuis la notification, la notification passe en lue ; un commentaire de l'athlète prévient le coach ; un type coupé dans les réglages ne prévient plus.
-- `e2e/admin.spec.ts` : l'administrateur voit les comptes et leurs rôles, sans donnée sportive ; 3 tests de base (`tests/db/admin.test.ts`) : liste, accès refusé aux autres, rôle donné et retiré, jamais au dernier administrateur.
-- 8 tests de base (`tests/db/notifications.test.ts`) : destinataires, regroupements, auteur jamais prévenu, notes privées muettes, droits (lecture et marquage des seules notifications reçues, aucune écriture directe), réglages, reconnexion Strava, export échoué, rappel quotidien unique ; 10 tests unitaires (statistiques, manifeste et icônes).
-
-Livré :
-
-- **Application installable** (PWA) : manifeste, icônes (dont masquables), écran d'accueil iPhone, page hors connexion. Le service worker ne garde aucune donnée sur l'appareil : seules les pages hors connexion sont servies sans réseau. Carte « TriCoach sur votre écran d'accueil » sur l'accueil athlète (téléphone) et rubrique « Application sur téléphone » dans les réglages.
-- **Progression** (athlète, et onglet de la fiche athlète côté coach) : volume prévu par semaine et par discipline sur 12 semaines (enchaînements découpés par discipline) et réalisé d'après les fichiers FIT ; intensité prévue par zone sur 4 semaines ; suivi des séances passées (retours de l'athlète, fichiers FIT) ; évolution des seuils (FTP, allure seuil, CSS, FC seuil) ; records tirés des fichiers FIT. Chaque bloc dit ce qui manque au lieu de calculer sur trop peu de données ; tableau des valeurs ; couleurs de graphique contrôlées (contraste, daltonisme) en clair et en sombre.
-- **Notifications** dans l'application : cloche avec le nombre de non lues, page des notifications, ouverture directe de la séance, « Tout marquer comme lu », réglage par type dans les réglages. Séance publiée, modifiée, déplacée ou annulée ; commentaire partagé ; reconnexion Strava nécessaire ; export impossible chez un athlète (pour ses coachs) ; rappel le lendemain d'une séance sans retour.
-- **Administration, comptes et rôles** : liste des comptes (nom, email, mode coach, administrateur, relations, inscription, dernière connexion) et rôle d'administrateur donné ou retiré depuis la page Administration, sans aucune donnée sportive ; jamais le dernier administrateur.
-- **Sauvegardes** : procédure d'export documentée (README, « Sauvegardes ») ; l'offre gratuite de Supabase n'en fait pas automatiquement.
-
-Pas fait (hors de portée cette nuit ou dépendant de vous) : notifications par email (il faut un service SMTP) et notifications push sur téléphone (clés VAPID à créer et à saisir dans Vercel) ; statistiques sur les activités Strava (interdites par Strava sans accord écrit).
 
 ## À faire de votre côté
 

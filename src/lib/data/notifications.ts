@@ -6,12 +6,13 @@ import type { ServerSupabase } from "@/lib/supabase/server";
 
 /** Nombre de notifications non lues ; null si la table n'existe pas encore (migration en attente). */
 export async function getUnreadCount(supabase: ServerSupabase): Promise<number | null> {
-  const { count, error } = await supabase.from("notifications").select("id", { count: "exact", head: true }).is("read_at", null);
+  // Requête GET (et non HEAD) : une table absente renvoie alors son code d'erreur dans la réponse.
+  const { count, error } = await supabase.from("notifications").select("id", { count: "exact" }).is("read_at", null).limit(1);
   if (error) {
     if (isMissingSchema(error)) return null;
     throw error;
   }
-  return count ?? 0;
+  return count ?? null;
 }
 
 export async function getNotifications(supabase: ServerSupabase, limit = 50): Promise<NotificationItem[] | null> {
