@@ -1,6 +1,6 @@
 # Avancement
 
-Dernière mise à jour : 19 octobre 2026 (nuit), phases 4 et 5 livrées (exports, application installable, progression, notifications, vos données).
+Dernière mise à jour : 19 octobre 2026, 5 h (nuit de travail), phases 4 et 5 livrées : exports, application installable, progression, notifications, comptes et rôles, vos données, accessibilité, pages d'erreur, contrôle de la production.
 
 ## Phase 5 — Mise en production : livrée, à confirmer sur votre téléphone
 
