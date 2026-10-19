@@ -7,6 +7,7 @@ import { THRESHOLD_DEFS, formatThresholdValue } from "@/lib/thresholds";
 import { formatClock, formatDistance, formatDurationShort } from "@/lib/workout/format";
 import { cn } from "@/lib/utils";
 import { SPORT_FILL, SPORT_NAME } from "@/lib/stats/labels";
+import { FitnessPanel } from "./fitness-panel";
 import { VolumeChart } from "./volume-chart";
 
 const BAND_FILL = ["bg-zone-1", "bg-zone-2", "bg-zone-3", "bg-zone-4", "bg-zone-5", "bg-zone-6"];
@@ -117,6 +118,8 @@ export function StatsView({ data, today, viewer, canSeeFiles }: { data: StatsDat
           {own ? "importez le fichier FIT d’une activité, ou donnez votre retour de séance, pour qu’elle soit comptée." : "seuls les fichiers FIT et les retours de l’athlète sont comptés."}
         </span>
       </p>
+
+      <FitnessPanel data={data.fitness} viewer={viewer} />
 
       <Panel
         title="Volume par semaine"

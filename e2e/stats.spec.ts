@@ -91,6 +91,19 @@ test("l'athlète voit sa progression, sans aucune donnée Strava", async ({ brow
   // Le tableau donne les valeurs sans survol.
   await page.getByText("Voir le tableau").click();
   await expect(page.getByRole("table").first()).toContainText("Total prévu");
+
+  // Condition physique : le fichier FIT d'hier compte, Strava jamais ; la prévision suit le plan.
+  const fitness = page.locator("section", { has: page.getByRole("heading", { name: "Condition physique" }) });
+  await expect(fitness).toContainText(/Compté : \d+ fichiers? FIT/);
+  await expect(fitness).toContainText("Les activités Strava ne sont pas comptées (règles de Strava).");
+  await expect(fitness.locator("dt", { hasText: /^Condition$/ }).locator("+ dd")).toHaveText(/^\d+$/);
+  await expect(fitness).toContainText(/Transition|Fraîcheur|Zone grise|Zone optimale|Risque élevé/);
+  const slider = fitness.getByRole("slider", { name: "Condition physique jour par jour" });
+  await slider.focus();
+  await page.keyboard.press("End");
+  await expect(slider).toHaveAttribute("aria-valuetext", /prévision/);
+  await fitness.getByText("Comment c’est calculé").click();
+  await expect(fitness).toContainText("Une heure au seuil vaut 100.");
 });
 
 test("le coach consulte la progression de son athlète", async ({ browser }) => {
@@ -102,4 +115,5 @@ test("le coach consulte la progression de son athlète", async ({ browser }) => 
   await expect(page.getByRole("heading", { name: "Volume par semaine" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Seuils" })).toBeVisible();
   await expect(page.getByText("FTP").first()).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Condition physique" })).toBeVisible();
 });
