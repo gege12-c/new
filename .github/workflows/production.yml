@@ -11,9 +11,11 @@ permissions:
 
 jobs:
   smoke:
+    # Pour un évènement « status », github.sha est le dernier commit de main : seul le déploiement de ce
+    # commit-là (la production) déclenche le contrôle, pas l'aperçu d'un commit de branche déjà fusionné.
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      (github.event.context == 'Vercel' && github.event.state == 'success' && contains(github.event.branches.*.name, 'main'))
+      (github.event.context == 'Vercel' && github.event.state == 'success' && github.event.sha == github.sha)
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
@@ -21,4 +23,4 @@ jobs:
         with:
           node-version: 22
       - name: Contrôle de la production
-        run: node scripts/production-smoke.mjs https://new-bay-one-76.vercel.app ${{ github.event_name == 'status' && github.event.sha || '' }}
+        run: node scripts/production-smoke.mjs https://new-bay-one-76.vercel.app ${{ github.sha }}
