@@ -6,6 +6,7 @@ import { isMissingSchema } from "@/lib/supabase/schema";
 import type { ServerSupabase } from "@/lib/supabase/server";
 import { currentThresholds, toAthleteThresholds } from "@/lib/thresholds";
 import { getThresholds } from "./athlete";
+import { getFitnessData, type FitnessData } from "./fitness";
 import { getSessionsInRange } from "./planning";
 
 export const VOLUME_WEEKS = 12;
@@ -26,6 +27,7 @@ export interface StatsData {
   adherenceFrom: string;
   thresholds: ThresholdSeries[];
   records: RecordEntry[];
+  fitness: FitnessData;
 }
 
 const ACTIVITY_COLUMNS = "sport, local_date, moving_s, elapsed_s, distance_m, avg_power, avg_speed_mps";
@@ -37,11 +39,12 @@ export async function getStatsData(supabase: ServerSupabase, athleteId: string, 
   const intensityFrom = addDays(weeks[weeks.length - INTENSITY_WEEKS], 0);
   const adherenceFrom = weeks[weeks.length - ADHERENCE_WEEKS];
 
-  const [sessions, thresholdRows, recent, all] = await Promise.all([
+  const [sessions, thresholdRows, recent, all, fitness] = await Promise.all([
     getSessionsInRange(supabase, athleteId, from, to),
     getThresholds(supabase, athleteId),
     supabase.from("activities").select(ACTIVITY_COLUMNS).eq("athlete_id", athleteId).eq("source", "fit_upload").gte("local_date", from).lte("local_date", to),
     supabase.from("activities").select(ACTIVITY_COLUMNS).eq("athlete_id", athleteId).eq("source", "fit_upload").order("local_date", { ascending: false }).limit(2000),
+    getFitnessData(supabase, athleteId, today),
   ]);
   const activitiesAvailable = !recent.error;
   if (recent.error && !isMissingSchema(recent.error)) throw recent.error;
@@ -87,5 +90,6 @@ export async function getStatsData(supabase: ServerSupabase, athleteId: string, 
     adherenceFrom,
     thresholds: thresholdSeries(thresholdRows, THRESHOLD_KEYS),
     records: fitRecords(allActivities),
+    fitness,
   };
 }
