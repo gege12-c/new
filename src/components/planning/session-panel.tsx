@@ -1,9 +1,14 @@
 import { History, MessageSquareText, Soup } from "lucide-react";
 import { RealizationSection } from "@/components/activities/realization-section";
+import { ExportSection } from "@/components/exports/export-section";
 import { SportBadge } from "@/components/sport";
 import { WorkoutProfile } from "@/components/workout/workout-profile";
 import { getSessionRealization } from "@/lib/data/activities";
-import { getSessionComments, getSessionDetail, getSessionHistory } from "@/lib/data/planning";
+import { getExportHistory } from "@/lib/data/exports";
+import { getSessionComments, getSessionDetail, getSessionHistory, getThresholdsOn } from "@/lib/data/planning";
+import { compatibilityReports } from "@/lib/export/connectors";
+import { exportContext } from "@/lib/export/session";
+import { workoutSheet } from "@/lib/export/sheet";
 import type { HistoryEntry } from "@/lib/data/planning-types";
 import { formatFullDate } from "@/lib/planning/dates";
 import { FIELD_LABELS, type EditableField } from "@/lib/planning/snapshot";
@@ -12,7 +17,7 @@ import { SCHEMA_PENDING_MESSAGE } from "@/lib/supabase/schema";
 import type { ServerSupabase } from "@/lib/supabase/server";
 import { computeTotals } from "@/lib/workout/compute";
 import { formatDistance, formatDuration } from "@/lib/workout/format";
-import { OBJECTIVE_LABELS, type SessionObjective } from "@/lib/workout/schema";
+import { OBJECTIVE_LABELS, parseWorkout, type SessionObjective } from "@/lib/workout/schema";
 import type { AthleteThresholds } from "@/lib/workout/zones";
 import { cn } from "@/lib/utils";
 import { CommentsThread } from "./comments";
@@ -86,11 +91,18 @@ export async function SessionPanel({
       </PanelFrame>
     );
   }
-  const [comments, history, realization] = await Promise.all([
+  const exportable = detail.state !== "cancelled";
+  const [comments, history, realization, exportHistory, thresholdsOnDate] = await Promise.all([
     getSessionComments(supabase, sessionId),
     getSessionHistory(supabase, sessionId),
     getSessionRealization(supabase, detail),
+    exportable ? getExportHistory(supabase, sessionId) : Promise.resolve(null),
+    // Les exports utilisent les seuils en vigueur à la date de la séance (comme le téléchargement).
+    exportable ? getThresholdsOn(supabase, detail.athlete_id, detail.scheduled_date) : Promise.resolve(undefined),
   ]);
+  const exportCtx = exportContext(detail, thresholdsOnDate);
+  // Contenu normalisé (valeurs par défaut du format) : c'est lui que le téléchargement convertit.
+  const parsedContent = exportable ? parseWorkout(detail.content) : null;
   const status = sessionStatus({ ...detail, realization: realization ?? undefined }, today);
   const totals = computeTotals(detail.content, thresholds);
   const ownSession = detail.created_by === viewerId;
@@ -174,6 +186,25 @@ export async function SessionPanel({
               Nutrition et hydratation
             </h3>
             <p className="mt-1 whitespace-pre-line text-[14px] leading-relaxed text-ink-soft">{detail.nutrition_notes}</p>
+          </section>
+        ) : null}
+
+        {parsedContent?.success ? (
+          <ExportSection
+            sessionId={detail.id}
+            version={detail.version}
+            reports={compatibilityReports(parsedContent.data.segments, exportCtx)}
+            history={exportHistory}
+            sheet={workoutSheet(parsedContent.data, { title: detail.title, thresholds: thresholdsOnDate, description: detail.description })}
+            multiSegment={parsedContent.data.segments.length > 1}
+            timeZone={timeZone}
+          />
+        ) : parsedContent ? (
+          <section aria-labelledby="export-title">
+            <h3 id="export-title" className="heading text-[16px]">
+              Exporter vers mes appareils
+            </h3>
+            <p className="mt-1.5 text-[13.5px] text-muted">Le contenu de cette séance est invalide : ouvrez-la dans l’éditeur pour la corriger avant de l’exporter.</p>
           </section>
         ) : null}
 

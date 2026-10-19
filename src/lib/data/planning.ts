@@ -5,7 +5,7 @@ import type { SessionState } from "@/lib/planning/status";
 import type { CalendarSession, HistoryEntry, SessionComment, TemplateSummary } from "./planning-types";
 import type { ServerSupabase } from "@/lib/supabase/server";
 import { currentThresholds, toAthleteThresholds } from "@/lib/thresholds";
-import type { Workout, SessionSport } from "@/lib/workout/schema";
+import { WorkoutSchema, type Workout, type SessionSport } from "@/lib/workout/schema";
 import type { AthleteThresholds } from "@/lib/workout/zones";
 import { getThresholds } from "./athlete";
 
@@ -21,12 +21,21 @@ type ListRow = Omit<CalendarSession, "pending" | "planned_distance_m" | "content
   pending?: { updated_at: string } | null;
 };
 
+/**
+ * Contenu normalisé (valeurs par défaut du format appliquées), même s'il a été écrit hors de
+ * l'éditeur. Un contenu invalide est rendu tel quel : la base n'en contrôle que la forme générale.
+ */
+function normalizeContent(raw: unknown): Workout {
+  const parsed = WorkoutSchema.safeParse(raw);
+  return parsed.success ? parsed.data : (raw as Workout);
+}
+
 function toCalendarSession(row: ListRow): CalendarSession {
   return {
     ...row,
     sport: row.sport as SessionSport,
     state: row.state as SessionState,
-    content: row.content as Workout,
+    content: normalizeContent(row.content),
     planned_distance_m: row.planned_distance_m === null ? null : Number(row.planned_distance_m),
     pending: Boolean(row.pending),
   };

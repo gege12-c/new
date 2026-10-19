@@ -1027,6 +1027,83 @@ export type Database = {
           },
         ];
       };
+      workout_exports: {
+        Row: {
+          athlete_id: string;
+          byte_size: number | null;
+          created_at: string;
+          error: string | null;
+          file_name: string | null;
+          format: string;
+          id: string;
+          issues: NonNullable<Json>;
+          provider: string;
+          requested_by: string | null;
+          segment_index: number;
+          session_id: string;
+          session_version: number;
+          sha256: string | null;
+          status: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          athlete_id: string;
+          byte_size?: number | null;
+          created_at?: string;
+          error?: string | null;
+          file_name?: string | null;
+          format: string;
+          id?: string;
+          issues?: NonNullable<Json>;
+          provider: string;
+          requested_by?: string | null;
+          segment_index?: number;
+          session_id: string;
+          session_version: number;
+          sha256?: string | null;
+          status: string;
+        };
+        Update: {
+          athlete_id?: string;
+          byte_size?: number | null;
+          created_at?: string;
+          error?: string | null;
+          file_name?: string | null;
+          format?: string;
+          id?: string;
+          issues?: NonNullable<Json>;
+          provider?: string;
+          requested_by?: string | null;
+          segment_index?: number;
+          session_id?: string;
+          session_version?: number;
+          sha256?: string | null;
+          status?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "workout_exports_athlete_id_fkey";
+            columns: ["athlete_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "workout_exports_requested_by_fkey";
+            columns: ["requested_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "workout_exports_session_id_fkey";
+            columns: ["session_id"];
+            isOneToOne: false;
+            referencedRelation: "planned_sessions";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       workout_templates: {
         Row: {
           archived_at: string | null;
