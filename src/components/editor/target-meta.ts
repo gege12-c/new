@@ -1,8 +1,9 @@
 /** Libellés, saisie et valeurs par défaut des cibles d’étape, par couple métrique.unité. */
 import { resolveTarget } from "@/lib/workout/compute";
+import { targetForStep } from "@/lib/workout/edit";
 import { formatClock } from "@/lib/workout/format";
 import { formatNumberInput, parseNumber, parsePace } from "@/lib/workout/inputs";
-import { SPORT_TARGETS, TARGET_BOUNDS, type SegmentSport, type Target } from "@/lib/workout/schema";
+import { SPORT_TARGETS, TARGET_BOUNDS, type SegmentSport, type StepType, type Target } from "@/lib/workout/schema";
 import type { AthleteThresholds } from "@/lib/workout/zones";
 
 export type TargetKey = keyof typeof TARGET_BOUNDS;
@@ -70,30 +71,12 @@ export function allowedTargetKeys(sport: SegmentSport): string[] {
   return [...SPORT_TARGETS[sport]];
 }
 
-/** Valeurs de départ quand le coach change d’unité : plausibles, jamais présentées comme calculées. */
-export function defaultTargetFor(key: string, sport: SegmentSport, thresholds?: AthleteThresholds): Target {
-  const [metric, unit] = key.split(".") as [Target["metric"], Target["unit"]];
-  const defaults: Record<string, [number, number]> = {
-    "power.percent_ftp": [88, 95],
-    "power.watts": thresholds?.bike?.ftpW ? [Math.round(thresholds.bike.ftpW * 0.88), Math.round(thresholds.bike.ftpW * 0.95)] : [200, 220],
-    "power.zone": [2, 2],
-    "heart_rate.bpm": [140, 150],
-    "heart_rate.percent_lthr": [85, 90],
-    "heart_rate.percent_max_hr": [70, 80],
-    "heart_rate.zone": [2, 2],
-    "pace.sec_per_km": thresholds?.run?.thresholdPaceSPerKm
-      ? [thresholds.run.thresholdPaceSPerKm, thresholds.run.thresholdPaceSPerKm + 10]
-      : [300, 310],
-    "pace.sec_per_100m": thresholds?.swim?.cssSPer100m ? [thresholds.swim.cssSPer100m, thresholds.swim.cssSPer100m + 4] : [105, 110],
-    "pace.percent_threshold": sport === "swim" ? [95, 100] : [97, 102],
-    "pace.zone": [2, 2],
-    "speed.kmh": [30, 32],
-    "cadence.rpm": [85, 95],
-    "cadence.spm": [170, 180],
-    "rpe.scale": [5, 6],
-  };
-  const [min, max] = defaults[key] ?? [TARGET_BOUNDS[key]?.[0] ?? 0, TARGET_BOUNDS[key]?.[0] ?? 0];
-  return { metric, unit, min, max };
+/**
+ * Valeurs de départ quand on ajoute une cible ou qu’on change d’unité : adaptées au type d’étape,
+ * déduites des seuils de l’athlète quand il les a, sinon plausibles et jamais présentées comme calculées.
+ */
+export function defaultTargetFor(key: string, sport: SegmentSport, thresholds?: AthleteThresholds, type: StepType = "active"): Target {
+  return targetForStep(key, sport, type, thresholds);
 }
 
 /** Valeur absolue correspondante pour l’athlète (« ≈ 217–228 W »), ou la raison de son absence. */

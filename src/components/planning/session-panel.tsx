@@ -2,7 +2,7 @@ import { History, MessageSquareText, Soup } from "lucide-react";
 import { RealizationSection } from "@/components/activities/realization-section";
 import { ExportSection } from "@/components/exports/export-section";
 import { SportBadge } from "@/components/sport";
-import { WorkoutProfile } from "@/components/workout/workout-profile";
+import { relativeProfileNote, WorkoutProfile } from "@/components/workout/workout-profile";
 import { getSessionRealization } from "@/lib/data/activities";
 import { getExportHistory } from "@/lib/data/exports";
 import { getSessionComments, getSessionDetail, getSessionHistory, getThresholdsOn } from "@/lib/data/planning";
@@ -105,6 +105,8 @@ export async function SessionPanel({
   const parsedContent = exportable ? parseWorkout(detail.content) : null;
   const status = sessionStatus({ ...detail, realization: realization ?? undefined }, today);
   const totals = computeTotals(detail.content, thresholds);
+  // Sous le profil, seulement quand des hauteurs sont comparées faute de seuil (le pointillé se passe de légende).
+  const relativeProfile = relativeProfileNote(detail.content, thresholds);
   const ownSession = detail.created_by === viewerId;
   const canMove = canPlan || (viewer === "athlete" && detail.state !== "cancelled");
   const time = detail.start_time ? detail.start_time.slice(0, 5).replace(":", " h ") : null;
@@ -132,6 +134,7 @@ export async function SessionPanel({
 
         <div className="rounded-[14px] bg-night p-4 text-night-ink">
           <WorkoutProfile workout={detail.content} thresholds={thresholds} height={84} thresholdLine className="text-night-ink" />
+          {relativeProfile ? <p className="mt-1.5 text-[11px] text-night-muted">{relativeProfile}</p> : null}
           <dl className="mt-3 flex flex-wrap gap-x-8 gap-y-2">
             <div>
               <dt className="text-[11px] font-semibold text-night-muted">Durée</dt>

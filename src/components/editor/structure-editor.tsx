@@ -15,6 +15,7 @@ import {
   moveNode,
   removeNode,
   repeatDepth,
+  retargetForType,
   setSegmentSport,
   unwrapRepeat,
   updateNode,
@@ -186,7 +187,7 @@ function SegmentHeader({ index }: { index: number }) {
 }
 
 function NodeList({ nodes, parent, sport }: { nodes: WorkoutNode[]; parent: NodePath; sport: SegmentSport }) {
-  const { update, readOnly } = useStructure();
+  const { update, readOnly, thresholds } = useStructure();
   const depth = Math.max(parent.length - 1, 0);
   return (
     <div className="space-y-2">
@@ -203,7 +204,7 @@ function NodeList({ nodes, parent, sport }: { nodes: WorkoutNode[]; parent: Node
           <button
             type="button"
             disabled={nodes.length >= LIMITS.maxNodesPerList}
-            onClick={() => update((w) => appendNode(w, parent, makeStep(sport, "active", collectIds(w))))}
+            onClick={() => update((w) => appendNode(w, parent, makeStep(sport, "active", collectIds(w), thresholds)))}
             className="inline-flex h-8 items-center gap-1.5 rounded-[6px] border border-dashed border-line-strong px-3 text-[13px] font-medium text-ink-soft hover:border-ink hover:text-ink"
           >
             <Plus className="size-4" aria-hidden />
@@ -212,7 +213,7 @@ function NodeList({ nodes, parent, sport }: { nodes: WorkoutNode[]; parent: Node
           <button
             type="button"
             disabled={depth >= LIMITS.maxRepeatDepth || nodes.length >= LIMITS.maxNodesPerList}
-            onClick={() => update((w) => appendNode(w, parent, makeRepeat(sport, collectIds(w), 3)))}
+            onClick={() => update((w) => appendNode(w, parent, makeRepeat(sport, collectIds(w), 3, thresholds)))}
             className="inline-flex h-8 items-center gap-1.5 rounded-[6px] border border-dashed border-line-strong px-3 text-[13px] font-medium text-ink-soft hover:border-ink hover:text-ink disabled:opacity-40"
           >
             <Repeat2 className="size-4" aria-hidden />
@@ -367,7 +368,10 @@ function StepCard({ step, path, sport, siblings }: { step: Step; path: NodePath;
           id={`type-${step.id}`}
           value={step.type}
           disabled={readOnly}
-          onChange={(event) => patch({ type: event.target.value as Step["type"] })}
+          onChange={(event) => {
+            const type = event.target.value as Step["type"];
+            patch({ type, targets: retargetForType(step, type, sport, thresholds) });
+          }}
         >
           {STEP_TYPES.map((type) => (
             <option key={type} value={type}>
@@ -412,7 +416,8 @@ function StepCard({ step, path, sport, siblings }: { step: Step; path: NodePath;
             target={target}
             sport={sport}
             stepId={step.id}
-            usedMetrics={usedMetrics}
+            stepType={step.type}
+            usedMetrics={new Set(step.targets.filter((_, i) => i !== index).map((t) => t.metric))}
             allowedKeys={allowedKeys}
             thresholds={thresholds}
             disabled={readOnly}
@@ -426,7 +431,7 @@ function StepCard({ step, path, sport, siblings }: { step: Step; path: NodePath;
               type="button"
               onClick={() => {
                 const key = allowedKeys.find((k) => !usedMetrics.has(k.split(".")[0] as Target["metric"]));
-                if (key) patch({ targets: [...step.targets, defaultTargetFor(key, sport, thresholds)] });
+                if (key) patch({ targets: [...step.targets, defaultTargetFor(key, sport, thresholds, step.type)] });
               }}
               className="inline-flex h-7 items-center gap-1 rounded-[6px] px-2 text-[12px] font-semibold text-ink-soft hover:bg-surface-2 hover:text-ink"
             >
@@ -512,6 +517,7 @@ function TargetRow({
   target,
   sport,
   stepId,
+  stepType,
   usedMetrics,
   allowedKeys,
   thresholds,
@@ -522,6 +528,8 @@ function TargetRow({
   target: Target;
   sport: SegmentSport;
   stepId: string;
+  stepType: Step["type"];
+  /** Mesures déjà prises par les autres cibles de l’étape. */
   usedMetrics: Set<Target["metric"]>;
   allowedKeys: string[];
   thresholds?: AthleteThresholds;
@@ -531,6 +539,7 @@ function TargetRow({
 }) {
   const key = targetKey(target);
   const hint = resolvedHint(target, sport, thresholds);
+  // Les autres unités de la même mesure restent proposées (% FTP ↔ W) ; seules celles d’une autre cible de l’étape sont exclues.
   const options = allowedKeys.filter((k) => k === key || !usedMetrics.has(k.split(".")[0] as Target["metric"]));
   const parse = (raw: string) => parseTargetValue(key, raw);
   const format = (value: number) => formatTargetValue(key, value);
@@ -542,11 +551,11 @@ function TargetRow({
       </label>
       <Select
         size="sm"
-        wrapperClassName="w-[10.5rem]"
+        wrapperClassName="w-full sm:w-[10.5rem]"
         id={`metric-${id}`}
         value={key}
         disabled={disabled}
-        onChange={(event) => onChange(defaultTargetFor(event.target.value, sport, thresholds))}
+        onChange={(event) => onChange(defaultTargetFor(event.target.value, sport, thresholds, stepType))}
       >
         {options.map((k) => (
           <option key={k} value={k}>
@@ -554,30 +563,32 @@ function TargetRow({
           </option>
         ))}
       </Select>
-      <ValueInput
-        aria-label="Borne basse"
-        value={target.min}
-        format={format}
-        parse={parse}
-        onCommit={(min) => onChange({ ...target, min, max: Math.max(min, target.max) })}
-        disabled={disabled}
-        className="w-[4.25rem] text-center"
-      />
-      <span className="text-muted" aria-hidden>
-        –
+      <span className="flex items-center gap-1.5">
+        <ValueInput
+          aria-label="Borne basse"
+          value={target.min}
+          format={format}
+          parse={parse}
+          onCommit={(min) => onChange({ ...target, min, max: Math.max(min, target.max) })}
+          disabled={disabled}
+          className="w-[4.25rem] text-center"
+        />
+        <span className="text-muted" aria-hidden>
+          –
+        </span>
+        <ValueInput
+          aria-label="Borne haute"
+          value={target.max}
+          format={format}
+          parse={parse}
+          onCommit={(max) => onChange({ ...target, max, min: Math.min(target.min, max) })}
+          disabled={disabled}
+          className="w-[4.25rem] text-center"
+        />
+        {targetSuffix(key) ? <span className="text-[12px] font-medium text-muted">{targetSuffix(key)}</span> : null}
       </span>
-      <ValueInput
-        aria-label="Borne haute"
-        value={target.max}
-        format={format}
-        parse={parse}
-        onCommit={(max) => onChange({ ...target, max, min: Math.min(target.min, max) })}
-        disabled={disabled}
-        className="w-[4.25rem] text-center"
-      />
-      {targetSuffix(key) ? <span className="text-[12px] font-medium text-muted">{targetSuffix(key)}</span> : null}
       {hint ? (
-        <span className={cn("figure ml-1 text-[13px]", hint.missing ? "text-warning" : "text-ink-soft")}>
+        <span className={cn("figure ml-1 text-[13px]", hint.missing ? "text-muted" : "text-ink-soft")}>
           {hint.missing ? hint.text : `≈ ${hint.text}`}
         </span>
       ) : null}

@@ -79,6 +79,17 @@ Une cible est une plage `min`–`max`. Pour une allure, `min` est la borne **rap
 
 Des zones personnalisées par athlète pourront remplacer ces modèles plus tard.
 
+## Effort ressenti (RPE)
+
+Une cible RPE est placée dans les zones pour le profil, les avertissements et la répartition de l'intensité : RPE 1–2 récupération, 3–4 endurance, 5–6 tempo, 7–8 seuil, 9 VO2max, 10 au-delà (équivalents 45, 52, 62, 70, 80, 87, 95, 102, 113 et 125 % du seuil, interpolés entre deux valeurs).
+
+## Valeurs de départ dans l'éditeur
+
+- Séance de départ : échauffement, répétition travail/récupération, retour au calme. Cibles relatives aux seuils pour un modèle (il s'adapte à chaque athlète) ; pour un athlète, relatives à son seuil s'il l'a renseigné (% FTP, % vitesse seuil, % CSS), sinon effort ressenti. Le vélo garde le % FTP même sans FTP : compteurs et Zwift appliquent leur propre FTP.
+- Changer de discipline sur une séance encore intacte donne la séance de départ de la nouvelle discipline ; une séance modifiée est convertie (les cibles impossibles dans la nouvelle discipline sont retirées, avec un message). Le titre proposé (nom de la discipline) suit tant qu'on ne l'a pas remplacé.
+- Une cible ajoutée, ou changée d'unité, reçoit une intensité adaptée au type d'étape (une récupération n'hérite pas de l'intensité d'un bloc de travail), en valeurs absolues déduites des seuils de l'athlète s'il les a, sinon plausibles et à ajuster. Changer le type d'une étape fait suivre ses cibles restées à leur valeur de départ.
+- Profil sans seuil : une étape en W, bpm, km/h ou allure dont le seuil manque n'a pas de zone ; sa hauteur est seulement comparée aux autres étapes de la séance (barre grise), et le pointillé du seuil disparaît.
+
 ## Calculs : exact, estimé ou inconnu
 
 Rien n'est inventé : chaque durée ou distance est **exacte** (prescrite), **estimée** (déduite d'une hypothèse documentée) ou **inconnue**.

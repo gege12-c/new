@@ -23,7 +23,7 @@ import { Menu, type MenuItem } from "@/components/ui/menu";
 import { snapshotToValues, type EditorValues } from "@/lib/planning/editor-values";
 import { FIELD_LABELS, SessionValuesSchema, stableJson, type EditableField, type SessionSnapshot } from "@/lib/planning/snapshot";
 import type { SessionState } from "@/lib/planning/status";
-import { addSegment, setSegmentSport } from "@/lib/workout/edit";
+import { addSegment, defaultWorkout, isDefaultWorkout, setSegmentSport } from "@/lib/workout/edit";
 import {
   OBJECTIVE_LABELS,
   SESSION_OBJECTIVES,
@@ -46,6 +46,8 @@ import { StructureEditor } from "./structure-editor";
 export interface SessionEditorProps {
   mode: "session" | "template";
   athlete?: { id: string; name: string; thresholds: AthleteThresholds };
+  /** L’athlète planifie sa propre séance : les messages s’adressent à lui. */
+  self?: boolean;
   sessionId: string | null;
   templateId: string | null;
   state: SessionState | null;
@@ -348,31 +350,35 @@ export function SessionEditor(props: SessionEditorProps) {
 
   const changeSport = (next: SessionSport) => {
     if (next === sport) return;
-    setValues((current) => {
-      let content = current.content;
-      let removed = 0;
-      if (next === "brick") {
-        if (content.segments.length === 1) {
-          const first = content.segments[0].sport;
-          if (first !== "bike" && first !== "run") {
-            const converted = setSegmentSport(content, 0, "bike", (s, key) => SPORT_TARGETS[s].includes(key));
-            content = converted.workout;
-            removed += converted.removedTargets;
-          }
-          content = addSegment(content, content.segments[0].sport === "run" ? "bike" : "run");
-        }
-      } else {
-        for (let i = 0; i < content.segments.length; i += 1) {
-          const converted = setSegmentSport(content, i, next, (s, key) => SPORT_TARGETS[s].includes(key));
+    const current = valuesRef.current;
+    let content = current.content;
+    let removed = 0;
+    if (isDefaultWorkout(content, sport, thresholds)) {
+      // Rien n’a encore été réglé : la séance de départ de la nouvelle discipline, avec ses cibles.
+      content = defaultWorkout(next, thresholds);
+    } else if (next === "brick") {
+      if (content.segments.length === 1) {
+        const first = content.segments[0].sport;
+        if (first !== "bike" && first !== "run") {
+          const converted = setSegmentSport(content, 0, "bike", (s, key) => SPORT_TARGETS[s].includes(key));
           content = converted.workout;
           removed += converted.removedTargets;
         }
+        content = addSegment(content, content.segments[0].sport === "run" ? "bike" : "run", thresholds);
       }
-      if (removed > 0) {
-        setNotice(`${removed} cible${removed > 1 ? "s" : ""} retirée${removed > 1 ? "s" : ""} : impossible${removed > 1 ? "s" : ""} en ${SPORT_LABELS[next].toLowerCase()}.`);
+    } else {
+      for (let i = 0; i < content.segments.length; i += 1) {
+        const converted = setSegmentSport(content, i, next, (s, key) => SPORT_TARGETS[s].includes(key));
+        content = converted.workout;
+        removed += converted.removedTargets;
       }
-      return { ...current, content };
-    });
+    }
+    // Le titre proposé suit la discipline tant qu’on ne l’a pas remplacé par le sien.
+    const title = !current.title.trim() || current.title === SPORT_LABELS[sport] ? SPORT_LABELS[next] : current.title;
+    setValues({ ...current, content, title });
+    if (removed > 0) {
+      setNotice(`${removed} cible${removed > 1 ? "s" : ""} retirée${removed > 1 ? "s" : ""} : impossible${removed > 1 ? "s" : ""} en ${SPORT_LABELS[next].toLowerCase()}.`);
+    }
   };
 
   const goBack = async () => {
@@ -395,7 +401,13 @@ export function SessionEditor(props: SessionEditorProps) {
       setState((current) => (current === "cancelled" ? current : "published"));
       setPending(false);
       setStatus({ kind: "saved", at: new Date().toISOString() });
-      const done = wasPending ? "Modifications publiées : l’athlète les voit maintenant." : "Séance publiée : l’athlète la voit maintenant.";
+      const done = props.self
+        ? wasPending
+          ? "Modifications publiées : elles sont dans votre calendrier."
+          : "Séance publiée : elle est dans votre calendrier."
+        : wasPending
+          ? "Modifications publiées : l’athlète les voit maintenant."
+          : "Séance publiée : l’athlète la voit maintenant.";
       if (!result.snapshot || !adoptMerged(result.snapshot, sent, sentJson, `${done} `)) setNotice(done);
     } else if (result.status === "conflict") {
       setStatus({ kind: "conflict", scope: "publish", fields: result.fields, current: result.current, pending: true });
@@ -626,7 +638,7 @@ export function SessionEditor(props: SessionEditorProps) {
                 maxLength={120}
                 className="display w-full border-0 bg-transparent p-0 text-[30px] text-ink outline-none placeholder:text-muted/50 sm:text-[36px]"
               />
-              {athlete ? (
+              {athlete && !props.self ? (
                 <p className="mt-1 text-[14px] text-muted">
                   Pour <span className="font-semibold text-ink-soft">{athlete.name}</span>
                 </p>
@@ -679,7 +691,7 @@ export function SessionEditor(props: SessionEditorProps) {
                 {sport === "brick" ? (
                   <button
                     type="button"
-                    onClick={() => updateContent((w) => addSegment(w, w.segments[w.segments.length - 1]?.sport === "bike" ? "run" : "bike"))}
+                    onClick={() => updateContent((w) => addSegment(w, w.segments[w.segments.length - 1]?.sport === "bike" ? "run" : "bike", thresholds))}
                     className="text-[13px] font-semibold text-ink-soft underline decoration-line-strong underline-offset-4 hover:text-ink"
                   >
                     Ajouter un segment

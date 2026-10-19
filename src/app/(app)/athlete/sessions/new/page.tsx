@@ -30,6 +30,7 @@ async function NewOwnSession({ searchParams }: Pick<PageProps<"/athlete/sessions
   return (
     <SessionEditor
       mode="session"
+      self
       athlete={{ id: userId, name: profile.display_name, thresholds }}
       sessionId={null}
       templateId={null}
@@ -42,7 +43,7 @@ async function NewOwnSession({ searchParams }: Pick<PageProps<"/athlete/sessions
         objective: "",
         description: "",
         nutrition_notes: "",
-        content: defaultWorkout(sport),
+        content: defaultWorkout(sport, thresholds),
       }}
       pendingSince={null}
       lastSavedAt={null}
