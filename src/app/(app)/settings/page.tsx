@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { signOut } from "@/app/(auth)/actions";
 import { InstallPanelBody } from "@/components/pwa/install-app";
 import { NotificationPreferencesForm } from "@/components/settings/notification-preferences";
+import { AccountData } from "@/components/settings/account-data";
 import { AccountForm } from "@/components/settings/account-form";
 import { Button } from "@/components/ui/button";
 import { SectionSkeleton } from "@/components/ui/feedback";
@@ -54,6 +55,9 @@ async function SettingsContent() {
             </Button>
           </form>
         </div>
+      </Panel>
+      <Panel id="donnees" title="Vos données" description="Les télécharger à tout moment, ou supprimer votre compte.">
+        <AccountData isCoach={profile.is_coach} />
       </Panel>
     </div>
   );

@@ -1341,6 +1341,7 @@ export type Database = {
         }[];
       };
       current_user_is_admin: { Args: Record<PropertyKey, never>; Returns: boolean };
+      delete_my_account: { Args: Record<PropertyKey, never>; Returns: undefined };
       dissociate_activity: { Args: { p_activity: string; p_session: string }; Returns: undefined };
       duplicate_planned_session: { Args: { p_date: string; p_session: string }; Returns: string };
       get_invitation_preview: {

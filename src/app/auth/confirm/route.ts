@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
   }
 
   const login = new URL("/login", request.url);
-  login.searchParams.set("error", searchParams.get("error_description") ?? "Lien de confirmation invalide ou expiré.");
+  // Un code, jamais un texte : la page de connexion n'affiche que ses propres messages.
+  login.searchParams.set("error", "link");
   return NextResponse.redirect(login);
 }
