@@ -139,6 +139,6 @@ test("au clavier : aller au contenu, ouvrir une séance puis la refermer sans pe
 
 test("pages publiques", async ({ page }) => {
   const problems: string[] = [];
-  for (const path of ["/login", "/signup", "/forgot-password"]) problems.push(...(await audit(page, path, "public")));
+  for (const path of ["/login", "/signup", "/forgot-password", "/cette-page-n-existe-pas"]) problems.push(...(await audit(page, path, "public")));
   expect(problems, problems.join("\n")).toEqual([]);
 });
