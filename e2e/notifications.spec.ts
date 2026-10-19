@@ -103,3 +103,14 @@ test("un type coupé dans les réglages ne prévient plus", async ({ browser }) 
   await page.locator("#notifications").getByRole("button", { name: "Enregistrer" }).click();
   await expect(page.locator("#notifications").getByText("Réglages des notifications enregistrés.")).toBeVisible();
 });
+
+test("la tâche quotidienne envoie les rappels de séance sans retour, et seulement avec son secret", async ({ request }) => {
+  expect((await request.get("/api/cron/daily")).status()).toBe(401);
+  const secret = process.env.CRON_SECRET;
+  test.skip(!secret, "CRON_SECRET absent de l'environnement de test.");
+  const response = await request.get("/api/cron/daily", { headers: { authorization: `Bearer ${secret}` } });
+  expect(response.status()).toBe(200);
+  const body = await response.json();
+  expect(body.status).toBe("ok");
+  expect(typeof body.reminders).toBe("number");
+});
