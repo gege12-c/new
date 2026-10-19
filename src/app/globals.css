@@ -59,6 +59,13 @@
   --zone-5: #f08337;
   --zone-6: #e1474e;
 
+  /* Graphiques : couleurs des disciplines validées (contraste, daltonisme) dans l'ordre d'empilement. */
+  --chart-swim: #0a84d0;
+  --chart-bike: #e3a00d;
+  --chart-strength: #6e56cf;
+  --chart-run: #e5484d;
+  --chart-other: #7e8b9c;
+
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 16px;
@@ -114,6 +121,12 @@
     --zone-5: #f6934b;
     --zone-6: #f05d63;
 
+    --chart-swim: #2394db;
+    --chart-bike: #bb8803;
+    --chart-strength: #8572dd;
+    --chart-run: #e2575d;
+    --chart-other: #7b8799;
+
     --shadow-pop: 0 1px 2px rgb(0 0 0 / 0.4), 0 12px 32px -8px rgb(0 0 0 / 0.6);
   }
 }
@@ -164,6 +177,11 @@
   --color-zone-4: var(--zone-4);
   --color-zone-5: var(--zone-5);
   --color-zone-6: var(--zone-6);
+  --color-chart-swim: var(--chart-swim);
+  --color-chart-bike: var(--chart-bike);
+  --color-chart-strength: var(--chart-strength);
+  --color-chart-run: var(--chart-run);
+  --color-chart-other: var(--chart-other);
   --radius-sm: var(--radius-sm);
   --radius-md: var(--radius-md);
   --radius-lg: var(--radius-lg);
