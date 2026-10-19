@@ -1,6 +1,6 @@
 # TriCoach
 
-Plateforme de coaching triathlon : le coach programme sur le Web, l'athlète retrouve ses séances sur son téléphone, mises à jour en direct, et ses activités réelles (Strava, fichiers FIT) sont comparées au prévu.
+Plateforme de coaching triathlon : le coach programme sur le Web, l'athlète retrouve ses séances sur son téléphone, mises à jour en direct, les exporte vers ses appareils (Zwift, Garmin), et ses activités réelles (Strava, fichiers FIT) sont comparées au prévu.
 Next.js 16 (TypeScript) + Supabase (PostgreSQL, Auth, RLS, Realtime), déployé sur Vercel.
 
 État d'avancement : [docs/STATUS.md](docs/STATUS.md). Cahier des charges : [CLAUDE.md](CLAUDE.md).
@@ -76,6 +76,10 @@ Un administrateur voit la configuration des intégrations, la file de synchronis
 
 Règles de Strava appliquées : les activités Strava ne sont visibles que de l'athlète (son coach voit ses retours de séance et ses fichiers FIT), elles sont effacées au bout de 6 jours (7 au plus autorisés), une suppression sur Strava est répercutée sous 48 h, et une déconnexion efface tout aussitôt. Aucune donnée Strava n'est transmise à un outil d'IA.
 
+### Mettre à jour la base de production
+
+Les migrations pas encore appliquées en production sont réunies dans un seul fichier, [`supabase/production/pending.sql`](supabase/production/pending.sql), généré par `node scripts/production-sql.mjs` à partir de `supabase/migrations` (la CI vérifie qu'il est à jour et qu'il s'applique en une fois). Pour l'appliquer : ouvrez sa version brute sur GitHub, copiez tout le texte, puis Supabase > **SQL Editor** > **New query**, collez et cliquez sur **Run**. Résultat attendu : « Success. No rows returned ». C'est tout ou rien : en cas d'erreur, la base reste inchangée. Une fois la mise à jour faite, les versions passent dans `supabase/production/applied.txt` et le fichier est régénéré.
+
 ### Nouveau projet Supabase (développement, test)
 
 Appliquez les fichiers de [`supabase/migrations`](supabase/migrations) dans l'ordre de leur nom, soit en les collant un par un dans l'éditeur SQL, soit avec la CLI :
@@ -142,3 +146,4 @@ et lancez `npm run test:e2e` avec `STRAVA_CLIENT_ID=4242` et `SUPABASE_SECRET_KE
 - [docs/STATUS.md](docs/STATUS.md) : fait, reste, décisions.
 - [docs/SCHEMA.md](docs/SCHEMA.md) : tables, relations, sécurité.
 - [docs/WORKOUT_FORMAT.md](docs/WORKOUT_FORMAT.md) : format des séances structurées et calculs.
+- [docs/EXPORTS.md](docs/EXPORTS.md) : exports Zwift et Garmin, conditions des fournisseurs, règles de conversion.

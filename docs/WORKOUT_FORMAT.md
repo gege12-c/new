@@ -117,3 +117,7 @@ Ils informent le coach et ne modifient jamais la séance.
 | `very_short_step` | étape de moins de 5 s |
 | `very_long_total` | durée totale inhabituelle pour la discipline |
 | `wide_target_range` | plage de cible trop large pour guider l'athlète |
+
+## Exports
+
+Les exports (.zwo pour Zwift, FIT de séance pour Garmin, fiche texte) convertissent ce format sans jamais le modifier : chaque écart (cible approchée, information perdue, export impossible) est annoncé avant le téléchargement. Règles de conversion et conditions des fournisseurs : [EXPORTS.md](EXPORTS.md).
