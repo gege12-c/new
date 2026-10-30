@@ -1017,6 +1017,64 @@ export type Database = {
           },
         ];
       };
+      suunto_guides: {
+        Row: {
+          athlete_id: string;
+          guide_id: string | null;
+          id: string;
+          issues: NonNullable<Json>;
+          last_error: string | null;
+          segment_index: number;
+          sent_at: string | null;
+          session_id: string;
+          session_version: number;
+          status: string;
+          updated_at: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          athlete_id: string;
+          guide_id?: string | null;
+          id?: string;
+          issues?: NonNullable<Json>;
+          last_error?: string | null;
+          segment_index?: number;
+          sent_at?: string | null;
+          session_id: string;
+          session_version: number;
+          status: string;
+          updated_at?: string;
+        };
+        Update: {
+          athlete_id?: string;
+          guide_id?: string | null;
+          id?: string;
+          issues?: NonNullable<Json>;
+          last_error?: string | null;
+          segment_index?: number;
+          sent_at?: string | null;
+          session_id?: string;
+          session_version?: number;
+          status?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "suunto_guides_athlete_id_fkey";
+            columns: ["athlete_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "suunto_guides_session_id_fkey";
+            columns: ["session_id"];
+            isOneToOne: false;
+            referencedRelation: "planned_sessions";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       sync_jobs: {
         Row: {
           athlete_id: string | null;
@@ -1493,6 +1551,14 @@ export type Database = {
           device_code: string;
           expires_at: string;
           user_code: string;
+        }[];
+      };
+      suunto_sessions_to_push: {
+        Args: { p_athlete: string; p_days: number; p_today: string };
+        Returns: {
+          sent_version: number;
+          session_id: string;
+          session_version: number;
         }[];
       };
       upsert_strava_activities: { Args: { p_connection: string; p_items: Json }; Returns: number };

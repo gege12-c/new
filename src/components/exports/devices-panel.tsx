@@ -1,6 +1,6 @@
 import { ChevronDown } from "lucide-react";
 import { Panel } from "@/components/ui/panel";
-import { CASE_LABELS, CONNECTORS, type CapabilityStatus, type ExportCase } from "@/lib/export/providers";
+import { CASE_LABELS, CONNECTORS, suuntoConnector, type CapabilityStatus, type ExportCase } from "@/lib/export/providers";
 import { cn } from "@/lib/utils";
 
 const STATUS: Record<CapabilityStatus, { label: string; tone: string }> = {
@@ -14,7 +14,8 @@ const CASES: ExportCase[] = ["planned", "download", "auto", "realized"];
 const SHORT: Record<ExportCase, string> = { planned: "Séance", download: "Fichier", auto: "Auto", realized: "Activité" };
 
 /** Capacités réelles de chaque fournisseur, telles qu'elles fonctionnent aujourd'hui. */
-export function DevicesPanel() {
+export function DevicesPanel({ suuntoReady = false }: { suuntoReady?: boolean }) {
+  const connectors = CONNECTORS.map((c) => (c.id === "suunto" ? suuntoConnector(suuntoReady) : c));
   return (
     <Panel
       id="appareils"
@@ -22,7 +23,7 @@ export function DevicesPanel() {
       description="Ce que TriCoach sait faire avec chaque appareil aujourd’hui. Les séances s’exportent depuis leur fiche, dans le calendrier."
     >
       <ul className="divide-y divide-line">
-        {CONNECTORS.map((connector) => (
+        {connectors.map((connector) => (
           <li key={connector.id}>
             <details className="group">
               <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1.5 py-2.5 [&::-webkit-details-marker]:hidden">

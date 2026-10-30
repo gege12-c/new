@@ -10,6 +10,8 @@ import { ConfirmSubmit } from "@/components/ui/confirm-submit";
 import { EventsPanel } from "@/components/athlete/events-panel";
 import { DevicesPanel } from "@/components/exports/devices-panel";
 import { StravaSharingForm } from "@/components/athlete/strava-sharing-form";
+import { SuuntoPanel } from "@/components/athlete/suunto-panel";
+import { isSuuntoReady } from "@/lib/suunto/config";
 import { ThresholdsPanel } from "@/components/athlete/thresholds-panel";
 import { WatchPanel } from "@/components/athlete/watch-panel";
 import { EmptyState, SectionSkeleton } from "@/components/ui/feedback";
@@ -59,8 +61,9 @@ async function ProfileContent({ searchParams }: Pick<PageProps<"/athlete/profile
       <div className="space-y-6">
       <ThresholdsPanel athleteId={userId} rows={thresholds} today={today} canEdit />
       <ConnectionsPanel supabase={supabase} timeZone={profile.timezone} callbackStatus={typeof params.strava === "string" ? params.strava : undefined} />
+      <SuuntoPanel supabase={supabase} athleteId={userId} timeZone={profile.timezone} callbackStatus={typeof params.suunto === "string" ? params.suunto : undefined} />
       <WatchPanel supabase={supabase} timeZone={profile.timezone} />
-      <DevicesPanel />
+      <DevicesPanel suuntoReady={isSuuntoReady()} />
       <Panel title="Mon coach" description="Vous choisissez ce que chaque coach peut faire, et vous pouvez retirer son accès à tout moment.">
         {coaches.length === 0 ? (
           <EmptyState title="Pas encore de coach">Demandez à votre coach un lien d’invitation : il suffit de l’ouvrir pour lui donner accès.</EmptyState>

@@ -82,6 +82,12 @@ jobs:
       STRAVA_CLIENT_SECRET: fake-client-secret
       STRAVA_API_BASE_URL: http://127.0.0.1:4010/api/v3
       STRAVA_OAUTH_BASE_URL: http://127.0.0.1:4010/oauth
+      SUUNTO_CLIENT_ID: suunto-app-id
+      SUUNTO_CLIENT_SECRET: suunto-app-secret
+      SUUNTO_SUBSCRIPTION_KEY: sub-key-0123
+      SUUNTO_APP_NAME: TriCoach
+      SUUNTO_API_BASE_URL: http://127.0.0.1:4011
+      SUUNTO_OAUTH_BASE_URL: http://127.0.0.1:4011/oauth
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5

@@ -138,35 +138,52 @@ export const SUUNTO: ConnectorInfo & { id: "suunto"; format: null } = {
   id: "suunto",
   name: "Suunto",
   format: null,
-  sports: [],
+  sports: ["bike", "run", "swim", "strength", "other"],
   capabilities: {
     planned: {
       status: "not_configured",
-      detail: "Les séances structurées arrivent sur la montre comme « guides SuuntoPlus », par l'API partenaire de Suunto, ouverte aux entreprises après examen.",
+      detail:
+        "Compte Suunto relié (Profil sportif, « Montre Suunto ») : chaque séance publiée des 14 prochains jours arrive sur la montre comme guide SuuntoPlus, avec ses étapes, ses cibles et ses comptes à rebours, par l’appli Suunto du téléphone.",
     },
     realized: REALIZED_VIA_STRAVA_OR_FIT,
-    auto: { status: "not_configured", detail: "Possible avec l'API partenaire de Suunto une fois l'accès accordé." },
+    auto: {
+      status: "not_configured",
+      detail: "Une fois le compte relié : envoi à la publication, mise à jour à chaque modification du coach, retrait à l’annulation, sans geste de l’athlète.",
+    },
     download: {
       status: "unsupported",
-      detail: "Pas d'import de fichier de séance : recopiez-la dans l'application Suunto avec la fiche « étapes Suunto », écrite comme son créateur d'entraînements.",
+      detail: "Pas d’import de fichier de séance : sans compte relié, recopiez-la dans l’application Suunto avec la fiche « étapes Suunto », écrite comme son créateur d’entraînements.",
     },
   },
   procedure: [
-    "Dans l'application Suunto, touchez « + » en haut à droite, puis « Créez un entraînement structuré » (ou : symbole de la montre, « Entraînements structurés », « Créez nouveau »).",
+    "Dans l’application Suunto, touchez « + » en haut à droite, puis « Créez un entraînement structuré » (ou : symbole de la montre, « Entraînements structurés », « Créez nouveau »).",
     "Recopiez le nom, la description, le mode sportif et la date de la fiche ci-dessous : avec la date, la montre propose la séance ce jour-là.",
-    "Ajoutez les étapes et les répétitions dans l'ordre de la fiche : pour chacune, son type, sa fin (durée, distance ou bouton tour) et son objectif.",
+    "Ajoutez les étapes et les répétitions dans l’ordre de la fiche : pour chacune, son type, sa fin (durée, distance ou bouton tour) et son objectif.",
     "Touchez « Suivant », vérifiez le récapitulatif, puis enregistrez : la séance part sur la montre à la synchronisation, parmi les SuuntoPlus Guides.",
     "Sur la montre, choisissez le sport : la montre propose la séance du jour ; sinon, Options, SuuntoPlus, Guides, puis la séance, avant de démarrer.",
   ],
   prerequisites: [
-    "Candidature au programme API de Suunto (réservé aux entreprises proposant un service au public, examen sous deux semaines, contrat API).",
-    "Une fois l'accès obtenu : connexion du compte Suunto de l'athlète et envoi des séances comme guides.",
+    "Côté site : l’accès partenaire Suunto (APIZone) et les identifiants de l’application saisis dans Vercel (SUUNTO_CLIENT_ID, SUUNTO_CLIENT_SECRET, SUUNTO_SUBSCRIPTION_KEY, SUUNTO_APP_NAME).",
+    "Côté athlète : relier son compte Suunto depuis le profil sportif, rubrique « Montre Suunto ».",
   ],
   sources: [
     { label: "Suunto : programme API (APIZone)", url: "https://apizone.suunto.com/" },
-    { label: "Suunto : créer un entraînement structuré dans l'application", url: "https://www.suunto.com/fr-ch/Assistance/faq-articles/suunto-app/how-can-i-create-structured-workouts-with-suunto-app/" },
-    { label: "Suunto : planifier des séances fractionnées", url: "https://us.suunto.com/blogs/blog/plan-your-interval-workouts-with-suunto-app" },
+    { label: "Suunto : format des guides SuuntoPlus", url: "https://apizone.suunto.com/suuntoplus-guide-description" },
+    { label: "Suunto : créer un entraînement structuré dans l’application", url: "https://www.suunto.com/fr-ch/Assistance/faq-articles/suunto-app/how-can-i-create-structured-workouts-with-suunto-app/" },
   ],
 };
+
+/** Capacités Suunto telles qu'elles sont sur ce site : « disponible » dès que le serveur a ses identifiants Suunto. */
+export function suuntoConnector(ready: boolean): ConnectorInfo & { id: "suunto"; format: null } {
+  if (!ready) return SUUNTO;
+  return {
+    ...SUUNTO,
+    capabilities: {
+      ...SUUNTO.capabilities,
+      planned: { ...SUUNTO.capabilities.planned, status: "available" },
+      auto: { ...SUUNTO.capabilities.auto, status: "available" },
+    },
+  };
+}
 
 export const CONNECTORS = [ZWIFT, GARMIN, WAHOO, SUUNTO] as const;

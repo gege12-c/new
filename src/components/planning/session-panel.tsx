@@ -11,6 +11,8 @@ import { compatibilityReports } from "@/lib/export/connectors";
 import { exportContext } from "@/lib/export/session";
 import { workoutSheet } from "@/lib/export/sheet";
 import { suuntoPlan } from "@/lib/export/suunto-steps";
+import { getSuuntoConnection, getSuuntoGuides } from "@/lib/data/suunto";
+import { isSuuntoReady } from "@/lib/suunto/config";
 import type { HistoryEntry } from "@/lib/data/planning-types";
 import { formatFullDate } from "@/lib/planning/dates";
 import { FIELD_LABELS, type EditableField } from "@/lib/planning/snapshot";
@@ -19,7 +21,7 @@ import { SCHEMA_PENDING_MESSAGE } from "@/lib/supabase/schema";
 import type { ServerSupabase } from "@/lib/supabase/server";
 import { computeTotals } from "@/lib/workout/compute";
 import { formatDistance, formatDuration } from "@/lib/workout/format";
-import { OBJECTIVE_LABELS, parseWorkout, type SessionObjective } from "@/lib/workout/schema";
+import { OBJECTIVE_LABELS, parseWorkout, SPORT_LABELS, type SessionObjective } from "@/lib/workout/schema";
 import type { AthleteThresholds } from "@/lib/workout/zones";
 import { cn } from "@/lib/utils";
 import { CommentsThread } from "./comments";
@@ -97,7 +99,8 @@ export async function SessionPanel({
     );
   }
   const exportable = detail.state !== "cancelled";
-  const [comments, history, realization, exportHistory, thresholdsOnDate, shared] = await Promise.all([
+  const suuntoReady = isSuuntoReady();
+  const [comments, history, realization, exportHistory, thresholdsOnDate, shared, suuntoConnection, suuntoGuides] = await Promise.all([
     getSessionComments(supabase, sessionId),
     getSessionHistory(supabase, sessionId),
     getSessionRealization(supabase, detail),
@@ -105,6 +108,8 @@ export async function SessionPanel({
     // Les exports utilisent les seuils en vigueur à la date de la séance (comme le téléchargement).
     exportable ? getThresholdsOn(supabase, detail.athlete_id, detail.scheduled_date) : Promise.resolve(undefined),
     viewer === "athlete" ? sharesStravaWithCoach(supabase, viewerId) : Promise.resolve(stravaShared === true),
+    suuntoReady && exportable ? getSuuntoConnection(supabase, detail.athlete_id) : Promise.resolve(null),
+    suuntoReady && exportable ? getSuuntoGuides(supabase, sessionId) : Promise.resolve([]),
   ]);
   const exportCtx = exportContext(detail, thresholdsOnDate);
   // Contenu normalisé (valeurs par défaut du format) : c'est lui que le téléchargement convertit.
@@ -206,6 +211,19 @@ export async function SessionPanel({
             history={exportHistory}
             sheet={workoutSheet(parsedContent.data, { title: detail.title, thresholds: thresholdsOnDate, description: detail.description })}
             suunto={suuntoPlan(parsedContent.data, { title: detail.title, thresholds: thresholdsOnDate, description: detail.description })}
+            suuntoDirect={
+              suuntoReady && suuntoConnection !== "schema_pending"
+                ? {
+                    ready: true,
+                    connection: suuntoConnection?.status ?? null,
+                    canPush: viewer === "athlete" && detail.athlete_id === viewerId,
+                    guides: suuntoGuides,
+                    sessionVersion: detail.version,
+                    multiSegment: parsedContent.data.segments.length > 1,
+                    segmentLabels: parsedContent.data.segments.map((s) => SPORT_LABELS[s.sport]),
+                  }
+                : null
+            }
             dateLabel={formatFullDate(detail.scheduled_date)}
             multiSegment={parsedContent.data.segments.length > 1}
             timeZone={timeZone}

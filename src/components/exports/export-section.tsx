@@ -11,6 +11,7 @@ import type { SuuntoPlan } from "@/lib/export/suunto-steps";
 import type { CompatibilityIssue, CompatibilityReport, FileProviderId } from "@/lib/export/types";
 import { SPORT_LABELS } from "@/lib/workout/schema";
 import { cn } from "@/lib/utils";
+import { SuuntoDirect, type SuuntoDirectState } from "./suunto-direct";
 import { SuuntoSteps } from "./suunto-steps";
 
 type Download =
@@ -142,6 +143,7 @@ export function ExportSection({
   history,
   sheet,
   suunto,
+  suuntoDirect,
   dateLabel,
   multiSegment,
   timeZone,
@@ -153,6 +155,8 @@ export function ExportSection({
   sheet: string;
   /** La séance écrite comme le créateur d'entraînements de l'application Suunto. */
   suunto: SuuntoPlan;
+  /** Envoi direct sur la montre Suunto (null tant que le site n'a pas ses identifiants Suunto). */
+  suuntoDirect: SuuntoDirectState | null;
   /** Date de la séance, en toutes lettres (à reporter dans Suunto). */
   dateLabel: string;
   multiSegment: boolean;
@@ -285,15 +289,21 @@ export function ExportSection({
         {[WAHOO, SUUNTO].map((info) => (
           <li key={info.id} className="p-3" data-export-provider={info.id}>
             <p className="text-[14px] font-semibold text-ink">
-              {info.name} <span className="font-normal text-muted">· envoi direct non configuré</span>
+              {info.name}{" "}
+              <span className="font-normal text-muted">
+                · {info.id === "suunto" && suuntoDirect?.ready ? (suuntoDirect.connection ? "envoi direct sur la montre" : "envoi direct, compte à relier") : "envoi direct non configuré"}
+              </span>
             </p>
             <p className="mt-0.5 text-[13px] leading-snug text-muted">{info.capabilities.planned.detail}</p>
+            {info.id === "suunto" && suuntoDirect ? <SuuntoDirect sessionId={sessionId} state={suuntoDirect} timeZone={timeZone} /> : null}
             <details
               className="mt-2"
               onToggle={info.id === "suunto" ? (event) => event.currentTarget.open && setSuuntoShown(true) : undefined}
             >
               <summary className="cursor-pointer text-[13px] font-medium text-ink-soft hover:text-ink">
-                {info.id === "suunto" ? `Recopier dans l’appli Suunto (${suunto.segments.reduce((n, s) => n + s.stepCount, 0)} étapes)` : "En attendant : méthode manuelle"}
+                {info.id === "suunto"
+                  ? `${suuntoDirect?.connection ? "Sans la montre : recopier" : "Recopier"} dans l’appli Suunto (${suunto.segments.reduce((n, s) => n + s.stepCount, 0)} étapes)`
+                  : "En attendant : méthode manuelle"}
               </summary>
               <ol className="mt-2 list-decimal space-y-1 pl-5 text-[13px] leading-snug text-ink-soft">
                 {info.procedure.map((step) => (
@@ -301,7 +311,7 @@ export function ExportSection({
                 ))}
               </ol>
               {info.id === "suunto" && suuntoShown ? <SuuntoSteps plan={suunto} dateLabel={dateLabel} /> : null}
-              <p className="mt-3 text-[12px] font-semibold text-ink-soft">Pour un envoi automatique, il faudrait :</p>
+              <p className="mt-3 text-[12px] font-semibold text-ink-soft">{info.id === "suunto" && suuntoDirect?.ready ? "Pour l’envoi automatique :" : "Pour un envoi automatique, il faudrait :"}</p>
               <ul className="mt-1 list-disc space-y-1 pl-5 text-[12px] leading-snug text-muted">
                 {info.prerequisites.map((step) => (
                   <li key={step}>{step}</li>

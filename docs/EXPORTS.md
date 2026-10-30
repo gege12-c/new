@@ -9,7 +9,7 @@ Une séance prévue s'exporte depuis sa fiche (panneau de séance, rubrique « E
 | Zwift | manuel : fichier .zwo à importer sur ordinateur | disponible (.zwo, vélo et course) | impossible : pas d'API publique d'envoi de séances | par Strava ou fichier FIT |
 | Garmin | manuel : fichier FIT de séance copié par câble USB | disponible (FIT de type séance) | non configuré : API Training réservée aux développeurs approuvés | par Strava ou fichier FIT |
 | Wahoo | non configuré : API Cloud (plans) sur demande et approbation | impossible : aucun import manuel documenté par Wahoo | non configuré | par Strava ou fichier FIT |
-| Suunto | non configuré : API partenaire (guides SuuntoPlus) après examen | impossible : recopier la séance dans l'application Suunto (fiche « étapes Suunto » fournie) | non configuré | par Strava ou fichier FIT |
+| Suunto | **disponible** dès que le site a ses identifiants partenaire et que l'athlète a relié son compte : chaque séance publiée des 14 prochains jours part comme guide SuuntoPlus ; sinon « non configuré » | impossible : recopier la séance dans l'application Suunto (fiche « étapes Suunto » fournie) | disponible : envoi à la publication, mise à jour à chaque modification, retrait à l'annulation | par Strava ou fichier FIT |
 
 Ces capacités sont des données (`src/lib/export/providers.ts`), affichées telles quelles dans l'application : rubrique d'export de chaque séance et panneau « Appareils et applications » du profil sportif.
 
@@ -20,7 +20,25 @@ Ces capacités sont des données (`src/lib/export/providers.ts`), affichées tel
 - **Wahoo** : l'API Cloud est ouverte « à ceux qui la demandent », après approbation ; application de production distincte de la sandbox ; portées `plans_read` et `plans_write` pour les séances planifiées. Source : [Wahoo, Cloud API](https://developers.wahooligan.com/cloud). Les compteurs ELEMNT ne reçoivent des séances planifiées que des partenaires agréés : [Wahoo, applications partenaires](https://support.wahoofitness.com/hc/en-us/articles/23022859474962). Aucun import manuel de fichier de séance n'y est documenté.
 - **Suunto** : l'API est réservée aux entreprises et organisations proposant un service au public (pas d'accès personnel), examen hebdomadaire (deux semaines au plus), contrat API, gratuite ; la production exige une soumission de contenu. Source : [Suunto APIZone](https://apizone.suunto.com/). Les séances structurées y arrivent comme « guides SuuntoPlus ». Méthode manuelle officielle : le créateur de séances de l'application Suunto, synchronisé sur la montre comme guide : [Suunto, Plan your interval workouts](https://us.suunto.com/blogs/blog/plan-your-interval-workouts-with-suunto-app).
 
-Envoi direct vers Garmin, Wahoo ou Suunto : hors V1 tant que l'accès n'est pas obtenu (cahier des charges). Les prérequis sont affichés dans l'application.
+Envoi direct vers Garmin ou Wahoo : hors V1 tant que l'accès n'est pas obtenu (cahier des charges). Les prérequis sont affichés dans l'application. Suunto : connecteur livré (ci-dessous), actif dès les identifiants saisis.
+
+## Connecteur Suunto (guides SuuntoPlus)
+
+Chemin d'une séance : le coach la publie, un trigger de la base met un job `suunto_push` en file si l'athlète a relié son compte Suunto ; le serveur (`src/lib/suunto/service.ts`) relit la séance avec les seuils de l'athlète à sa date, convertit chaque partie en guide (`src/lib/suunto/guide.ts`), envoie le ZIP (`guide.json`, `manifest.json`, `icon.png`) à `POST /v2/guides/files` de l'API Cloud Suunto, et note l'état dans `suunto_guides`. Une modification refait le même chemin avec `PUT` sur le même guide ; une annulation, une dépublication, une séance passée ou à plus de 14 jours retire le guide (`DELETE`) ; une suppression de séance aussi (job `suunto_remove`, identifiants recopiés avant la cascade). La tâche quotidienne rattrape les séances entrées dans la fenêtre. Le job suit la file commune (reprises avec attente croissante, quota Suunto respecté par `Retry-After`, accès retiré → connexion « reconnexion nécessaire »). L'athlète peut aussi envoyer sur-le-champ depuis la fiche de séance ; le coach y voit l'état.
+
+Ce que la montre affiche, par étape (ordre de priorité, le premier champ en plus gros) : la cible avec jauge (`targetPower`, `targetHeartRate`, `targetPace`, `targetSpeed`, `targetCadence`), la mesure en direct correspondante, le compte à rebours (temps ou distance restante ; chrono pour une étape « bouton tour »), la FC si elle n'est pas la cible, puis un texte (consigne, cible secondaire, matériel). Au départ de chaque étape, vibration et notification avec la fin de l'étape et sa cible. Un tour est posé à chaque étape, pour retrouver les étapes dans l'activité enregistrée. Une étape « FIN » reste affichée avec le temps total.
+
+| TriCoach | Guide Suunto |
+| --- | --- |
+| échauffement, travail, éducatif, récupération, repos, transition, retour au calme | titre d'étape (13 caractères) : le nom du coach en majuscules, sinon ECHAUF, TRAVAIL, EDUCATIF, RECUP, REPOS, TRANSITION, RETOUR, avec le rang dans la répétition |
+| durée, distance | compte à rebours et passage automatique à l'étape suivante (`stepDuration`, `stepDistance`) |
+| répétitions (renforcement), durée libre | chrono et passage au bouton tour (`manualLap`) ; le nombre de répétitions est écrit |
+| puissance en W, % FTP ou zone ; FC en bpm, % FC seuil, % FC max ou zone ; allure en min/km, min/100 m, % seuil ou zone ; vitesse ; cadence | jauge, convertie avec les seuils de la date (m/s pour allure et vitesse, hertz pour la cadence) |
+| effort ressenti, seconde cible, cible sans seuil, matériel, départs (send-off), consignes | écrits en texte sur l'étape (40 caractères, le reste dans la notification de départ) et signalés dans le contrôle de compatibilité |
+| répétition dans une répétition | déroulée (un seul niveau chez Suunto) ; plus de 100 répétitions plafonnées |
+| enchaînement | un guide par partie, titré « séance · 1/2 », « séance · 2/2 » |
+
+Rien n'est inventé : sans seuil, la cible relative reste en texte et le seuil manquant est signalé. Limites Suunto respectées : nom 60, description 256, `shortDescription` 23, titre d'étape 13, notification 54, 1 000 étapes. Sources : [format des guides (APIZone)](https://apizone.suunto.com/suuntoplus-guide-description), [FAQ de l'API Cloud](https://apizone.suunto.com/faq).
 
 ## Déroulé d'un export
 

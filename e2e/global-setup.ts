@@ -1,18 +1,22 @@
 /**
  * Prépare un coach et un athlète neufs, reliés par une invitation acceptée, via l'API Supabase
  * (comme le ferait l'application). Les identifiants sont écrits dans e2e/.accounts.json.
- * Démarre aussi un faux Strava (données fictives) que l'application joint si elle est configurée
- * avec STRAVA_CLIENT_ID=4242 et les adresses ci-dessous ; le coach devient administrateur.
+ * Démarre aussi un faux Strava et un faux Suunto (données fictives) que l'application joint si elle
+ * est configurée avec STRAVA_CLIENT_ID=4242 / SUUNTO_CLIENT_ID=suunto-app-id et les adresses
+ * ci-dessous ; le coach devient administrateur.
  */
 import { randomUUID } from "node:crypto";
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { FakeStrava } from "../tests/fixtures/fake-strava";
+import { FakeSuunto } from "../tests/fixtures/fake-suunto";
 
 export const ACCOUNTS_FILE = path.join(__dirname, ".accounts.json");
 export const PASSWORD = "E2e-tricoach-2026";
 export const FAKE_STRAVA_PORT = Number(process.env.E2E_FAKE_STRAVA_PORT ?? 4010);
 export const FAKE_STRAVA_URL = `http://127.0.0.1:${FAKE_STRAVA_PORT}`;
+export const FAKE_SUUNTO_PORT = Number(process.env.E2E_FAKE_SUUNTO_PORT ?? 4011);
+export const FAKE_SUUNTO_URL = `http://127.0.0.1:${FAKE_SUUNTO_PORT}`;
 
 async function call(url: string, init: RequestInit & { token?: string }) {
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -67,5 +71,14 @@ export default async function globalSetup() {
   const fake = await new FakeStrava().serve(FAKE_STRAVA_PORT).catch((error: Error) => {
     throw new Error(`Faux Strava : port ${FAKE_STRAVA_PORT} indisponible (${error.message}).`);
   });
-  return () => fake.close();
+  const fakeSuunto = new FakeSuunto();
+  // Un compte Suunto fictif par lancement : un compte déjà relié à un athlète d'un lancement précédent serait refusé.
+  fakeSuunto.authorizeAs = `athlete-${run}`;
+  const suunto = await fakeSuunto.serve(FAKE_SUUNTO_PORT).catch((error: Error) => {
+    throw new Error(`Faux Suunto : port ${FAKE_SUUNTO_PORT} indisponible (${error.message}).`);
+  });
+  return async () => {
+    await fake.close();
+    await suunto.close();
+  };
 }

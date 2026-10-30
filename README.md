@@ -34,10 +34,22 @@ Variables serveur des activités (phase 3), environnement **Production**, à sai
 | `STRAVA_CLIENT_ID` et `STRAVA_CLIENT_SECRET` | votre application Strava, sur strava.com/settings/api (voir ci-dessous) |
 | `TOKEN_ENCRYPTION_KEY` | page **Administration** de TriCoach, bouton « Générer des valeurs » (32 octets en base64). À ne plus changer ensuite |
 | `CRON_SECRET` | même page, même bouton. Vercel l'envoie à la synchronisation quotidienne (`vercel.json`, 3 h 20 UTC) |
+| `SUUNTO_CLIENT_ID`, `SUUNTO_CLIENT_SECRET`, `SUUNTO_SUBSCRIPTION_KEY`, `SUUNTO_APP_NAME` | votre accès partenaire Suunto, sur apizone.suunto.com (voir « Activer Suunto » ci-dessous) |
 
-Sans elles, Strava est affiché « non configuré » et seul l'import de fichiers FIT fonctionne. Après les avoir ajoutées, relancez un déploiement (Deployments, dernier déploiement, « Redeploy »).
+Sans elles, Strava et Suunto sont affichés « non configuré » : seuls l'import de fichiers FIT et la fiche « étapes Suunto » fonctionnent. Après les avoir ajoutées, relancez un déploiement (Deployments, dernier déploiement, « Redeploy »).
 
 Pour recréer le projet : importez le dépôt `gege12-c/new` sur [vercel.com](https://vercel.com), ajoutez les deux variables, puis vérifiez dans l'onglet Deployments qu'un déploiement a bien démarré (sans déploiement, l'adresse affiche « 404 DEPLOYMENT_NOT_FOUND »).
+
+### Activer Suunto (envoi des séances sur la montre)
+
+Une fois l'accès partenaire accordé par Suunto, sur [apizone.suunto.com](https://apizone.suunto.com), connecté avec le compte qui a fait la demande :
+
+1. **Subscriptions** : abonnez-vous au produit *Developer API* (toutes les routes, quotas réduits) ; une fois actif, sa *Primary key* est `SUUNTO_SUBSCRIPTION_KEY`.
+2. **Profile**, *OAuth application settings* : créez l'application. *App name* est `SUUNTO_APP_NAME` (exactement, c'est le propriétaire des guides que Suunto vérifie), *Client secret* est une valeur que vous choisissez (`SUUNTO_CLIENT_SECRET`), *Redirect URI* est `https://new-bay-one-76.vercel.app/api/suunto/callback` (l'adresse du site suivie de `/api/suunto/callback`). Après enregistrement, le *Client ID* affiché est `SUUNTO_CLIENT_ID`.
+3. Saisissez les quatre variables dans Vercel (environnement Production) et relancez un déploiement. `TOKEN_ENCRYPTION_KEY`, `SUPABASE_SECRET_KEY` et `CRON_SECRET` servent aussi à Suunto.
+4. Chaque athlète relie ensuite son compte Suunto depuis son profil sportif (« Montre Suunto ») : ses séances publiées des 14 prochains jours partent sur sa montre comme guides SuuntoPlus, mises à jour à chaque modification du coach, retirées à l'annulation. L'appli Suunto du téléphone les transmet à la montre à sa synchronisation.
+
+Facultatif : `SUUNTO_ACTIVITIES=run:1,bike:2,swim:7|8` limite chaque guide aux modes sportifs Suunto indiqués (identifiants du document *Activities* de l'APIZone) ; sans cette variable, le guide est proposé quel que soit le sport lancé sur la montre. `SUUNTO_API_BASE_URL` et `SUUNTO_OAUTH_BASE_URL` ne servent qu'aux tests.
 
 ### 2. Régler l'authentification Supabase
 
@@ -161,6 +173,8 @@ TOKEN_ENCRYPTION_KEY="$(openssl rand -base64 32)" NEXT_PUBLIC_SITE_URL=http://lo
 ```
 
 et lancez `npm run test:e2e` avec `STRAVA_CLIENT_ID=4242` et `SUPABASE_SECRET_KEY` (le coach de test devient administrateur). Sans ces variables, les parcours Strava sont ignorés.
+
+Parcours Suunto de bout en bout : un faux Suunto écoute sur le port 4011. Ajoutez au démarrage de l'application `SUUNTO_CLIENT_ID=suunto-app-id SUUNTO_CLIENT_SECRET=suunto-app-secret SUUNTO_SUBSCRIPTION_KEY=sub-key-0123 SUUNTO_APP_NAME=TriCoach SUUNTO_API_BASE_URL=http://127.0.0.1:4011 SUUNTO_OAUTH_BASE_URL=http://127.0.0.1:4011/oauth` et `CRON_SECRET` (16 caractères au moins), et lancez `npm run test:e2e` avec `SUUNTO_CLIENT_ID=suunto-app-id`, `SUPABASE_SECRET_KEY` et le même `CRON_SECRET`.
 
 ## Documentation
 

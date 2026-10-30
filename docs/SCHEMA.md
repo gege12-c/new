@@ -169,6 +169,17 @@ Migration `20261020000000_workout_exports.sql`. Règles de conversion : [EXPORTS
 
 Sécurité : lecture par l'athlète et ses coachs actifs ; ajout par l'un d'eux, pour une séance qu'il peut lire (la politique interroge `planned_sessions` sous ses propres droits : un athlète n'exporte pas un brouillon qu'il ne voit pas) ; ni modification ni suppression par l'API.
 
+## Montre Suunto (guides SuuntoPlus)
+
+Migration `20261030120000_suunto.sql`. `external_connections.provider` accepte `suunto` (jetons dans `oauth_tokens`, chiffrés comme ceux de Strava) ; `sync_jobs.kind` accepte `suunto_push` et `suunto_remove` ; `sync_logs.provider` et `provider_state.provider` acceptent `suunto`.
+
+| Table ou fonction | Rôle | Règles |
+| --- | --- | --- |
+| `suunto_guides` | état du dernier envoi de chaque partie de séance (`guide_id` chez Suunto, `session_version` envoyée, `status` sent / failed / removed, `issues` du contrôle de compatibilité, `last_error`, `sent_at`) | une ligne par (séance, partie) ; lue par l'athlète et ses coachs autorisés, écrite par le serveur seul ; disparaît avec la séance |
+| trigger `planned_sessions_suunto_push` | après insertion ou modification (contenu, titre, description, nutrition, date, état) d'une séance d'un athlète dont la connexion Suunto est active : job `suunto_push`, une fois par version (`dedupe_key`) | le serveur décide ensuite d'envoyer, de mettre à jour ou de retirer selon l'état et la date |
+| trigger `planned_sessions_suunto_remove` | avant suppression : job `suunto_remove` avec les identifiants des guides envoyés | la ligne `suunto_guides` part avec la séance, d'où la copie dans le job |
+| `suunto_sessions_to_push(athlète, date, jours)` | séances publiées de la fenêtre avec la version déjà envoyée ; serveur seulement | tâche quotidienne et connexion : rattrape les séances entrées dans la fenêtre |
+
 ## Notifications (phase 5)
 
 Migration `20261021000000_notifications.sql`.

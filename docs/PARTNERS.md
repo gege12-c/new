@@ -7,7 +7,7 @@ Choix de l'utilisateur (19 octobre) : passer par les accès directs de Garmin et
 | Fournisseur | Accès pour TriCoach | État |
 | --- | --- | --- |
 | Garmin | Garmin Connect Developer Program (API Training pour envoyer les séances, API Activity pour recevoir les activités), réservé aux entreprises, gratuit | **demandes suspendues** depuis le printemps 2026 : formulaire indisponible, « new access requests are temporarily paused », aucune date de reprise. Les intégrations déjà agréées continuent. En attendant : **application TriCoach sur la montre** (Connect IQ, ouvert à tout développeur), voir [GARMIN_WATCH.md](GARMIN_WATCH.md) |
-| Suunto | programme partenaire (API Guides pour envoyer les séances comme guides SuuntoPlus, API Workout pour recevoir les activités en FIT), réservé aux entreprises et organisations qui proposent un service au public, gratuit, examen chaque semaine (deux semaines au plus), contrat API accepté dans le formulaire | **demande à envoyer** par l'utilisateur (texte ci-dessous) |
+| Suunto | programme partenaire (API Guides pour envoyer les séances comme guides SuuntoPlus, API Workout pour recevoir les activités en FIT), réservé aux entreprises et organisations qui proposent un service au public, gratuit, examen chaque semaine (deux semaines au plus), contrat API accepté dans le formulaire | **demande envoyée le 19 octobre, réponse attendue** ; **connecteur livré le 30 octobre** (envoi des séances comme guides, testé contre un faux Suunto) : il s'active dès les identifiants saisis dans Vercel (README, « Activer Suunto ») |
 | Zwift | aucune API publique | fichier .zwo à importer (rubrique « Exporter vers mes appareils ») |
 | MyWhoosh | aucune API publique ni intégration directe pour les plateformes d'entraînement | fichier .zwo à importer dans le créateur de séances de MyWhoosh |
 
@@ -44,7 +44,7 @@ Commercial interest
 TriCoach is free for its users at this stage.
 ```
 
-Après acceptation : abonnement à l'API de développement sur l'APIZone (toutes les routes, quotas réduits), construction du connecteur (guides des 7 prochains jours mis à jour à chaque modification, import des activités en FIT avec rapprochement et droits du coach), puis passage en production (fiche du service à soumettre à Suunto). Les identifiants de l'application Suunto se saisissent dans Vercel par l'utilisateur, comme ceux de Strava.
+Après acceptation : abonnement à l'API de développement sur l'APIZone (toutes les routes, quotas réduits), puis saisie des identifiants dans Vercel par l'utilisateur, comme ceux de Strava (README, « Activer Suunto »). Le connecteur d'envoi est construit (guides des 14 prochains jours, mis à jour à chaque modification, retirés à l'annulation ; [EXPORTS.md](EXPORTS.md)). Reste à construire ensuite : l'import des activités Suunto en FIT (API Workout, webhooks) avec rapprochement et droits du coach, et le passage en production (fiche du service à soumettre à Suunto).
 
 ## Autres pistes étudiées le 19 octobre 2026
 

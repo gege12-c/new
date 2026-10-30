@@ -25,6 +25,16 @@ export interface StravaDeps {
   now: () => Date;
 }
 
+/**
+ * File de jobs commune à toutes les intégrations : un traitement par sorte de job. Un job dont la
+ * sorte n'a pas de traitement ici est remis en file pour un passage qui l'aura.
+ */
+export interface JobRunner {
+  admin: AdminClient;
+  now: () => Date;
+  handlers: Record<string, (job: SyncJob) => Promise<void>>;
+}
+
 /** L'athlète a retiré l'accès, ou ses jetons ne sont plus acceptés : il doit se reconnecter. */
 export class StravaReauthError extends Error {
   constructor() {
@@ -42,7 +52,7 @@ export class StravaDeferError extends Error {
 }
 
 type Connection = { id: string; athlete_id: string; external_athlete_id: string; status: string };
-type SyncJob = { id: number; kind: string; athlete_id: string | null; payload: Json; attempts: number; max_attempts: number };
+export type SyncJob = { id: number; kind: string; athlete_id: string | null; payload: Json; attempts: number; max_attempts: number };
 
 const DAY_MS = 86_400_000;
 
@@ -71,7 +81,7 @@ async function ensureQuota(deps: StravaDeps) {
 
 export async function logSync(
   admin: AdminClient,
-  entry: { level: "info" | "warn" | "error"; event: string; message?: string; athleteId?: string | null; jobId?: number | null; provider?: "strava" | "fit" },
+  entry: { level: "info" | "warn" | "error"; event: string; message?: string; athleteId?: string | null; jobId?: number | null; provider?: "strava" | "fit" | "suunto" },
 ) {
   await admin.from("sync_logs").insert({
     level: entry.level,
@@ -480,22 +490,35 @@ export interface RunReport {
   deferred: number;
 }
 
+/** Traitements des jobs Strava et de maintenance. */
+export function stravaJobHandlers(deps: StravaDeps): JobRunner["handlers"] {
+  return {
+    strava_event: (job) => handleEvent(deps, job),
+    strava_sync: (job) => handleSync(deps, job),
+    maintenance: () => handleMaintenance(deps),
+  };
+}
+
+function asRunner(deps: StravaDeps | JobRunner): JobRunner {
+  return "handlers" in deps ? deps : { admin: deps.admin, now: deps.now, handlers: stravaJobHandlers(deps) };
+}
+
 /** Exécute les jobs dus, dans le temps imparti ; les autres restent en file pour le passage suivant. */
-export async function runDueJobs(deps: StravaDeps, options: { limit?: number; budgetMs?: number } = {}): Promise<RunReport> {
+export async function runDueJobs(input: StravaDeps | JobRunner, options: { limit?: number; budgetMs?: number } = {}): Promise<RunReport> {
+  const deps = asRunner(input);
   const started = Date.now();
   const report: RunReport = { done: 0, failed: 0, deferred: 0 };
   const { data: jobs, error } = await deps.admin.rpc("claim_sync_jobs", { p_limit: options.limit ?? 10 });
   if (error) throw new Error(`File de jobs inaccessible : ${error.message}`);
 
   for (const job of (jobs ?? []) as SyncJob[]) {
-    if (Date.now() - started > (options.budgetMs ?? 8000)) {
+    const handler = deps.handlers[job.kind];
+    if (Date.now() - started > (options.budgetMs ?? 8000) || !handler) {
       await deps.admin.from("sync_jobs").update({ status: "pending", attempts: job.attempts - 1, locked_at: null }).eq("id", job.id);
       continue;
     }
     try {
-      if (job.kind === "strava_event") await handleEvent(deps, job);
-      else if (job.kind === "strava_sync") await handleSync(deps, job);
-      else await handleMaintenance(deps);
+      await handler(job);
       await deps.admin
         .from("sync_jobs")
         .update({ status: "done", payload: {}, finished_at: deps.now().toISOString(), last_error: null, locked_at: null })
@@ -508,12 +531,15 @@ export async function runDueJobs(deps: StravaDeps, options: { limit?: number; bu
   return report;
 }
 
-async function recordFailure(deps: StravaDeps, job: SyncJob, failure: unknown, report: RunReport) {
+async function recordFailure(deps: JobRunner, job: SyncJob, failure: unknown, report: RunReport) {
   const now = deps.now();
-  if (failure instanceof StravaDeferError || (failure instanceof StravaError && failure.kind === "rate_limited")) {
-    const until = failure instanceof StravaDeferError ? failure.until : (failure.retryAt ?? new Date(now.getTime() + 15 * 60_000));
-    if (failure instanceof StravaError) {
-      await deps.admin.from("provider_state").upsert({ provider: "strava", blocked_until: until.toISOString() }, { onConflict: "provider" });
+  const provider = job.kind.startsWith("suunto_") ? "suunto" : "strava";
+  // Les erreurs Suunto portent les mêmes repères (kind, retryAt, nom) que celles de Strava.
+  const rateLimited = failure instanceof Error && (failure as { kind?: string }).kind === "rate_limited";
+  if (failure instanceof StravaDeferError || rateLimited) {
+    const until = failure instanceof StravaDeferError ? failure.until : ((failure as { retryAt?: Date }).retryAt ?? new Date(now.getTime() + 15 * 60_000));
+    if (rateLimited) {
+      await deps.admin.from("provider_state").upsert({ provider, blocked_until: until.toISOString() }, { onConflict: "provider" });
     }
     // Un report pour quota ne compte pas comme un échec.
     await deps.admin
@@ -523,7 +549,7 @@ async function recordFailure(deps: StravaDeps, job: SyncJob, failure: unknown, r
     report.deferred += 1;
     return;
   }
-  const reauth = failure instanceof StravaReauthError;
+  const reauth = failure instanceof StravaReauthError || (failure instanceof Error && failure.name === "SuuntoReauthError");
   const dead = reauth || job.attempts >= job.max_attempts;
   const message = failure instanceof Error ? failure.message : "Erreur inconnue.";
   await deps.admin
@@ -541,14 +567,15 @@ async function recordFailure(deps: StravaDeps, job: SyncJob, failure: unknown, r
       .from("external_connections")
       .update({ last_error: "sync_failed", last_error_at: now.toISOString() })
       .eq("athlete_id", job.athlete_id)
-      .eq("provider", "strava");
+      .eq("provider", provider);
   }
   await logSync(deps.admin, {
     level: dead ? "error" : "warn",
     event: `${job.kind}_${dead ? "abandoned" : "retry"}`,
-    message: reauth ? "Reconnexion à Strava nécessaire." : message,
+    message: reauth ? `Reconnexion à ${provider === "suunto" ? "Suunto" : "Strava"} nécessaire.` : message,
     athleteId: job.athlete_id,
     jobId: job.id,
+    provider,
   });
   report.failed += 1;
 }
