@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
     if (result.status !== "connected") return back(result.status);
     // Les guides partent tout de suite, dans la file commune.
     const runner = jobRunner(site);
-    if (runner) after(() => runDueJobs(runner, { limit: 10, budgetMs: 40_000 }).catch(() => undefined));
+    if (runner) after(() => runDueJobs(runner, { limit: 30, budgetMs: 50_000 }).catch(() => undefined));
     return back("connected");
   } catch (error) {
     await logSuunto(deps.admin, {

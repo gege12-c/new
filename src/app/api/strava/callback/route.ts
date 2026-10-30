@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { after, NextResponse, type NextRequest } from "next/server";
 import { getSession } from "@/lib/auth/dal";
 import { getSiteUrl } from "@/lib/site";
+import { jobRunner } from "@/lib/jobs/runner";
 import { stravaDeps } from "@/lib/strava/deps";
 import { stateMatches, STATE_COOKIE } from "@/lib/strava/oauth-state";
 import { connectStrava, logSync, runDueJobs } from "@/lib/strava/service";
@@ -28,7 +29,8 @@ export async function GET(request: NextRequest) {
   try {
     const result = await connectStrava(deps, session.userId, code, params.get("scope"));
     if (result.status !== "connected") return back(result.status);
-    after(() => runDueJobs(deps, { limit: 5, budgetMs: 40_000 }).catch(() => undefined));
+    const runner = jobRunner(site) ?? deps;
+    after(() => runDueJobs(runner, { limit: 5, budgetMs: 40_000 }).catch(() => undefined));
     return back("connected");
   } catch (error) {
     await logSync(deps.admin, {

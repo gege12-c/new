@@ -5,6 +5,7 @@ import { refresh } from "next/cache";
 import { getSession } from "@/lib/auth/dal";
 import { getSiteUrl } from "@/lib/site";
 import { StravaError } from "@/lib/strava/api";
+import { jobRunner } from "@/lib/jobs/runner";
 import { stravaDeps } from "@/lib/strava/deps";
 import { logSync, runDueJobs } from "@/lib/strava/service";
 
@@ -67,7 +68,7 @@ export async function deleteStravaWebhook(): Promise<Result> {
 export async function runJobsNow(): Promise<Result> {
   const ctx = await adminDeps();
   if ("error" in ctx) return { status: "error", message: ctx.error };
-  const report = await runDueJobs(ctx.deps, { limit: 20, budgetMs: 40_000 });
+  const report = await runDueJobs(jobRunner(await getSiteUrl()) ?? ctx.deps, { limit: 20, budgetMs: 40_000 });
   refresh();
   return { status: "ok", message: `${report.done} job(s) terminé(s), ${report.failed} en échec, ${report.deferred} reporté(s) pour quota.` };
 }

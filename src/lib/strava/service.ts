@@ -512,9 +512,11 @@ export async function runDueJobs(input: StravaDeps | JobRunner, options: { limit
   if (error) throw new Error(`File de jobs inaccessible : ${error.message}`);
 
   for (const job of (jobs ?? []) as SyncJob[]) {
-    const handler = deps.handlers[job.kind];
+    const handler = Object.hasOwn(deps.handlers, job.kind) ? deps.handlers[job.kind] : undefined;
     if (Date.now() - started > (options.budgetMs ?? 8000) || !handler) {
-      await deps.admin.from("sync_jobs").update({ status: "pending", attempts: job.attempts - 1, locked_at: null }).eq("id", job.id);
+      // Sans traitement pour cette sorte de job, il repasse derrière les autres (une minute) au lieu de les bloquer.
+      const later = handler ? {} : { run_after: new Date(deps.now().getTime() + 60_000).toISOString() };
+      await deps.admin.from("sync_jobs").update({ status: "pending", attempts: job.attempts - 1, locked_at: null, ...later }).eq("id", job.id);
       continue;
     }
     try {

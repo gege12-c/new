@@ -1,4 +1,6 @@
 import { after, NextResponse, type NextRequest } from "next/server";
+import { jobRunner } from "@/lib/jobs/runner";
+import { getSiteUrl } from "@/lib/site";
 import { stravaSettings } from "@/lib/strava/config";
 import { stravaDeps } from "@/lib/strava/deps";
 import { WebhookEventSchema } from "@/lib/strava/schemas";
@@ -37,7 +39,10 @@ export async function POST(request: NextRequest) {
 
   try {
     const outcome = await enqueueWebhookEvent(deps, event.data);
-    if (outcome === "queued") after(() => runDueJobs(deps, { limit: 5, budgetMs: 40_000 }).catch(() => undefined));
+    if (outcome === "queued") {
+      const runner = jobRunner(await getSiteUrl()) ?? deps;
+      after(() => runDueJobs(runner, { limit: 5, budgetMs: 40_000 }).catch(() => undefined));
+    }
     return NextResponse.json({ ok: true });
   } catch (error) {
     await logSync(deps.admin, { level: "error", event: "strava_webhook_failed", message: error instanceof Error ? error.message : undefined }).catch(

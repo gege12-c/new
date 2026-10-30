@@ -129,7 +129,7 @@ test("l'athlète relie son compte Suunto : la séance part seule sur la montre",
   // Les guides partent dans la file de jobs, juste après le retour de Suunto.
   await expect
     .poll(async () => (await guidesOnSuunto()).map((g) => g.name), {
-      timeout: 20_000,
+      timeout: 60_000,
     })
     .toContain(title);
   const guide = (await guidesOnSuunto()).find((g) => g.name === title)!;

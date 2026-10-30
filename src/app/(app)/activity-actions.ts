@@ -12,6 +12,8 @@ import { ImportBatchSchema } from "@/lib/activities/schema";
 import { getProfile, getSession } from "@/lib/auth/dal";
 import { friendlyError } from "@/lib/errors";
 import type { TablesInsert } from "@/lib/supabase/database.types";
+import { jobRunner } from "@/lib/jobs/runner";
+import { getSiteUrl } from "@/lib/site";
 import { stravaDeps } from "@/lib/strava/deps";
 import { disconnectStrava, enqueueSync, logSync, runDueJobs } from "@/lib/strava/service";
 
@@ -52,7 +54,8 @@ export async function syncStravaNow(): Promise<Result> {
   await supabase.rpc("purge_my_expired_activities");
   const bucket = Math.floor(Date.now() / 300_000);
   await enqueueSync(deps, connection.id, userId, `manual:${bucket}`);
-  after(() => runDueJobs(deps, { limit: 5, budgetMs: 40_000 }).catch(() => undefined));
+  const runner = jobRunner(await getSiteUrl()) ?? deps;
+  after(() => runDueJobs(runner, { limit: 5, budgetMs: 40_000 }).catch(() => undefined));
   return { status: "ok", message: "Synchronisation lancée : vos activités arrivent dans quelques secondes." };
 }
 
