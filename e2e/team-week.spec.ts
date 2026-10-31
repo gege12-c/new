@@ -60,14 +60,14 @@ test("le coach voit la semaine de tous ses athlètes, jour par jour", async ({ b
   await expect(page).toHaveURL(/\/coach\/week$/);
   await expect(page.getByRole("heading", { level: 1, name: "Semaine de mes athlètes" })).toBeVisible();
 
-  const row = page.getByRole("row", { name: new RegExp(athlete.name) });
-  await expect(row.getByRole("link", { name: new RegExp(`^${title}, à faire`) })).toBeVisible();
-  await expect(row.getByRole("link", { name: new RegExp(`^Brouillon ${stamp}, brouillon`) })).toBeVisible();
-  await expect(row.getByText(`Déplacement : Rotation ${stamp}`)).toBeVisible();
-  await expect(row).toContainText(/\d+ brouillons?/);
+  await expect(page.getByRole("rowheader", { name: athlete.name })).toBeVisible();
+  await expect(page.getByRole("link", { name: `${title}, à faire` })).toBeVisible();
+  await expect(page.getByRole("link", { name: `Brouillon ${stamp}, brouillon` })).toBeVisible();
+  await expect(page.getByText(`Déplacement : Rotation ${stamp}`)).toBeVisible();
+  await expect(page.getByText(/^\d+ brouillons?$/).first()).toBeVisible();
 
   // La séance s'ouvre dans le calendrier de l'athlète, sur le bon jour.
-  await row.getByRole("link", { name: new RegExp(`^${title}`) }).click();
+  await page.getByRole("link", { name: `${title}, à faire` }).click();
   await expect(page).toHaveURL(new RegExp(`/coach/athletes/${athlete.id}\\?view=week&date=${today}&session=${session.id}`));
   await expect(page.getByRole("complementary", { name: title })).toBeVisible();
 
@@ -75,7 +75,7 @@ test("le coach voit la semaine de tous ses athlètes, jour par jour", async ({ b
   await page.goto("/coach/week");
   await page.getByRole("link", { name: "Semaine suivante" }).click();
   await expect(page).toHaveURL(/\/coach\/week\?week=\d{4}-\d{2}-\d{2}$/);
-  await expect(page.getByRole("row", { name: new RegExp(athlete.name) })).toBeVisible();
+  await expect(page.getByRole("rowheader", { name: athlete.name })).toBeVisible();
   await expect(page.getByRole("link", { name: new RegExp(`^${title}`) })).toHaveCount(0);
   await page.context().close();
 });

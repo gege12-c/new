@@ -146,18 +146,19 @@ async function TeamWeek({ searchParams }: Pick<PageProps<"/coach/week">, "search
                               "flex items-center gap-1.5 rounded-[8px] border px-1.5 py-1 text-[12.5px] leading-tight transition-colors hover:bg-surface-2",
                               s.draft ? "border-dashed border-line-strong italic text-muted" : "border-line text-ink",
                             )}
+                            aria-label={`${s.title}, ${STATUS_LABELS[s.status].toLowerCase()}`}
                             title={`${s.title}, ${STATUS_LABELS[s.status].toLowerCase()}`}
                           >
                             <SportDot sport={s.sport as SessionSport} />
                             <span className="min-w-0 flex-1 truncate">{s.title}</span>
                             {SHOWN_STATUSES.has(s.status) ? <StatusGlyph status={s.status} /> : null}
-                            <span className="sr-only">, {STATUS_LABELS[s.status].toLowerCase()}</span>
                           </Link>
                         ))}
                         {cell.extra.map((a) => (
                           <Link
                             key={a.id}
                             href={`/coach/athletes/${row.athleteId}?view=week&date=${cell.date}&activity=${a.id}`}
+                            aria-label={`${SPORT_LABELS[a.sport as SessionSport] ?? "Activité"} hors programme${a.durationS ? `, ${formatDurationShort(a.durationS)}` : ""}`}
                             className="flex items-center gap-1.5 rounded-[8px] bg-surface-2 px-1.5 py-1 text-[12px] leading-tight text-ink-soft hover:bg-surface-3"
                           >
                             <SportDot sport={a.sport as SessionSport} />
