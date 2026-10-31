@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { ServiceWorkerRegistration } from "@/components/pwa/service-worker";
+import { ThemeSync } from "@/components/theme-sync";
+import { THEME_COLORS, THEME_SCRIPT } from "@/lib/theme";
 import { APP_NAME } from "@/lib/utils";
 import { archivo } from "./fonts";
 import "./globals.css";
@@ -15,16 +17,21 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f3f5f8" },
-    { media: "(prefers-color-scheme: dark)", color: "#0a1220" },
+    { media: "(prefers-color-scheme: light)", color: THEME_COLORS.light },
+    { media: "(prefers-color-scheme: dark)", color: THEME_COLORS.dark },
   ],
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="fr" className={`${archivo.variable} h-full antialiased`}>
+    // Le script de tête pose le thème avant le premier affichage : <html> diffère donc du rendu serveur.
+    <html lang="fr" className={`${archivo.variable} h-full antialiased`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
       <body className="min-h-full">
         {children}
+        <ThemeSync />
         <ServiceWorkerRegistration />
       </body>
     </html>

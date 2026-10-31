@@ -2,6 +2,10 @@
 
 Dernière mise à jour : 31 octobre 2026, début d'après-midi. Phases 1 à 5 livrées ; nuit du 30 au 31 octobre : séances envoyées seules sur la montre (Suunto, Garmin, COROS) et activités et mesures du matin rapportées, par intervals.icu ; courbes et intervalles de chaque activité, efforts prévus et réalisés, meilleures puissances, zones et seuils tirés d'un test, semaine de tous les athlètes ; une séance faite comptée une fois quelle que soit sa source ; jours indisponibles ; forme du jour ; agenda du téléphone ; plans d'entraînement ; vue saison ; séance écrite en texte ; contrôle de production plus parlant. 31 octobre : progression juste, analyse des séances, puis pages affinées (saisie au téléphone, exports par discipline, séances types, bien démarrer, seuils alignés avec intervals.icu). Ce qui vous reste à faire est en fin de page.
 
+## Début d'après-midi du 31 octobre : clair ou sombre au choix
+
+Demandé à 13 h 07 : « y'a plus le mode clair ? ». L'application suivait seulement le réglage de l'appareil : un téléphone en mode sombre l'affichait en sombre, sans autre choix. Réglages, « Apparence » : « Comme l'appareil » (par défaut), « Clair » ou « Sombre », gardé sur cet appareil et appliqué dès l'ouverture d'une page, sans éclair de l'autre thème (script de tête de page, guide Next.js « Preventing flash before hydration », `src/lib/theme.ts`). Vérification : `e2e/theme.spec.ts` (appareil en sombre, mode clair choisi, gardé d'une page à l'autre, retour à l'appareil) et audit d'accessibilité dans les deux thèmes.
+
 ## Midi du 31 octobre : des pages plus simples, pour tous les athlètes
 
 Demandé à 11 h 51 : « affine toutes les pages, par exemple que Zwift ou Wahoo ne soient dispo que pour le vélo et non pas pour la CAP ; les montres doivent l'être partout. Je veux que l'appli soit adaptable à tous les athlètes, extrêmement facile, pour se passer d'intervals.icu sauf comme connexion entre les montres. Depuis le portable, il est impossible de mettre « : » dans les allures. Je veux que ce soit hyper intuitif de créer une séance. »
@@ -205,6 +209,7 @@ Livré :
 | Sujet | Décision | Raison |
 | --- | --- | --- |
 | Cache Components (Next.js 16) | conservé, lectures de session sous `<Suspense>` | ce sera le fonctionnement par défaut de la prochaine version majeure |
+| Thème clair ou sombre (31 octobre) | celui de l'appareil par défaut ; « Clair » ou « Sombre » au choix dans les Réglages, gardé sur l'appareil (pas sur le compte) | un téléphone en sombre imposait le sombre ; le choix peut différer entre téléphone et ordinateur |
 | Zwift et Wahoo (31 octobre, midi) | proposés seulement pour une séance ou une partie de vélo ; la montre pour toutes les disciplines | demandé par l'athlète ; le générateur .zwo sait toujours écrire la course (testé), l'application ne la propose plus |
 | Rubrique d'export | « Sur la montre » en tête, les autres voies repliées quand l'envoi automatique marche | une seule chose à regarder quand tout est relié ; tout reste à un geste sinon |
 | Saisie des allures et durées | « 4,30 », « 430 » ou « 4 30 » valent 4:30 ; « 0,20 » vaut 20 s ; deux chiffres seuls refusés pour une allure | le clavier numérique du téléphone n'a pas de « : » ; rien n'est deviné quand c'est ambigu |

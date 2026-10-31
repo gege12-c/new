@@ -6,6 +6,7 @@ import { InstallPanelBody } from "@/components/pwa/install-app";
 import { NotificationPreferencesForm } from "@/components/settings/notification-preferences";
 import { AccountData } from "@/components/settings/account-data";
 import { AccountForm } from "@/components/settings/account-form";
+import { ThemeSetting } from "@/components/settings/theme-setting";
 import { Button } from "@/components/ui/button";
 import { SectionSkeleton } from "@/components/ui/feedback";
 import { PageHeader, Panel } from "@/components/ui/panel";
@@ -31,6 +32,9 @@ async function SettingsContent() {
   const timezones = Intl.supportedValuesOf("timeZone");
   return (
     <div className="space-y-6">
+      <Panel id="apparence" title="Apparence" description="Clair ou sombre, sur cet appareil. « Comme l’appareil » suit le réglage du téléphone ou de l’ordinateur.">
+        <ThemeSetting />
+      </Panel>
       <Panel title="Compte">
         <AccountForm values={profile} timezones={timezones} />
       </Panel>

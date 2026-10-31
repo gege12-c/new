@@ -72,63 +72,71 @@
   --shadow-pop: 0 1px 2px rgb(14 26 43 / 0.06), 0 8px 24px -6px rgb(14 26 43 / 0.18);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --canvas: #0a1220;
-    --surface: #101b2c;
-    --surface-2: #16233a;
-    --surface-3: #1e2d46;
-    --ink: #e8eef6;
-    --ink-soft: #c3cedc;
-    --muted: #8e9db2;
-    --line: #22324b;
-    --line-strong: #31445f;
-    --primary: #e8eef6;
-    --primary-ink: #0a1220;
-    --night: #0d1729;
-    --night-2: #15233a;
+/*
+ * Thème sombre : celui de l'appareil, ou choisi dans les réglages. L'attribut est posé avant le
+ * premier affichage par le script de tête de page (src/lib/theme.ts).
+ */
+:root[data-theme="light"] {
+  color-scheme: light;
+}
 
-    --success: #4cc78a;
-    --success-soft: #0f2c20;
-    --warning: #f3bd4f;
-    --warning-soft: #33270b;
-    --danger: #f46b78;
-    --danger-soft: #3a1419;
+:root[data-theme="dark"] {
+  color-scheme: dark;
 
-    --swim: #3ba6ee;
-    --swim-soft: #0f2a42;
-    --swim-ink: #94cff6;
-    --bike: #f2b632;
-    --bike-soft: #33280c;
-    --bike-ink: #f7d27f;
-    --run: #f2666b;
-    --run-soft: #3a1618;
-    --run-ink: #f8a6a9;
-    --strength: #9886f2;
-    --strength-soft: #241d47;
-    --strength-ink: #c7bdf8;
-    --brick: #f28f45;
-    --brick-soft: #3a220f;
-    --brick-ink: #f8c093;
-    --other: #93a0b2;
-    --other-soft: #1d2a3d;
-    --other-ink: #c6cfdb;
+  --canvas: #0a1220;
+  --surface: #101b2c;
+  --surface-2: #16233a;
+  --surface-3: #1e2d46;
+  --ink: #e8eef6;
+  --ink-soft: #c3cedc;
+  --muted: #8e9db2;
+  --line: #22324b;
+  --line-strong: #31445f;
+  --primary: #e8eef6;
+  --primary-ink: #0a1220;
+  --night: #0d1729;
+  --night-2: #15233a;
 
-    --zone-1: #7f93a8;
-    --zone-2: #4ba6e6;
-    --zone-3: #3cc28d;
-    --zone-4: #f5c94e;
-    --zone-5: #f6934b;
-    --zone-6: #f05d63;
+  --success: #4cc78a;
+  --success-soft: #0f2c20;
+  --warning: #f3bd4f;
+  --warning-soft: #33270b;
+  --danger: #f46b78;
+  --danger-soft: #3a1419;
 
-    --chart-swim: #2394db;
-    --chart-bike: #bb8803;
-    --chart-strength: #8572dd;
-    --chart-run: #e2575d;
-    --chart-other: #7b8799;
+  --swim: #3ba6ee;
+  --swim-soft: #0f2a42;
+  --swim-ink: #94cff6;
+  --bike: #f2b632;
+  --bike-soft: #33280c;
+  --bike-ink: #f7d27f;
+  --run: #f2666b;
+  --run-soft: #3a1618;
+  --run-ink: #f8a6a9;
+  --strength: #9886f2;
+  --strength-soft: #241d47;
+  --strength-ink: #c7bdf8;
+  --brick: #f28f45;
+  --brick-soft: #3a220f;
+  --brick-ink: #f8c093;
+  --other: #93a0b2;
+  --other-soft: #1d2a3d;
+  --other-ink: #c6cfdb;
 
-    --shadow-pop: 0 1px 2px rgb(0 0 0 / 0.4), 0 12px 32px -8px rgb(0 0 0 / 0.6);
-  }
+  --zone-1: #7f93a8;
+  --zone-2: #4ba6e6;
+  --zone-3: #3cc28d;
+  --zone-4: #f5c94e;
+  --zone-5: #f6934b;
+  --zone-6: #f05d63;
+
+  --chart-swim: #2394db;
+  --chart-bike: #bb8803;
+  --chart-strength: #8572dd;
+  --chart-run: #e2575d;
+  --chart-other: #7b8799;
+
+  --shadow-pop: 0 1px 2px rgb(0 0 0 / 0.4), 0 12px 32px -8px rgb(0 0 0 / 0.6);
 }
 
 @theme inline {
