@@ -266,9 +266,10 @@ export function FitnessChart({ data }: { data: FitnessData }) {
                 <span
                   key={z.key}
                   aria-hidden
-                  className="pointer-events-none absolute left-1.5 -translate-y-1/2 whitespace-nowrap rounded-[4px] bg-surface/80 px-1 text-[10.5px] font-semibold leading-tight"
-                  style={{ top: `${(middle / H_FORM) * 100}%`, color: ZONE_COLOR[z.key] }}
+                  className="pointer-events-none absolute left-1.5 flex -translate-y-1/2 items-center gap-1 whitespace-nowrap rounded-[4px] bg-surface/85 px-1 text-[10.5px] font-semibold leading-tight text-ink-soft"
+                  style={{ top: `${(middle / H_FORM) * 100}%` }}
                 >
+                  <span className="size-1.5 rounded-full" style={{ background: ZONE_COLOR[z.key] }} />
                   {z.label}
                 </span>
               );

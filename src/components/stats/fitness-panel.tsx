@@ -75,7 +75,8 @@ export function FitnessPanel({ data, viewer }: { data: FitnessData; viewer: "ath
             ) : null}
           </dl>
           <p className="-mt-2 mb-4 text-[13.5px] text-ink-soft">
-            <span className="font-semibold" style={{ color: ZONE_COLOR[zone.key] }}>
+            <span className="inline-flex items-center gap-1.5 font-semibold text-ink">
+              <span aria-hidden className="size-2.5 rounded-full" style={{ background: ZONE_COLOR[zone.key] }} />
               {zone.label}
             </span>{" "}
             : {zone.hint}
