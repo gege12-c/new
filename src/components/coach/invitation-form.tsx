@@ -1,7 +1,7 @@
 "use client";
 
-import { Check, Copy, Mail } from "lucide-react";
-import { useActionState, useState } from "react";
+import { Check, Copy, Mail, Share2 } from "lucide-react";
+import { useActionState, useState, useSyncExternalStore } from "react";
 import { createInvitation } from "@/app/(app)/actions";
 import { buttonClasses } from "@/components/ui/button";
 import { Button } from "@/components/ui/button";
@@ -12,9 +12,14 @@ import { idle } from "@/lib/action-state";
 
 const expiryFormatter = new Intl.DateTimeFormat("fr-FR", { dateStyle: "long", timeStyle: "short" });
 
+const subscribeNothing = () => () => {};
+/** Partage du téléphone (SMS, WhatsApp, email…) : seulement là où le navigateur le propose. */
+const useCanShare = () => useSyncExternalStore(subscribeNothing, () => typeof navigator.share === "function", () => false);
+
 export function InvitationForm({ coachName }: { coachName: string }) {
   const [state, action] = useActionState(createInvitation, idle);
   const [copied, setCopied] = useState<string | null>(null);
+  const canShare = useCanShare();
   const link = state.status === "success" ? state.data?.link : undefined;
   const email = state.status === "success" ? state.data?.email : undefined;
 
@@ -25,6 +30,14 @@ export function InvitationForm({ coachName }: { coachName: string }) {
     } catch {
       setCopied(null);
       window.prompt("Copiez le lien :", value);
+    }
+  }
+
+  async function share(value: string) {
+    try {
+      await navigator.share({ title: "Invitation TriCoach", text: `${coachName} vous invite sur TriCoach pour suivre votre entraînement : ouvrez ce lien et acceptez.`, url: value });
+    } catch {
+      // Partage annulé : rien à faire, le lien reste affiché.
     }
   }
 
@@ -62,13 +75,19 @@ export function InvitationForm({ coachName }: { coachName: string }) {
           </p>
           <p className="mt-3 break-all rounded border border-line bg-surface px-3 py-2 font-mono text-[13px]">{link}</p>
           <div className="mt-3 flex flex-wrap gap-2">
+            {canShare ? (
+              <Button size="sm" onClick={() => share(link)}>
+                <Share2 className="size-4" aria-hidden />
+                Envoyer (SMS, WhatsApp…)
+              </Button>
+            ) : null}
             <Button size="sm" variant="secondary" onClick={() => copy(link)}>
               {copied === link ? <Check className="size-4" aria-hidden /> : <Copy className="size-4" aria-hidden />}
               {copied === link ? "Lien copié" : "Copier le lien"}
             </Button>
             <a className={buttonClasses("secondary", "sm")} href={mailto}>
               <Mail className="size-4" aria-hidden />
-              Préparer un email
+              {email ? `Envoyer par email à ${email}` : "Envoyer par email"}
             </a>
           </div>
         </div>

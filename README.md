@@ -46,7 +46,7 @@ Pour recréer le projet : importez le dépôt `gege12-c/new` sur [vercel.com](ht
 Le tableau de bord Supabase s'ouvre depuis Vercel (onglet Storage, base `supabase-rose-candle`, bouton « Open in Supabase ») ou directement sur supabase.com. Dans **Authentication** :
 
 - **URL Configuration** : *Site URL* = `https://new-bay-one-76.vercel.app` ; dans *Redirect URLs*, ajoutez `https://new-bay-one-76.vercel.app/**` (et `http://localhost:3000/**` pour le développement). Sans cela, les liens reçus par email renvoient vers `localhost`.
-- **Sign In / Providers**, section Email : désactivez **Confirm email**, puis enregistrez. Tant qu'aucun service d'envoi d'emails (SMTP) n'est configuré, Supabase n'envoie d'emails qu'aux membres de l'organisation du projet : vos athlètes ne pourraient pas confirmer leur compte. Réactivez-la après avoir configuré un service d'envoi. Le mot de passe oublié reste limité aux membres de l'organisation d'ici là.
+- **Sign In / Providers**, section Email : désactivez **Confirm email**, puis enregistrez. Tant qu'aucun service d'envoi d'emails (SMTP) n'est configuré, Supabase n'envoie d'emails qu'aux membres de l'organisation du projet : vos athlètes ne pourraient pas confirmer leur compte. Réactivez-la après avoir configuré un service d'envoi ([docs/EMAILS.md](docs/EMAILS.md) : Gmail avec un mot de passe d'application, modèles d'emails en français). Le mot de passe oublié reste limité aux membres de l'organisation d'ici là.
 
 Contrôle : `/api/health` affiche alors `"emailConfirmation": "disabled"`.
 
@@ -89,16 +89,23 @@ Les migrations pas encore appliquées en production (aucune au 31 octobre 2026 :
 
 ### Sauvegardes
 
-L'offre gratuite de Supabase ne comprend pas de sauvegarde automatique ; Supabase recommande d'exporter régulièrement ses données ([documentation](https://supabase.com/docs/guides/platform/backups)). L'offre Pro garde les 7 dernières sauvegardes quotidiennes. Export manuel, depuis un ordinateur :
+L'offre gratuite de Supabase ne comprend pas de sauvegarde automatique ([documentation](https://supabase.com/docs/guides/platform/backups)). Le dépôt en fait une **chaque nuit** (workflow `.github/workflows/backup.yml`, aussi à la demande : Actions, « Sauvegarde », Run workflow) avec la méthode officielle de Supabase ([Backup and Restore using the CLI](https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore)) : rôles, schéma et données, en une archive **chiffrée** (AES-256, phrase secrète), gardée 30 jours dans l'exécution (Artifacts). Le dépôt est public : rien n'y est écrit en clair.
+
+Mise en place, une fois (propriétaire du dépôt) :
+
+1. Supabase, projet, bouton « Connect » : copiez la chaîne « Session pooler » (les serveurs de GitHub n'ont pas d'IPv6) et remplacez `[YOUR-PASSWORD]` par le mot de passe de la base (Database Settings, « Reset database password » si vous ne l'avez plus).
+2. GitHub, dépôt, Settings, Secrets and variables, Actions, « New repository secret » : `SUPABASE_DB_URL` (la chaîne ci-dessus), puis `BACKUP_PASSPHRASE` (une phrase de 20 caractères au moins, à garder aussi ailleurs, dans votre gestionnaire de mots de passe : sans elle, aucune sauvegarde ne se relit).
+3. Actions, « Sauvegarde », « Run workflow » : l'exécution doit finir en vert, avec un fichier `tricoach-….tar.gz.enc` dans Artifacts.
+
+Restaurer (dans un nouveau projet Supabase, depuis un ordinateur) : téléchargez l'artefact, dézippez-le, puis
 
 ```bash
-npx supabase login
-npx supabase link --project-ref ugqtfkuisaqjdnwxvogm
-npx supabase db dump -f tricoach-schema.sql
-npx supabase db dump --data-only -f tricoach-donnees.sql
+openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in tricoach-AAAA-MM-JJ-HHMM.tar.gz.enc | tar -xzf -
+psql --single-transaction --variable ON_ERROR_STOP=1 --file roles.sql --file schema.sql \
+  --command 'SET session_replication_role = replica' --file data.sql --dbname "<chaîne de connexion du nouveau projet>"
 ```
 
-Gardez ces fichiers hors du dépôt GitHub (il est public) : ils contiennent les données des athlètes.
+`openssl` demande la phrase secrète. Ensuite, comme le précise Supabase : réactiver Realtime si besoin ; la clé `TOKEN_ENCRYPTION_KEY` de Vercel est indispensable pour relire les clés et jetons des comptes reliés (gardez-la aussi dans votre gestionnaire de mots de passe).
 
 Chaque utilisateur peut aussi télécharger ses propres données depuis ses réglages (« Vos données ») : c'est son droit d'accès, pas une sauvegarde de la base.
 

@@ -1,0 +1,77 @@
+# Sauvegarde de la base de production, chaque nuit et à la demande (Actions, « Sauvegarde », Run workflow).
+#
+# Méthode officielle de Supabase (« Backup and Restore using the CLI ») : rôles, schéma et données,
+# puis une archive chiffrée (AES-256, phrase secrète) gardée 30 jours comme artefact de l'exécution.
+# Le dépôt est public : rien n'est jamais écrit en clair, ni dans le dépôt ni dans les artefacts.
+# Secrets du dépôt (Settings, Secrets and variables, Actions), saisis par le propriétaire :
+#   SUPABASE_DB_URL     chaîne de connexion « Session pooler » de Supabase (IPv4), mot de passe compris
+#   BACKUP_PASSPHRASE   phrase secrète du chiffrement (à garder aussi hors de GitHub : sans elle, rien ne se relit)
+# Sans ces secrets, la sauvegarde est notée « non configurée » et ne fait rien.
+name: Sauvegarde
+
+on:
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+    steps:
+      - name: Configuration
+        id: config
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ] || [ -z "$BACKUP_PASSPHRASE" ]; then
+            echo "::notice::Sauvegarde non configurée : ajoutez les secrets SUPABASE_DB_URL et BACKUP_PASSPHRASE (README, « Sauvegardes »)."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          elif [ "${#BACKUP_PASSPHRASE}" -lt 20 ]; then
+            echo "::error::BACKUP_PASSPHRASE est trop courte : 20 caractères au moins."
+            exit 1
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: supabase/setup-cli@v1
+        if: steps.config.outputs.ready == 'true'
+        with:
+          version: 2.121.0
+      - name: Copie de la base (rôles, schéma, données)
+        if: steps.config.outputs.ready == 'true'
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$RUNNER_TEMP/dump"
+          supabase db dump --db-url "$SUPABASE_DB_URL" -f "$RUNNER_TEMP/dump/roles.sql" --role-only
+          supabase db dump --db-url "$SUPABASE_DB_URL" -f "$RUNNER_TEMP/dump/schema.sql"
+          supabase db dump --db-url "$SUPABASE_DB_URL" -f "$RUNNER_TEMP/dump/data.sql" --use-copy --data-only -x "storage.buckets_vectors" -x "storage.vector_indexes"
+          for f in roles schema data; do test -s "$RUNNER_TEMP/dump/$f.sql" || { echo "::error::$f.sql est vide"; exit 1; }; done
+          echo "Tailles : $(du -h "$RUNNER_TEMP"/dump/*.sql | tr '\n' ' ')"
+      - name: Archive chiffrée
+        if: steps.config.outputs.ready == 'true'
+        run: |
+          set -euo pipefail
+          umask 077
+          name="tricoach-$(date -u +%Y-%m-%d-%H%M).tar.gz.enc"
+          tar -czf - -C "$RUNNER_TEMP/dump" roles.sql schema.sql data.sql \
+            | openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -pass env:BACKUP_PASSPHRASE -out "$RUNNER_TEMP/$name"
+          rm -rf "$RUNNER_TEMP/dump"
+          # Relecture : l'archive se déchiffre et contient bien les trois fichiers.
+          openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -pass env:BACKUP_PASSPHRASE -in "$RUNNER_TEMP/$name" | tar -tzf - | sort | tr '\n' ' '
+          mkdir -p "$RUNNER_TEMP/out" && mv "$RUNNER_TEMP/$name" "$RUNNER_TEMP/out/"
+      - uses: actions/upload-artifact@v4
+        if: steps.config.outputs.ready == 'true'
+        with:
+          name: sauvegarde-${{ github.run_number }}
+          path: ${{ runner.temp }}/out/*.tar.gz.enc
+          retention-days: 30
+          if-no-files-found: error
