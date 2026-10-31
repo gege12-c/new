@@ -1313,6 +1313,105 @@ export type Database = {
           },
         ];
       };
+      training_plan_sessions: {
+        Row: {
+          content: NonNullable<Json>;
+          created_at: string;
+          day_offset: number;
+          description: string | null;
+          id: string;
+          nutrition_notes: string | null;
+          objective: string | null;
+          plan_id: string;
+          planned_distance_m: number | null;
+          planned_duration_s: number | null;
+          position: number;
+          sport: string;
+          start_time: string | null;
+          title: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          content: NonNullable<Json>;
+          created_at?: string;
+          day_offset: number;
+          description?: string | null;
+          id?: string;
+          nutrition_notes?: string | null;
+          objective?: string | null;
+          plan_id: string;
+          planned_distance_m?: number | null;
+          planned_duration_s?: number | null;
+          position?: number;
+          sport: string;
+          start_time?: string | null;
+          title: string;
+        };
+        Update: {
+          content?: NonNullable<Json>;
+          created_at?: string;
+          day_offset?: number;
+          description?: string | null;
+          id?: string;
+          nutrition_notes?: string | null;
+          objective?: string | null;
+          plan_id?: string;
+          planned_distance_m?: number | null;
+          planned_duration_s?: number | null;
+          position?: number;
+          sport?: string;
+          start_time?: string | null;
+          title?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "training_plan_sessions_plan_id_fkey";
+            columns: ["plan_id"];
+            isOneToOne: false;
+            referencedRelation: "training_plans";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      training_plans: {
+        Row: {
+          created_at: string;
+          description: string | null;
+          id: string;
+          name: string;
+          owner_id: string;
+          updated_at: string;
+          weeks: number;
+        };
+        ComputedFields: never;
+        Insert: {
+          created_at?: string;
+          description?: string | null;
+          id?: string;
+          name: string;
+          owner_id?: string;
+          updated_at?: string;
+          weeks: number;
+        };
+        Update: {
+          created_at?: string;
+          description?: string | null;
+          id?: string;
+          name?: string;
+          owner_id?: string;
+          updated_at?: string;
+          weeks?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "training_plans_owner_id_fkey";
+            columns: ["owner_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       watch_devices: {
         Row: {
           athlete_id: string;
@@ -1634,6 +1733,10 @@ export type Database = {
         }[];
       };
       admin_set_admin: { Args: { p_admin: boolean; p_user: string }; Returns: undefined };
+      apply_training_plan: {
+        Args: { p_athlete: string; p_plan: string; p_publish?: boolean; p_start: string };
+        Returns: number;
+      };
       associate_activity: { Args: { p_activity: string; p_session: string }; Returns: undefined };
       athlete_sync_status: {
         Args: { p_athletes: string[] };
@@ -1733,6 +1836,16 @@ export type Database = {
       save_session_draft: {
         Args: { p_base: Json; p_payload: Json; p_session: string };
         Returns: Json;
+      };
+      save_training_plan: {
+        Args: {
+          p_athlete: string;
+          p_description?: string;
+          p_from: string;
+          p_name: string;
+          p_weeks: number;
+        };
+        Returns: string;
       };
       schema_version: { Args: Record<PropertyKey, never>; Returns: string };
       set_coach_permissions: {

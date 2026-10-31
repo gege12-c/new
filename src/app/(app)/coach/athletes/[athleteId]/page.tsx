@@ -4,6 +4,7 @@ import { ActivityPanel } from "@/components/activities/activity-panel";
 import { NotePanel } from "@/components/calendar/note-panel";
 import { PlanningCalendar } from "@/components/calendar/planning-calendar";
 import { AthleteHeader } from "@/components/coach/athlete-header";
+import { SavePlanButton } from "@/components/library/save-plan-button";
 import { PageContainer } from "@/components/layout/page";
 import { SessionPanel } from "@/components/planning/session-panel";
 import { PlanningLive } from "@/components/realtime/planning-live";
@@ -16,7 +17,7 @@ import { getRealizedInRange } from "@/lib/data/activities";
 import { getCalendarNotes } from "@/lib/data/notes";
 import { getSessionsInRange, getTemplates } from "@/lib/data/planning";
 import { calendarHref, readCalendarQuery } from "@/lib/planning/calendar-query";
-import { viewRange } from "@/lib/planning/dates";
+import { startOfWeek, viewRange } from "@/lib/planning/dates";
 import { currentThresholds, toAthleteThresholds } from "@/lib/thresholds";
 
 export const metadata: Metadata = { title: "Calendrier de l’athlète" };
@@ -82,7 +83,12 @@ async function CoachAthleteCalendar({ params, searchParams }: PageProps<"/coach/
         templates={templates}
         notes={notes}
         canNote={ctx.canPlan}
-        toolbarExtra={<PlanningLive athleteId={athleteId} strava={ctx.link.share_strava} className="order-first w-full sm:order-none sm:w-auto" />}
+        toolbarExtra={
+          <>
+            <PlanningLive athleteId={athleteId} strava={ctx.link.share_strava} className="order-first w-full sm:order-none sm:w-auto" />
+            {ctx.canPlan ? <SavePlanButton athleteId={athleteId} monday={startOfWeek(query.date)} /> : null}
+          </>
+        }
       />
       {query.session ? (
         <SessionPanel

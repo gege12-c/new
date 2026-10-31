@@ -34,6 +34,10 @@ const DB_MESSAGES: Record<string, string> = {
   too_many_watches: "Cinq montres au plus : dissociez-en une avant d’en associer une autre.",
   watch_not_found: "Cette montre n’est plus associée à votre compte.",
   pairing_unavailable: "Trop de demandes d’association en ce moment : réessayez dans quelques minutes.",
+  empty_plan: "Aucune séance sur ces semaines : rien à enregistrer en plan.",
+  invalid_plan_weeks: "Un plan compte de 1 à 26 semaines.",
+  plan_not_found: "Ce plan n’existe plus ou ne vous appartient pas.",
+  athlete_not_found: "Cet athlète ne vous est pas accessible.",
 };
 
 const AUTH_MESSAGES: Record<string, string> = {

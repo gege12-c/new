@@ -287,6 +287,22 @@ Migration `20261031030000_calendar_feeds.sql`. Route `GET /api/calendar/<jeton>.
 
 Sécurité : aucune écriture directe ; l'athlète lit seulement l'existence et les dates de son adresse, jamais l'empreinte ; la fonction de lecture ne rend que les données de l'athlète du jeton.
 
+## Plans d'entraînement
+
+Migration `20261031040000_training_plans.sql`.
+
+| Table | Rôle | Points clés |
+| --- | --- | --- |
+| `training_plans` | plans du coach (bibliothèque personnelle, comme les modèles) | nom, description, 1 à 26 semaines ; lus et modifiés par leur propriétaire seul |
+| `training_plan_sessions` | séances d'un plan | jour dans le plan (`day_offset`, 0 = lundi de la semaine 1), heure, discipline, titre, objectif, consignes, nutrition, contenu structuré validé comme une séance, totaux prévus |
+
+| Fonction | Usage |
+| --- | --- |
+| `save_training_plan(athlète, lundi, semaines, nom, description)` | enregistre en plan les séances visibles de l'appelant sur ces semaines (publiées et brouillons, sans les annulées) ; refuse un jour autre que lundi, une période vide, un athlète inaccessible |
+| `apply_training_plan(plan, athlète, lundi, publier)` | crée les séances du plan chez l'athlète à partir de ce lundi, en brouillon ou publiées |
+
+Les deux fonctions sont « security invoker » : la RLS et les déclencheurs des séances (droits de planification, journal, temps réel, envoi vers la montre, notifications) s'appliquent comme pour toute création de séance.
+
 ## Journal d'audit
 
 Chaque création, modification et suppression sur les profils sportifs, relations, invitations, seuils, compétitions et séances est enregistrée avec son auteur. Pour une modification, seules les colonnes changées sont conservées (ancienne et nouvelle valeur). Le contenu structuré d'une séance est noté « modifié » sans être recopié, car l'enregistrement automatique le réécrit souvent.

@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { PageContainer } from "@/components/layout/page";
+import { PlanCard } from "@/components/library/plan-card";
 import { TemplateActions } from "@/components/library/template-actions";
 import { SPORT_ICONS, SPORT_STYLES } from "@/components/sport";
 import { ButtonLink } from "@/components/ui/button";
@@ -11,6 +12,7 @@ import { PageHeader } from "@/components/ui/panel";
 import { WorkoutProfile } from "@/components/workout/workout-profile";
 import { getProfile, requireSession } from "@/lib/auth/dal";
 import { getCoachedAthletes } from "@/lib/data/coach";
+import { getTrainingPlans } from "@/lib/data/plans";
 import { getTemplates } from "@/lib/data/planning";
 import { todayIn } from "@/lib/time";
 import { formatDurationShort, summarizeNodes } from "@/lib/workout/format";
@@ -24,7 +26,7 @@ export default function LibraryPage() {
     <PageContainer wide>
       <PageHeader
         title="Bibliothèque"
-        description="Vos séances types, prêtes à planifier : leurs cibles relatives s’adaptent aux seuils de chaque athlète."
+        description="Vos plans de plusieurs semaines et vos séances types, prêts à planifier : leurs cibles relatives s’adaptent aux seuils de chaque athlète."
         actions={
           <ButtonLink href="/coach/library/new">
             <Plus aria-hidden />
@@ -41,20 +43,48 @@ export default function LibraryPage() {
 
 async function Library() {
   const [{ supabase, userId }, profile] = await Promise.all([requireSession("/coach/library"), getProfile()]);
-  const [templates, links, today] = await Promise.all([getTemplates(supabase, userId), getCoachedAthletes(supabase, userId), todayIn(profile.timezone)]);
+  const [templates, links, today, plans] = await Promise.all([getTemplates(supabase, userId), getCoachedAthletes(supabase, userId), todayIn(profile.timezone), getTrainingPlans(supabase)]);
   const athletes = links.filter((l) => l.can_edit_plan).map((l) => ({ id: l.athlete_id, name: l.athlete?.display_name ?? "Athlète" }));
+
+  const plansSection =
+    plans === null ? null : (
+      <section aria-labelledby="lib-plans">
+        <h2 id="lib-plans" className="heading mb-1 flex items-center gap-2 text-[18px]">
+          Plans d’entraînement
+          <span className="figure text-[14px] text-muted">{plans.length}</span>
+        </h2>
+        <p className="mb-3 text-[13.5px] text-muted">
+          Plusieurs semaines de séances, enregistrées depuis le calendrier d’un athlète (« Enregistrer en plan »), à appliquer à n’importe quel athlète à partir d’un lundi.
+        </p>
+        {plans.length ? (
+          <ul className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
+            {plans.map((plan) => (
+              <PlanCard key={plan.id} plan={plan} athletes={athletes} today={today} />
+            ))}
+          </ul>
+        ) : (
+          <p className="rounded-[14px] border border-dashed border-line-strong px-4 py-5 text-[14px] text-muted">
+            Aucun plan pour l’instant : ouvrez le calendrier d’un athlète, affichez la première semaine du bloc, puis « Enregistrer en plan ».
+          </p>
+        )}
+      </section>
+    );
 
   if (!templates.length) {
     return (
-      <EmptyState title="Aucun modèle pour l’instant" action={<ButtonLink href="/coach/library/new">Créer un modèle</ButtonLink>}>
-        Créez un modèle ici, ou enregistrez une séance existante comme modèle depuis l’éditeur.
-      </EmptyState>
+      <div className="space-y-8">
+        {plansSection}
+        <EmptyState title="Aucun modèle pour l’instant" action={<ButtonLink href="/coach/library/new">Créer un modèle</ButtonLink>}>
+          Créez un modèle ici, ou enregistrez une séance existante comme modèle depuis l’éditeur.
+        </EmptyState>
+      </div>
     );
   }
 
   const groups = SESSION_SPORTS.map((sport) => ({ sport, items: templates.filter((t) => t.sport === sport) })).filter((g) => g.items.length);
   return (
     <div className="space-y-8">
+      {plansSection}
       {groups.map(({ sport, items }) => {
         const Icon = SPORT_ICONS[sport];
         return (
