@@ -4,6 +4,7 @@ import { TextLink } from "@/components/ui/button";
 import { activityDuration, completionRatio, DONE_RATIO, deviation, realizedTotals } from "@/lib/activities/compare";
 import { formatSignedDistance, formatSignedDuration, formatSignedPercent } from "@/lib/activities/format";
 import { activityTitle } from "@/lib/activities/labels";
+import type { EffortComparison } from "@/lib/activities/efforts";
 import type { ActivityStreams } from "@/lib/activities/streams";
 import type { SessionRealizationDetail } from "@/lib/data/activities";
 import type { CalendarActivity, CalendarSession } from "@/lib/data/planning-types";
@@ -12,6 +13,7 @@ import { STATUS_LABELS, type SessionStatus } from "@/lib/planning/status";
 import { formatDistance, formatDurationShort, formatTimeOfDay } from "@/lib/workout/format";
 import { cn } from "@/lib/utils";
 import { ActivityAnalysis } from "./activity-analysis";
+import { EffortsTable } from "./efforts-table";
 import { ActivityFacts, SOURCE_SHORT } from "./activity-facts";
 import { AttachButton, CompletionForm, DetachButton, ProposalButtons } from "./realization-actions";
 
@@ -143,6 +145,7 @@ export function RealizationSection({
   today,
   timeZone,
   streams,
+  efforts,
 }: {
   session: SessionLike;
   realization: SessionRealizationDetail;
@@ -155,6 +158,8 @@ export function RealizationSection({
   timeZone: string;
   /** Courbes des activités rattachées, quand la source en donne. */
   streams?: Map<string, ActivityStreams>;
+  /** Efforts prévus face aux efforts réalisés, par activité. */
+  efforts?: Map<string, EffortComparison>;
 }) {
   const { attached, proposals, candidates, completion } = realization;
   const canManage = (activity: CalendarActivity) => viewer === "athlete" || (canPlan && activity.source !== "strava");
@@ -191,6 +196,7 @@ export function RealizationSection({
               {canManage(activity) ? <DetachButton sessionId={session.id} activityId={activity.id} /> : null}
               {activity.match.status === "auto" ? <span className="self-center text-[12px] text-muted">Rattachée automatiquement</span> : null}
             </ActivityFacts>
+            {efforts?.get(activity.id) ? <EffortsTable comparison={efforts.get(activity.id)!} id={activity.id} /> : null}
             {curves ? <ActivityAnalysis streams={curves} sport={activity.sport} /> : null}
           </div>
         );

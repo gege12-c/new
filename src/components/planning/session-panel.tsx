@@ -3,6 +3,7 @@ import { RealizationSection } from "@/components/activities/realization-section"
 import { ExportSection } from "@/components/exports/export-section";
 import { SportBadge } from "@/components/sport";
 import { relativeProfileNote, WorkoutProfile } from "@/components/workout/workout-profile";
+import { compareEfforts, type EffortComparison } from "@/lib/activities/efforts";
 import { getActivityStreams, getSessionRealization } from "@/lib/data/activities";
 import { sharesStravaWithCoach } from "@/lib/data/athlete";
 import { getExportHistory } from "@/lib/data/exports";
@@ -127,6 +128,15 @@ export async function SessionPanel({
   const unavailable = dayNotes.filter(isUnavailability);
   // Courbes des activités rattachées (montre via intervals.icu, fichier FIT).
   const streams = realization?.attached.length ? await getActivityStreams(supabase, realization.attached.map((a) => a.id)) : undefined;
+  // Efforts prévus face aux efforts réalisés, cibles converties avec les seuils à la date de la séance.
+  const efforts = new Map<string, EffortComparison>();
+  if (streams && parsedContent?.success) {
+    for (const activity of realization?.attached ?? []) {
+      const curves = streams.get(activity.id);
+      const comparison = curves ? compareEfforts(parsedContent.data, thresholdsOnDate, curves.laps, activity.sport) : null;
+      if (comparison) efforts.set(activity.id, comparison);
+    }
+  }
   const exportCtx = exportContext(detail, thresholdsOnDate);
   const status = sessionStatus({ ...detail, realization: realization ?? undefined }, today);
   const totals = computeTotals(detail.content, thresholds);
@@ -289,6 +299,7 @@ export async function SessionPanel({
             today={today}
             timeZone={timeZone}
             streams={streams}
+            efforts={efforts}
           />
         ) : (
           <section aria-labelledby="done-title">
