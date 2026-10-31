@@ -160,6 +160,27 @@ describe("séance TriCoach → séance prévue d'intervals.icu", () => {
     expect(text).toContain("Étape 1, Sprints 10s : Sprints 10s, Enchaîner 3 fois");
   });
 
+  it("cibles de types différents (FC puis allure) : transmises telles quelles, et le graphique gris d'intervals.icu expliqué", () => {
+    const run = (warmup: { metric: "heart_rate" | "pace"; unit: "zone" }) =>
+      build({
+        schemaVersion: 1,
+        segments: [
+          {
+            id: "s",
+            sport: "run",
+            steps: [
+              { kind: "step", id: "w", type: "warmup", length: { unit: "time", seconds: 900 }, targets: [{ ...warmup, min: 1, max: 1 }] },
+              { kind: "step", id: "a", type: "active", length: { unit: "time", seconds: 20 }, targets: [{ metric: "pace", unit: "sec_per_km", min: 283, max: 305 }] },
+            ],
+          },
+        ],
+      })[0];
+    const mixed = run({ metric: "heart_rate", unit: "zone" });
+    expect(stepsOf(mixed.event!.description)).toEqual(["- Échauffement 15m Z1 HR", "- Travail 20s 4:43/km-5:05/km Pace"]);
+    expect(mixed.issues.find((i) => i.message.startsWith("Cibles de types différents"))?.message).toContain("fréquence cardiaque et allure");
+    expect(run({ metric: "pace", unit: "zone" }).issues.some((i) => i.message.startsWith("Cibles de types différents"))).toBe(false);
+  });
+
   it("répétitions imbriquées déroulées dans l'unique niveau de répétition", () => {
     const input: WorkoutInput = {
       schemaVersion: 1,

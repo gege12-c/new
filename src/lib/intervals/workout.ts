@@ -96,7 +96,11 @@ interface Converter {
   /** Consignes de chaque étape, reprises dans la description (intervals.icu ne les porte pas sur la montre). */
   notes: string[];
   blocking: string | null;
+  /** Types de cibles transmis (puissance, FC, allure) : intervals.icu n'en trace qu'un dans son graphique. */
+  metrics: Set<string>;
 }
+
+const METRIC_WORDS: Record<string, string> = { power: "puissance", heart_rate: "fréquence cardiaque", pace: "allure" };
 
 function noteOnce(c: Converter, key: string, issue: CompatibilityIssue) {
   if (c.once.has(key)) return;
@@ -243,8 +247,10 @@ function stepLine(c: Converter, step: Step): string | null {
       continue;
     }
     const text = primaryTarget(c, target, at);
-    if (text) parts.push(text);
-    else extra.push(wording);
+    if (text) {
+      parts.push(text);
+      if (METRIC_WORDS[target.metric]) c.metrics.add(target.metric);
+    } else extra.push(wording);
   }
   if (cadence) parts.push(cadence);
 
@@ -308,7 +314,7 @@ function freeText(text: string): string {
 export function buildIntervalsEvents(workout: Workout, ctx: IntervalsContext): IntervalsBuild[] {
   const multi = workout.segments.length > 1;
   return workout.segments.map((segment, segmentIndex) => {
-    const c: Converter = { sport: segment.sport, thresholds: ctx.thresholds, issues: [], once: new Set(), index: 0, notes: [], blocking: null };
+    const c: Converter = { sport: segment.sport, thresholds: ctx.thresholds, issues: [], once: new Set(), index: 0, notes: [], blocking: null, metrics: new Set() };
     const externalId = intervalsExternalId(ctx.sessionId, segmentIndex);
     const steps = lines(c, segment.steps);
     if (c.blocking || !steps.length) {
@@ -322,6 +328,13 @@ export function buildIntervalsEvents(workout: Workout, ctx: IntervalsContext): I
     }
     if (multi) {
       noteOnce(c, "brick", { severity: "info", message: "Enchaînement : une séance par discipline, le même jour, à lancer l'une après l'autre sur la montre." });
+    }
+    if (c.metrics.size > 1) {
+      const kinds = [...c.metrics].map((m) => METRIC_WORDS[m]).join(" et ");
+      noteOnce(c, "mixed", {
+        severity: "info",
+        message: `Cibles de types différents (${kinds}) : la montre suit chaque étape avec sa cible, mais le graphique d'intervals.icu n'en dessine qu'un type, les autres étapes y paraissent grises. Pour un graphique complet, gardez un seul type de cible dans la séance.`,
+      });
     }
     const sportLabel = SPORT_LABELS[segment.sport].toLowerCase();
     const name = watchText(multi ? `${ctx.title} (${segmentIndex + 1}/${workout.segments.length} ${sportLabel})` : ctx.title).slice(0, 120);
