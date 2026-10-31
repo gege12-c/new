@@ -32,6 +32,7 @@ import { localDate } from "@/lib/utils";
 import { parseWorkout } from "@/lib/workout/schema";
 import { IntervalsApi, IntervalsError, type IntervalsEvent } from "./api";
 import { INTERVALS_HISTORY_DAYS, INTERVALS_RECENT_DAYS, normalizeIntervalsActivity, sameActivity } from "./activities";
+import { missingMeasures, morningMeasures, WELLNESS_RECENT_DAYS } from "./wellness";
 import { buildIntervalsEvents, intervalsExternalId, INTERVALS_FORMAT_VERSION, INTERVALS_WINDOW_DAYS, type IntervalsBuild } from "./workout";
 
 export interface IntervalsDeps {
@@ -264,6 +265,8 @@ export interface IntervalsSyncReport {
   failed: number;
   /** Activités reçues (nouvelles ou modifiées) et retirées (supprimées chez intervals.icu). */
   activities?: { saved: number; removed: number; fromStrava: number };
+  /** Jours de forme complétés par les mesures du matin. */
+  wellness?: number;
 }
 
 /** Dépose les séances nouvelles ou modifiées, retire celles qui ne sont plus prévues. */
@@ -369,9 +372,41 @@ export async function syncIntervals(deps: IntervalsDeps, connection: DeviceConne
   if (stale.length) await deps.admin.from("device_workouts").delete().in("id", stale.map((r) => r.id));
 
   report.activities = await pullActivities(deps, connection, today);
+  report.wellness = await pullMorningMeasures(deps, connection, today);
 
   await deps.admin.from("external_connections").update({ last_sync_at: deps.now().toISOString(), last_error: null, last_error_at: null }).eq("id", connection.id);
   return report;
+}
+
+/**
+ * Mesures du matin (FC au repos, VFC, sommeil, poids) des 14 derniers jours : elles complètent la
+ * forme du jour sans jamais remplacer une valeur saisie par l'athlète.
+ */
+async function pullMorningMeasures(deps: IntervalsDeps, connection: DeviceConnection, today: string): Promise<number> {
+  const oldest = addDays(today, -(WELLNESS_RECENT_DAYS - 1));
+  const listed = await withKey(deps, connection, (key) => deps.api.wellness(key, oldest, today));
+  const upstream = morningMeasures(listed).filter((m) => m.entry_date >= oldest && m.entry_date <= today);
+  if (!upstream.length) return 0;
+  const { data: stored, error } = await deps.admin
+    .from("wellness_entries")
+    .select("entry_date, resting_hr, hrv_ms, sleep_hours, weight_kg")
+    .eq("athlete_id", connection.athlete_id)
+    .gte("entry_date", oldest)
+    .lte("entry_date", today);
+  if (error) throw new Error(`Forme du jour illisible : ${error.message}`);
+  const byDate = new Map((stored ?? []).map((row) => [row.entry_date, row]));
+  let written = 0;
+  for (const measures of upstream) {
+    const row = byDate.get(measures.entry_date);
+    const changes = missingMeasures(measures, row);
+    if (!changes) continue;
+    const { error: saveError } = row
+      ? await deps.admin.from("wellness_entries").update(changes).eq("athlete_id", connection.athlete_id).eq("entry_date", measures.entry_date)
+      : await deps.admin.from("wellness_entries").insert({ athlete_id: connection.athlete_id, entry_date: measures.entry_date, ...changes });
+    if (saveError) throw new Error(`Forme du jour non enregistrée : ${saveError.message}`);
+    written += 1;
+  }
+  return written;
 }
 
 const ACTIVITY_SELECT =

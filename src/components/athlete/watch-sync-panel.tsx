@@ -66,7 +66,8 @@ function ActivitiesState({ activities, timeZone }: { activities: NonNullable<Dev
         {activities.syncedAt ? (
           <>
             Activités faites : <span className="figure font-semibold text-ink">{activities.count}</span> reçue{activities.count > 1 ? "s" : ""} de votre montre par
-            intervals.icu (dernière réception le {when(activities.syncedAt, timeZone)}). Elles sont rattachées à vos séances et comptent dans votre progression.
+            intervals.icu (dernière réception le {when(activities.syncedAt, timeZone)}). Elles sont rattachées à vos séances et comptent dans votre progression ; vos
+            mesures du matin (FC au repos, VFC, sommeil, poids), si votre montre les transmet, complètent votre forme du jour sans remplacer ce que vous saisissez.
           </>
         ) : (
           "Activités faites : première réception en cours (les 90 derniers jours)."

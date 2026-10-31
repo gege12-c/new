@@ -119,6 +119,18 @@ export class IntervalsApi {
     return body;
   }
 
+  /** Données de forme des jours d'une période (FC au repos, VFC, sommeil, poids…), telles que reçues des montres. */
+  async wellness(key: string, oldest: string, newest: string): Promise<unknown[]> {
+    const body = await this.call(
+      key,
+      `/athlete/0/wellness?oldest=${encodeURIComponent(oldest)}&newest=${encodeURIComponent(newest)}`,
+      {},
+      "Lecture des données de forme",
+    );
+    if (!Array.isArray(body)) throw new IntervalsError("invalid_response", "Données de forme d'intervals.icu illisibles.");
+    return body;
+  }
+
   /** Retire des séances déposées par TriCoach ; celles qui n'existent plus sont ignorées. */
   async deleteEvents(key: string, externalIds: string[]): Promise<void> {
     if (!externalIds.length) return;

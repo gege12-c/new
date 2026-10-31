@@ -31,6 +31,8 @@ export class FakeIntervals {
   readonly reject = new Set<string>();
   /** Activités faites, par athlète (format des résumés d'intervals.icu). */
   readonly activities = new Map<string, Record<string, unknown>[]>();
+  /** Données de forme par athlète et par jour (champs d'intervals.icu : restingHR, hrv, sleepSecs, weight). */
+  readonly wellness = new Map<string, Record<string, unknown>[]>();
   private counter = 1000;
 
   addActivity(athlete: string, activity: Record<string, unknown>) {
@@ -85,6 +87,12 @@ export class FakeIntervals {
           a.source === "STRAVA" ? { id: a.id, start_date_local: a.start_date_local, type: a.type, source: "STRAVA", _note: "STRAVA activities are not available via the API" } : a,
         ),
       );
+    }
+
+    if (url.pathname === "/api/v1/athlete/0/wellness" && method === "GET") {
+      const oldest = url.searchParams.get("oldest") ?? "";
+      const newest = url.searchParams.get("newest") ?? "9999";
+      return this.json(200, (this.wellness.get(athlete) ?? []).filter((w) => String(w.id) >= oldest && String(w.id) <= newest));
     }
 
     if (url.pathname === "/api/v1/athlete/0/events/bulk" && method === "POST" && url.searchParams.get("upsert") === "true") {

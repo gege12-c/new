@@ -47,6 +47,7 @@ Le même lien sert dans l'autre sens : les activités qu'intervals.icu reçoit d
 - Celles qu'intervals.icu reçoit de Strava ne sont jamais transmises par son API (règles de Strava) : TriCoach les compte et le dit dans le profil, sans rien deviner. Il suffit de relier la montre directement à intervals.icu.
 - Une même séance faite arrivée par plusieurs chemins (Strava, intervals.icu, fichier FIT) n'est comptée qu'une fois : même discipline, départ à 5 minutes près, durée à 20 % près. L'original est l'activité de la montre ou du fichier ; la copie Strava reste en doublon caché, et une décision prise sur elle (rattachement, séance écartée) passe à l'original.
 - Pour corriger ou retirer une activité reçue : chez intervals.icu (lien « Voir sur intervals.icu » dans l'activité).
+- Mesures du matin : FC au repos, VFC, durée du sommeil et poids qu'intervals.icu reçoit de la montre ou d'une balance (`GET /api/v1/athlete/0/wellness`, 14 derniers jours) complètent la forme du jour de l'athlète, champ par champ, sans jamais remplacer une valeur qu'il a saisie.
 
 ## Suunto en direct (dès l'accès partenaire)
 

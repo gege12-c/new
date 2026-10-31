@@ -113,6 +113,22 @@ describe.skipIf(!url || !serviceKey)("activités faites, reçues d'intervals.icu
     expect((await received()).map((a) => a.external_id)).toEqual(["i101"]);
   });
 
+  it("mesures du matin : complètent la forme du jour, sans jamais remplacer une saisie de l'athlète", async () => {
+    const yesterday = addDays(today, -1);
+    await admin.from("wellness_entries").insert({ athlete_id: athleteId, entry_date: yesterday, fatigue: 2, resting_hr: 51 });
+    fake.wellness.set(athlete, [
+      { id: yesterday, restingHR: 47, hrv: 63, sleepSecs: 27_000 },
+      { id: today, restingHR: 46, weight: 72.4 },
+    ]);
+    await nudge();
+    await run();
+    const { data } = await admin.from("wellness_entries").select("entry_date, fatigue, resting_hr, hrv_ms, sleep_hours, weight_kg").eq("athlete_id", athleteId).order("entry_date");
+    expect(data).toEqual([
+      { entry_date: yesterday, fatigue: 2, resting_hr: 51, hrv_ms: 63, sleep_hours: 7.5, weight_kg: null },
+      { entry_date: today, fatigue: null, resting_hr: 46, hrv_ms: null, sleep_hours: null, weight_kg: 72.4 },
+    ]);
+  });
+
   it("même séance faite déjà arrivée par Strava : l'activité de la montre devient l'original, Strava le doublon", async () => {
     const day = addDays(today, -3);
     const { data: strava } = await admin
