@@ -82,6 +82,23 @@ test("inviter une athlète, puis remplir chaque formulaire du profil sportif", a
   await expect(thresholds.getByText("72,5 kg").first()).toBeVisible();
   await expect(page.getByText(/Invalid input|expected|received/)).toHaveCount(0);
 
+  // Zones tirées des seuils : celles que reçoivent les séances (FTP 275 W, allure seuil 4:10).
+  await thresholds.getByText("Zones d’entraînement").click();
+  const power = thresholds.getByRole("table", { name: /Vélo, puissance/ });
+  await expect(power.getByRole("row", { name: /^Z2/ })).toContainText("154 à 206 W");
+  await expect(power.getByRole("row", { name: /^Z7/ })).toContainText("plus de 415 W");
+  await expect(thresholds.getByRole("table", { name: /Course, allure/ }).getByRole("row", { name: /^Z4/ })).toContainText("4:23 à 4:08 /km");
+
+  // CSS calculée d'un test 400 m + 200 m, reportée dans le formulaire puis enregistrée.
+  await thresholds.getByText("Calculer depuis un test").click();
+  await thresholds.getByLabel("Temps du 400 m").fill("6:20");
+  await thresholds.getByLabel("Temps du 200 m").fill("3:02");
+  await thresholds.getByRole("button", { name: "Reporter une CSS de 1:39 /100 m" }).click();
+  await expect(thresholds.getByLabel("Seuil", { exact: true })).toHaveValue("swim.css_s_per_100m");
+  await expect(thresholds.getByLabel("Valeur (/100 m)")).toHaveValue("1:39");
+  await thresholds.getByRole("button", { name: "Enregistrer le seuil" }).click();
+  await expect(thresholds.getByText("Seuil enregistré : CSS (natation).")).toBeVisible();
+
   // Compétition.
   const events = panel(page, "Compétitions");
   const raceDay = addDays(isoDay(0), 120);

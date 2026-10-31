@@ -2,8 +2,9 @@ import { deleteThreshold } from "@/app/(app)/actions";
 import { ConfirmSubmit } from "@/components/ui/confirm-submit";
 import { EmptyState } from "@/components/ui/feedback";
 import { Panel } from "@/components/ui/panel";
-import { THRESHOLD_DEFS, currentThresholds, formatThresholdValue, thresholdDef, type ThresholdRow } from "@/lib/thresholds";
+import { THRESHOLD_DEFS, currentThresholds, formatThresholdValue, thresholdDef, toAthleteThresholds, type ThresholdRow } from "@/lib/thresholds";
 import { formatLocalDate } from "@/lib/utils";
+import { zoneTables } from "@/lib/workout/zone-table";
 import { ThresholdForm } from "./threshold-form";
 
 type Row = ThresholdRow & { id: string };
@@ -23,6 +24,7 @@ export function ThresholdsPanel({
   const current = currentThresholds(rows, today);
   const groups = [...new Set(THRESHOLD_DEFS.map((d) => d.group))];
   const upcoming = rows.filter((r) => r.effective_from > today);
+  const zones = zoneTables(toAthleteThresholds(current));
 
   return (
     <Panel
@@ -60,6 +62,35 @@ export function ThresholdsPanel({
           })}
         </dl>
       )}
+
+      {zones.length ? (
+        <details className="mt-5 border-t border-line pt-4">
+          <summary className="cursor-pointer text-[14px] font-semibold text-ink-soft hover:text-ink">Zones d’entraînement</summary>
+          <p className="mt-1.5 text-[13px] text-muted">
+            Tirées des seuils en vigueur : ce sont les valeurs que reçoivent les séances écrites en zones ou en pourcentage (« Z2 », « 90 % FTP »), et la montre.
+          </p>
+          <div className="mt-3 grid gap-x-8 gap-y-5 sm:grid-cols-2">
+            {zones.map((table) => (
+              <table key={table.key} className="w-full text-[13px]">
+                <caption className="pb-1 text-left text-[13.5px] font-semibold text-ink">
+                  {table.title} <span className="font-normal text-muted">({table.basis})</span>
+                </caption>
+                <tbody className="divide-y divide-line">
+                  {table.rows.map((row) => (
+                    <tr key={row.zone}>
+                      <th scope="row" className="w-9 py-1.5 pr-2 text-left font-semibold text-ink">
+                        Z{row.zone}
+                      </th>
+                      <td className="py-1.5 pr-2 text-ink-soft">{row.label}</td>
+                      <td className="figure py-1.5 text-right text-ink">{row.range}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ))}
+          </div>
+        </details>
+      ) : null}
 
       {upcoming.length > 0 ? (
         <p className="mt-4 text-sm text-muted">
