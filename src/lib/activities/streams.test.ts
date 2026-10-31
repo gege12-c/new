@@ -106,6 +106,41 @@ describe("intervals.icu", () => {
     expect(intervalsLaps({ icu_intervals: [{ start_index: 10, end_index: 70 }] })[0]).toMatchObject({ start_s: 10, duration_s: 60, kind: null });
     expect(intervalsLaps(undefined)).toEqual([]);
   });
+
+  it("intervalles qui se chevauchent (kilomètres mêlés aux étapes) : plus aucun chevauchement", () => {
+    const interval = (start: number, elapsed: number, distance: number) => ({ type: "WORK", start_time: start, elapsed_time: elapsed, distance });
+    // Course du 31 octobre : kilomètres 1 et 3, fin d'échauffement, fractions et récupérations de 20 s,
+    // et un intervalle de 48 s qui en recouvre un autre.
+    const laps = intervalsLaps({
+      icu_intervals: [
+        interval(0, 349, 1000),
+        interval(349, 552, 1534),
+        interval(706, 342, 1000),
+        ...[922, 942, 962, 982, 1002, 1023, 1043].map((start) => interval(start, 20, 60)),
+        interval(1063, 48, 136),
+        interval(1083, 20, 50),
+        interval(1083, 20, 50),
+      ],
+    });
+    expect(laps.map((l) => [l.start_s, l.duration_s])).toEqual([
+      [0, 349],
+      [349, 552],
+      [922, 20],
+      [942, 20],
+      [962, 20],
+      [982, 20],
+      [1002, 20],
+      [1023, 20],
+      [1043, 20],
+      [1083, 20],
+    ]);
+    // Un intervalle qui en regroupe plusieurs est retiré ; le reste est gardé tel quel.
+    const group = [interval(0, 600, 1700), interval(0, 300, 850), interval(300, 300, 850)];
+    expect(intervalsLaps({ icu_intervals: group }).map((l) => l.duration_s)).toEqual([300, 300]);
+    // Lu en base : nettoyé aussi.
+    const row = { sample_s: 5, series: { time: [0, 5] }, laps: intervalsLaps({ icu_intervals: [interval(0, 300, 850), interval(300, 300, 850)] }), laps_origin: "detected", bests: {} };
+    expect(readStoredStreams({ ...row, laps: [...row.laps, { ...row.laps[0], start_s: 100, duration_s: 1000, distance_m: 3000 }] })!.laps).toHaveLength(2);
+  });
 });
 
 describe("lecture en base", () => {

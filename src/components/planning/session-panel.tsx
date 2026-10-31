@@ -133,7 +133,7 @@ export async function SessionPanel({
   if (streams && parsedContent?.success) {
     for (const activity of realization?.attached ?? []) {
       const curves = streams.get(activity.id);
-      const comparison = curves ? compareEfforts(parsedContent.data, thresholdsOnDate, curves.laps, activity.sport) : null;
+      const comparison = curves ? compareEfforts(parsedContent.data, thresholdsOnDate, curves, activity.sport) : null;
       if (comparison) efforts.set(activity.id, comparison);
     }
   }

@@ -134,10 +134,12 @@ test("relier sa montre par intervals.icu : la séance publiée part, l'activité
   await reader.press("End");
   await expect(reader).toHaveAttribute("aria-valuetext", /29:5\d : puissance 180 W/);
   await expect(page.getByText("Intervalles détectés par intervals.icu (1 effort)")).toBeVisible();
-  // L'effort prévu (20 min à 88–92 % de la FTP, 220–230 W) face à l'effort détecté (8 min à 260 W).
-  const efforts = page.getByRole("region", { name: "Efforts prévus et réalisés" });
-  await expect(efforts.getByText("0 sur 1 dans la cible, à 2 % près.")).toBeVisible();
-  await expect(efforts.getByRole("row", { name: /Effort 1/ })).toContainText(/20 min, 220–230 W.*8 min, 260 W.*au-dessus/);
+  // L'effort prévu (20 min à 88–92 % de la FTP, 220–230 W) retrouvé sur les courbes après les 10 min
+  // d'échauffement : 8 min à 260 W puis 12 min à 180 W, soit 212 W de moyenne, en dessous.
+  const efforts = page.getByRole("region", { name: "Prévu et réalisé, étape par étape" });
+  await expect(efforts.getByText("0 étape sur 1 dans la cible, à 2 % près.")).toBeVisible();
+  await expect(efforts.getByRole("row", { name: /Effort 1/ })).toContainText(/20 min, 220–230 W.*20 min, 212 W.*en dessous/);
+  // L'intervalle détecté par intervals.icu reste listé tel quel.
   await expect(page.getByRole("row", { name: /^Effort 1 10:00/ })).toContainText("260 W");
   await expect(page.getByText("Meilleures puissances de la séance")).toBeVisible();
 

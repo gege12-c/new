@@ -359,6 +359,33 @@ export function lap(input: Omit<ActivityLap, "label" | "kind"> & { kind?: Activi
   };
 }
 
+const lapEnd = (l: ActivityLap) => l.start_s + l.duration_s;
+const lapOverlap = (a: ActivityLap, b: ActivityLap) => Math.max(0, Math.min(lapEnd(a), lapEnd(b)) - Math.max(a.start_s, b.start_s));
+/** Arrondis des bornes (secondes) tolérés entre deux intervalles qui se suivent. */
+const LAP_SLACK_S = 2;
+/** Tour automatique : distance ronde (kilomètre ou mile), à 1 % près. */
+const isAutoLap = (l: ActivityLap) =>
+  l.distance_m !== null && l.distance_m >= 900 && [1000, 1609.34].some((unit) => Math.abs(l.distance_m! / unit - Math.round(l.distance_m! / unit)) * unit <= 0.01 * l.distance_m!);
+
+/**
+ * Intervalles qui se chevauchent : deux découpages mêlés (tours automatiques au kilomètre et étapes
+ * de la séance, par exemple). Sont retirés, dans l'ordre : les doublons, les tours automatiques qui
+ * en chevauchent d'autres, les regroupements (un intervalle qui en recouvre plusieurs), puis, de deux
+ * intervalles qui se recouvrent encore, le plus long. Le reste ne se chevauche plus.
+ */
+export function cleanLaps(laps: ActivityLap[]): ActivityLap[] {
+  const unique = laps.filter((l, i) => laps.findIndex((o) => Math.abs(o.start_s - l.start_s) <= LAP_SLACK_S && Math.abs(o.duration_s - l.duration_s) <= LAP_SLACK_S) === i);
+  const overlaps = (a: ActivityLap, b: ActivityLap) => a !== b && lapOverlap(a, b) > LAP_SLACK_S;
+  const withoutAutoLaps = unique.filter((l) => !(isAutoLap(l) && unique.some((o) => overlaps(l, o) && !isAutoLap(o))));
+  const covers = (a: ActivityLap, b: ActivityLap) => a !== b && lapOverlap(a, b) > Math.max(LAP_SLACK_S, 0.5 * b.duration_s);
+  const withoutGroups = withoutAutoLaps.filter((l) => withoutAutoLaps.filter((o) => covers(l, o)).length < 2);
+  const kept: ActivityLap[] = [];
+  for (const lap of [...withoutGroups].sort((a, b) => a.duration_s - b.duration_s || a.start_s - b.start_s)) {
+    if (!kept.some((k) => overlaps(k, lap))) kept.push(lap);
+  }
+  return kept.sort((a, b) => a.start_s - b.start_s);
+}
+
 /** Intervalles détectés par intervals.icu (GET /activity/{id}/intervals : { icu_intervals: […] }). */
 export function intervalsLaps(body: unknown): ActivityLap[] {
   const list = Array.isArray(body)
@@ -389,7 +416,7 @@ export function intervalsLaps(body: unknown): ActivityLap[] {
     });
     if (item) laps.push(item);
   }
-  return laps.sort((a, b) => a.start_s - b.start_s);
+  return cleanLaps(laps);
 }
 
 // ---------------------------------------------------------------------------
@@ -445,7 +472,10 @@ export const StoredStreamsSchema = z.object({
 /** Ligne lue en base → courbes prêtes à tracer ; null si elle est illisible (rien n'est affiché). */
 export function readStoredStreams(row: unknown): ActivityStreams | null {
   const parsed = StoredStreamsSchema.safeParse(row);
-  return parsed.success ? (parsed.data as ActivityStreams) : null;
+  if (!parsed.success) return null;
+  const streams = parsed.data as ActivityStreams;
+  // Intervalles enregistrés avant le nettoyage des chevauchements : nettoyés à la lecture.
+  return { ...streams, laps: cleanLaps(streams.laps) };
 }
 
 /** Mesures présentes dans des courbes (au moins une valeur). */
