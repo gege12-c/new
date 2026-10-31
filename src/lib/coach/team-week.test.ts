@@ -76,8 +76,8 @@ describe("semaine de tous les athlètes", () => {
     // Hors programme : la sortie de mercredi (Strava : jamais comptée).
     expect(lea.cells[2].extra).toEqual([{ id: "a2", sport: "run", durationS: 2400 }]);
     expect(lea).toMatchObject({ plannedS: 7200, realizedS: 3500 + 2400, drafts: 1, missed: 0 });
-    expect(tom.cells[3].away).toBe("Déplacement : Rotation Tokyo");
-    expect(tom.cells[0].away).toBeNull();
+    expect(tom.cells[3].away).toEqual(["Déplacement : Rotation Tokyo"]);
+    expect(tom.cells[0].away).toEqual([]);
     expect(tom.cells[2].sessions[0].status).toBe("planned");
   });
 });

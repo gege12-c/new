@@ -30,8 +30,8 @@ export interface TeamCell {
   sessions: { id: string; title: string; sport: string; draft: boolean; status: SessionStatus; durationS: number | null }[];
   /** Activités faites sans séance rattachée. */
   extra: { id: string; sport: string; durationS: number | null }[];
-  /** Jour indisponible (rotation, déplacement…) : son intitulé. */
-  away: string | null;
+  /** Jour indisponible (rotation, déplacement…) : les intitulés des notes qui le couvrent. */
+  away: string[];
 }
 
 export interface TeamRow {
@@ -60,7 +60,7 @@ export function teamWeek(input: {
     const activities = input.activities.filter((a) => a.athlete_id === athlete.id && a.source !== "strava");
     const notes = input.notes.filter((n) => n.athlete_id === athlete.id && isUnavailability(n));
     const cells = days.map((date): TeamCell => {
-      const away = notes.find((n) => n.start_date <= date && n.end_date >= date);
+      const away = notes.filter((n) => n.start_date <= date && n.end_date >= date).map(noteTitle);
       return {
         date,
         sessions: sessions
@@ -74,7 +74,7 @@ export function teamWeek(input: {
             durationS: s.planned_duration_s,
           })),
         extra: activities.filter((a) => a.local_date === date && !a.links.some(isAttached)).map((a) => ({ id: a.id, sport: a.sport, durationS: activityDuration(a) })),
-        away: away ? noteTitle(away) : null,
+        away,
       };
     });
     const published = sessions.filter((s) => s.state === "published");

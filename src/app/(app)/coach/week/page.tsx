@@ -130,14 +130,14 @@ async function TeamWeek({ searchParams }: Pick<PageProps<"/coach/week">, "search
                     </Link>
                   </th>
                   {row.cells.map((cell) => (
-                    <td key={cell.date} className={cn("px-1.5 py-2", cell.date === today && "bg-surface-2/60", cell.away && "bg-warning-soft/40")}>
+                    <td key={cell.date} className={cn("px-1.5 py-2", cell.date === today && "bg-surface-2/60", cell.away.length > 0 && "bg-warning-soft/40")}>
                       <div className="space-y-1">
-                        {cell.away ? (
-                          <p className="flex items-center gap-1 text-[11.5px] font-semibold text-warning" title={cell.away}>
+                        {cell.away.map((away, index) => (
+                          <p key={index} className="flex items-center gap-1 text-[11.5px] font-semibold text-warning" title={away}>
                             <CalendarOff className="size-3 shrink-0" aria-hidden />
-                            <span className="truncate">{cell.away}</span>
+                            <span className="truncate">{away}</span>
                           </p>
-                        ) : null}
+                        ))}
                         {cell.sessions.map((s) => (
                           <Link
                             key={s.id}

@@ -63,8 +63,10 @@ test("le coach voit la semaine de tous ses athlètes, jour par jour", async ({ b
   await expect(page.getByRole("rowheader", { name: athlete.name })).toBeVisible();
   await expect(page.getByRole("link", { name: `${title}, à faire` })).toBeVisible();
   await expect(page.getByRole("link", { name: `Brouillon ${stamp}, brouillon` })).toBeVisible();
-  await expect(page.getByText(`Déplacement : Rotation ${stamp}`)).toBeVisible();
-  await expect(page.getByText(/^\d+ brouillons?$/).first()).toBeVisible();
+  // Next.js garde la page précédente cachée dans le document : on cherche dans le tableau affiché.
+  const table = page.getByRole("table", { name: /Séances de vos athlètes/ });
+  await expect(table.getByText(`Déplacement : Rotation ${stamp}`, { exact: true })).toBeVisible();
+  await expect(table.getByText(/^\d+ brouillons?$/).first()).toBeVisible();
 
   // La séance s'ouvre dans le calendrier de l'athlète, sur le bon jour.
   await page.getByRole("link", { name: `${title}, à faire` }).click();
