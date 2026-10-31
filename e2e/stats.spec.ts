@@ -57,6 +57,18 @@ test.beforeAll(async () => {
     planned_duration_s: 3900,
   });
   await rest(athlete.token, "session_completions", { session_id: session.id, status: "done", rpe: 6 });
+  // Demain : une séance publiée, et dans trois semaines une course objectif, pour la simulation.
+  await rest(coach.token, "planned_sessions", {
+    athlete_id: athlete.id,
+    scheduled_date: isoDay(1),
+    start_time: "07:00",
+    sport: "bike",
+    title: `Simulation ${stamp}`,
+    content,
+    state: "published",
+    planned_duration_s: 3900,
+  });
+  await rest(coach.token, "athlete_events", { athlete_id: athlete.id, name: `Course test ${stamp}`, event_date: isoDay(21), priority: "A", sport: "triathlon" });
   const [activity] = await rest(athlete.token, "activities", {
     source: "fit_upload",
     external_id: `e2e-stats-${stamp}:0`,
@@ -118,6 +130,23 @@ test("l'athlète voit sa progression, sans aucune donnée Strava", async ({ brow
   await expect(slider).toHaveAttribute("aria-valuetext", /prévision/);
   await fitness.getByText("Comment c’est calculé").click();
   await expect(fitness).toContainText("Une heure au seuil vaut 100.");
+
+  // Simulation : la course objectif et la forme prévue au départ ; la séance de demain retirée, puis remise.
+  const races = fitness.getByRole("list", { name: "Forme prévue au départ des courses" });
+  await expect(races).toContainText(`Course test ${stamp}`);
+  await expect(races).toContainText(/forme au départ [+−]?\d+/);
+  await fitness.getByText("Simuler : choisir les séances comptées").click();
+  const planned = fitness.getByRole("checkbox", { name: new RegExp(`Simulation ${stamp}`) });
+  await expect(planned).toBeChecked();
+  await planned.uncheck();
+  await expect(fitness.getByText(/Simulation : 1 séance retirée/)).toBeVisible();
+  await fitness.getByRole("button", { name: "Revenir au plan publié" }).click();
+  await expect(planned).toBeChecked();
+
+  // Un an d'historique au lieu de trois mois.
+  await fitness.getByRole("button", { name: "1 an" }).click();
+  await expect(fitness.getByRole("button", { name: "1 an" })).toHaveAttribute("aria-pressed", "true");
+  await expect(fitness.getByRole("button", { name: "3 mois" })).toHaveAttribute("aria-pressed", "false");
 });
 
 test("le coach consulte la progression de son athlète", async ({ browser }) => {

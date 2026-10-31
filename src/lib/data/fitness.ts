@@ -5,26 +5,48 @@ import {
   dailyLoads,
   FITNESS_DAYS,
   fitnessSeries,
-  HISTORY_DAYS,
   historyStart,
+  MAX_HISTORY_DAYS,
   PROJECTION_DAYS,
+  PUBLISHED_PLAN,
+  simulate,
+  weeklyRamp,
   type FitnessCompletion,
   type FitnessCoverage,
+  type FitnessModel,
   type FitnessPoint,
   type LoadActivity,
+  type LoadItem,
 } from "@/lib/stats/fitness";
 import { DURABLE_SOURCES } from "@/lib/activities/schema";
 import { isMissingSchema } from "@/lib/supabase/schema";
 import type { ServerSupabase } from "@/lib/supabase/server";
 import { currentThresholds, toAthleteThresholds } from "@/lib/thresholds";
-import { getThresholds } from "./athlete";
+import { getEvents, getThresholds } from "./athlete";
 import { getSessionsInRange } from "./planning";
+
+export interface FitnessRace {
+  id: string;
+  name: string;
+  date: string;
+  priority: string;
+}
 
 export interface FitnessData {
   today: string;
-  /** Points affichés : 13 semaines passées, puis la prévision. */
-  points: FitnessPoint[];
+  /** Jour par jour, d'un an avant aujourd'hui à la veille : charges réelles comptées. */
+  history: FitnessPoint[];
+  /** De quoi simuler la suite : état de la veille, charge faite aujourd'hui, séances prévues jusqu'à l'horizon. */
+  model: FitnessModel;
+  /** Charges comptées de l'historique (détail d'un jour). */
+  pastItems: LoadItem[];
+  /** Courses de l'année passée à l'horizon. */
+  races: FitnessRace[];
+  /** Aujourd'hui, et dans 7 jours, avec le plan publié. */
   current: FitnessPoint | null;
+  inAWeek: FitnessPoint | null;
+  /** Variation de la condition sur les 7 derniers jours. */
+  ramp: number | null;
   coverage: FitnessCoverage;
   /** Fichiers FIT et retours de séance lisibles (false tant que la base n'est pas à jour). */
   realizedAvailable: boolean;
@@ -32,32 +54,33 @@ export interface FitnessData {
   historyDays: number | null;
 }
 
-const ACTIVITY_COLUMNS = "id, sport, local_date, moving_s, elapsed_s, avg_power, weighted_power, avg_hr, avg_speed_mps";
+const ACTIVITY_COLUMNS = "id, name, sport, local_date, moving_s, elapsed_s, avg_power, weighted_power, avg_hr, avg_speed_mps";
 
 const daysBetween = (from: string, to: string) => Math.round((Date.parse(`${to}T12:00:00Z`) - Date.parse(`${from}T12:00:00Z`)) / 86_400_000);
 
 export async function getFitnessData(supabase: ServerSupabase, athleteId: string, today: string): Promise<FitnessData> {
   const start = historyStart(today);
-  const horizon = addDays(today, PROJECTION_DAYS);
-  const [sessions, thresholdRows, activities, completions, matches] = await Promise.all([
-    getSessionsInRange(supabase, athleteId, start, horizon),
+  const limit = addDays(today, PROJECTION_DAYS);
+  const [sessions, thresholdRows, events, activities, completions, matches] = await Promise.all([
+    getSessionsInRange(supabase, athleteId, start, limit),
     getThresholds(supabase, athleteId),
-    supabase.from("activities").select(ACTIVITY_COLUMNS).eq("athlete_id", athleteId).in("source", [...DURABLE_SOURCES]).is("duplicate_of", null).gte("local_date", start).lte("local_date", today).limit(3000),
-    supabase.from("session_completions").select("session_id, status, rpe").eq("athlete_id", athleteId).limit(3000),
+    getEvents(supabase, athleteId),
+    supabase.from("activities").select(ACTIVITY_COLUMNS).eq("athlete_id", athleteId).in("source", [...DURABLE_SOURCES]).is("duplicate_of", null).gte("local_date", start).lte("local_date", today).limit(5000),
+    supabase.from("session_completions").select("session_id, status, rpe").eq("athlete_id", athleteId).limit(5000),
     supabase
       .from("session_activity_matches")
       .select("session_id, activity_id, activity:activities!inner(source)")
       .eq("athlete_id", athleteId)
       .in("status", ["auto", "confirmed"])
       .in("activity.source", [...DURABLE_SOURCES])
-      .limit(3000),
+      .limit(5000),
   ]);
   for (const result of [activities, completions, matches]) {
     if (result.error && !isMissingSchema(result.error)) throw result.error;
   }
   const realizedAvailable = !activities.error && !completions.error && !matches.error;
 
-  const { actual, planned, coverage } = dailyLoads({
+  const { actual, coverage, items } = dailyLoads({
     today,
     sessions,
     activities: realizedAvailable ? ((activities.data ?? []) as LoadActivity[]) : [],
@@ -68,17 +91,37 @@ export async function getFitnessData(supabase: ServerSupabase, athleteId: string
     thresholdsOn: (date) => toAthleteThresholds(currentThresholds(thresholdRows, date)),
   });
 
-  // La prévision va jusqu'à la dernière séance prévue (une semaine au moins, six au plus).
-  const lastPlanned = [...planned.keys()].sort().at(-1);
-  const end = lastPlanned && lastPlanned > addDays(today, 7) ? lastPlanned : addDays(today, 7);
-  const series = fitnessSeries(actual, planned, start, end > horizon ? horizon : end, today);
-  const windowStart = addDays(today, -HISTORY_DAYS);
-  const points = series.filter((p) => p.date >= windowStart);
+  // Horizon : la dernière séance prévue (brouillons compris) ou la prochaine course, une semaine au moins, six mois au plus.
+  const plannedItems = items.filter((i) => i.kind === "planned" && i.date >= today && i.date <= limit);
+  const lastPlanned = plannedItems.reduce((last, i) => (i.date > last ? i.date : last), today);
+  const nextRace = events.find((e) => e.event_date > today && e.event_date <= limit && e.priority === "A") ?? events.find((e) => e.event_date > today && e.event_date <= limit);
+  const candidates = [addDays(today, 7), lastPlanned, nextRace ? addDays(nextRace.event_date, 2) : today].sort();
+  const horizon = candidates[candidates.length - 1] > limit ? limit : candidates[candidates.length - 1];
+
+  // Historique : calculé dès le début des données lues, pour que la condition n'y parte pas de zéro.
+  const yesterday = addDays(today, -1);
+  const series = fitnessSeries(actual, new Map(), start, yesterday, today);
+  const last = series[series.length - 1];
+  const windowStart = addDays(today, -MAX_HISTORY_DAYS);
+  const history = series.filter((p) => p.date >= windowStart);
+  const model: FitnessModel = {
+    today,
+    start: { fitness: last?.fitness ?? 0, fatigue: last?.fatigue ?? 0 },
+    todayActual: actual.get(today) ?? 0,
+    planned: plannedItems.filter((i) => i.date <= horizon),
+    horizon,
+  };
+  const future = simulate(model, PUBLISHED_PLAN);
   const firstActual = [...actual.keys()].sort()[0];
   return {
     today,
-    points,
-    current: series.find((p) => p.date === today) ?? null,
+    history,
+    model,
+    pastItems: items.filter((i) => i.kind !== "planned" && i.date >= windowStart && i.date <= today),
+    races: events.filter((e) => e.event_date >= windowStart && e.event_date <= horizon).map((e) => ({ id: e.id, name: e.name, date: e.event_date, priority: e.priority })),
+    current: future[0] ?? null,
+    inAWeek: future.find((p) => p.date === addDays(today, 7)) ?? null,
+    ramp: weeklyRamp([...history, ...future], today),
     coverage,
     realizedAvailable,
     historyDays: firstActual ? daysBetween(firstActual, today) : null,

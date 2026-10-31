@@ -18,9 +18,11 @@ import type { AthleteThresholds } from "@/lib/workout/zones";
 
 export const FITNESS_DAYS = 42;
 export const FATIGUE_DAYS = 7;
-/** Fenêtre affichée : 13 semaines passées, et la prévision jusqu'à 6 semaines. */
+/** Fenêtre affichée par défaut : 13 semaines passées ; l'historique lu remonte à un an. */
 export const HISTORY_DAYS = 91;
-export const PROJECTION_DAYS = 42;
+export const MAX_HISTORY_DAYS = 365;
+/** Prévision : jusqu'à la dernière séance prévue ou la prochaine course, six mois au plus. */
+export const PROJECTION_DAYS = 182;
 /** Historique lu en plus avant la fenêtre, pour que la condition n'y parte pas de zéro. */
 export const WARMUP_DAYS = 120;
 
@@ -34,6 +36,8 @@ export function tss(seconds: number, intensity: number, exponent: 2 | 3 = 2): nu
 
 export interface LoadActivity {
   id: string;
+  /** Nom de l'activité (détail du jour). */
+  name?: string | null;
   sport: string;
   local_date: string;
   moving_s: number | null;
@@ -116,6 +120,23 @@ export interface FitnessSession {
   scheduled_date: string;
   state: string;
   content: Workout;
+  title?: string;
+  sport?: string;
+}
+
+/** Une charge comptée (ou prévue), pour le détail d'un jour et la simulation. */
+export interface LoadItem {
+  /** Activité faite, séance déclarée faite (retour de l'athlète), séance prévue. */
+  kind: "activity" | "feedback" | "planned";
+  /** Activité ou séance. */
+  id: string;
+  date: string;
+  title: string;
+  sport: string;
+  load: number;
+  method: LoadMethod;
+  /** Séance prévue encore en brouillon : comptée seulement si la simulation l'inclut. */
+  draft?: boolean;
 }
 
 export interface FitnessCompletion {
@@ -151,11 +172,20 @@ export interface FitnessCoverage {
 }
 
 /** Charge de chaque jour (date locale) : réelle jusqu'à aujourd'hui, prévue ensuite. */
-export function dailyLoads(inputs: FitnessInputs): { actual: Map<string, number>; planned: Map<string, number>; coverage: FitnessCoverage } {
+export function dailyLoads(inputs: FitnessInputs): {
+  actual: Map<string, number>;
+  planned: Map<string, number>;
+  coverage: FitnessCoverage;
+  /** Charges comptées et prévues, une par activité ou séance (brouillons à venir compris, marqués). */
+  items: LoadItem[];
+} {
   const { today, sessions, activities, matches, completions, thresholdsOn } = inputs;
   const actual = new Map<string, number>();
   const planned = new Map<string, number>();
+  const items: LoadItem[] = [];
   const add = (map: Map<string, number>, date: string, load: number) => map.set(date, (map.get(date) ?? 0) + load);
+  const sessionTitle = (session: FitnessSession) => session.title ?? "Séance";
+  const sessionSport = (session: FitnessSession) => session.sport ?? session.content.segments[0]?.sport ?? "other";
   const coverage: FitnessCoverage = { fit: 0, feedback: 0, planned: 0, fitWithoutMeasure: 0, feedbackWithoutMeasure: 0, plannedPartly: 0 };
   const sessionsWithFit = new Set<string>();
 
@@ -164,8 +194,18 @@ export function dailyLoads(inputs: FitnessInputs): { actual: Map<string, number>
     const sessionId = matches.get(activity.id);
     if (sessionId) sessionsWithFit.add(sessionId);
     const measured = activityLoad(activity, thresholdsOn(activity.local_date));
+    const activityItem = (load: number, method: LoadMethod): LoadItem => ({
+      kind: "activity",
+      id: activity.id,
+      date: activity.local_date,
+      title: activity.name ?? "",
+      sport: activity.sport,
+      load,
+      method,
+    });
     if (measured) {
       add(actual, activity.local_date, measured.load);
+      items.push(activityItem(measured.load, measured.method));
       coverage.fit += 1;
       continue;
     }
@@ -173,7 +213,9 @@ export function dailyLoads(inputs: FitnessInputs): { actual: Map<string, number>
     const completion = sessionId ? completions.get(sessionId) : undefined;
     const seconds = activity.moving_s ?? activity.elapsed_s;
     if (completion?.rpe && seconds && completion.status !== "skipped") {
-      add(actual, activity.local_date, feedbackLoad(seconds, completion.rpe));
+      const load = feedbackLoad(seconds, completion.rpe);
+      add(actual, activity.local_date, load);
+      items.push(activityItem(load, "rpe"));
       coverage.fit += 1;
     } else {
       coverage.fitWithoutMeasure += 1;
@@ -181,8 +223,14 @@ export function dailyLoads(inputs: FitnessInputs): { actual: Map<string, number>
   }
 
   for (const session of sessions) {
-    if (session.state !== "published") continue;
     const date = session.scheduled_date;
+    // Brouillons à venir : seulement pour la simulation, jamais dans la prévision par défaut.
+    if (session.state === "draft" && date >= today) {
+      const plan = plannedLoad(session.content, thresholdsOn(date));
+      if (plan.load > 0) items.push({ kind: "planned", id: session.id, date, title: sessionTitle(session), sport: sessionSport(session), load: plan.load, method: "plan", draft: true });
+      continue;
+    }
+    if (session.state !== "published") continue;
     const completion = completions.get(session.id);
     const isPast = date < today || (date === today && completion !== undefined);
     if (isPast) {
@@ -195,10 +243,13 @@ export function dailyLoads(inputs: FitnessInputs): { actual: Map<string, number>
         continue;
       }
       if (completion.rpe && plan.seconds) {
-        add(actual, date, feedbackLoad(plan.seconds, completion.rpe));
+        const load = feedbackLoad(plan.seconds, completion.rpe);
+        add(actual, date, load);
+        items.push({ kind: "feedback", id: session.id, date, title: sessionTitle(session), sport: sessionSport(session), load, method: "rpe" });
         coverage.feedback += 1;
       } else if (plan.load > 0 && plan.unknownSeconds === 0) {
         add(actual, date, plan.load);
+        items.push({ kind: "feedback", id: session.id, date, title: sessionTitle(session), sport: sessionSport(session), load: plan.load, method: "plan" });
         coverage.feedback += 1;
       } else {
         coverage.feedbackWithoutMeasure += 1;
@@ -210,11 +261,12 @@ export function dailyLoads(inputs: FitnessInputs): { actual: Map<string, number>
     const plan = plannedLoad(session.content, thresholdsOn(date));
     if (plan.load > 0) {
       add(planned, date, plan.load);
+      items.push({ kind: "planned", id: session.id, date, title: sessionTitle(session), sport: sessionSport(session), load: plan.load, method: "plan" });
       coverage.planned += 1;
     }
     if (plan.unknownSeconds > 0) coverage.plannedPartly += 1;
   }
-  return { actual, planned, coverage };
+  return { actual, planned, coverage, items };
 }
 
 export interface FitnessPoint {
@@ -247,6 +299,80 @@ export function fitnessSeries(actual: Map<string, number>, planned: Map<string, 
   return points;
 }
 
+export interface FitnessState {
+  fitness: number;
+  fatigue: number;
+}
+
+/** Ce qu'il faut pour simuler la suite : l'état de la veille et les charges d'aujourd'hui à l'horizon. */
+export interface FitnessModel {
+  today: string;
+  /** Condition et fatigue à la fin de la veille. */
+  start: FitnessState;
+  /** Charge déjà faite aujourd'hui. */
+  todayActual: number;
+  /** Séances prévues d'aujourd'hui à l'horizon (publiées, et brouillons marqués). */
+  planned: LoadItem[];
+  horizon: string;
+}
+
+export interface Scenario {
+  /** Compter aussi les brouillons à venir. */
+  includeDrafts: boolean;
+  /** Séances retirées de la simulation (identifiants). */
+  excluded: ReadonlySet<string>;
+}
+
+export const PUBLISHED_PLAN: Scenario = { includeDrafts: false, excluded: new Set() };
+
+export const countsIn = (item: LoadItem, scenario: Scenario) => !scenario.excluded.has(item.id) && (!item.draft || scenario.includeDrafts);
+
+/**
+ * Condition, fatigue et forme d'aujourd'hui à l'horizon selon un scénario : ce qui est fait
+ * aujourd'hui, plus les séances prévues comptées. Après la dernière séance comptée, la prévision
+ * suppose le repos (`afterPlan`).
+ */
+export function simulate(model: FitnessModel, scenario: Scenario): (FitnessPoint & { afterPlan: boolean })[] {
+  const loads = new Map<string, number>();
+  let planEnd = "";
+  for (const item of model.planned) {
+    if (!countsIn(item, scenario)) continue;
+    loads.set(item.date, (loads.get(item.date) ?? 0) + item.load);
+    if (item.date > planEnd) planEnd = item.date;
+  }
+  const points: (FitnessPoint & { afterPlan: boolean })[] = [];
+  let { fitness, fatigue } = model.start;
+  for (let date = model.today; date <= model.horizon; date = addDays(date, 1)) {
+    const planned = loads.get(date) ?? 0;
+    const load = (date === model.today ? model.todayActual : 0) + planned;
+    fitness += (load - fitness) / FITNESS_DAYS;
+    fatigue += (load - fatigue) / FATIGUE_DAYS;
+    points.push({
+      date,
+      load,
+      fitness,
+      fatigue,
+      form: fitness - fatigue,
+      projected: date > model.today || model.todayActual === 0,
+      afterPlan: date > model.today && date > planEnd,
+    });
+  }
+  return points;
+}
+
+/** Forme au départ d'une course : celle de la veille au soir (la charge de la course n'y entre pas). */
+export function formOnRaceMorning(points: Pick<FitnessPoint, "date" | "form">[], raceDate: string): number | null {
+  const eve = points.find((p) => p.date === addDays(raceDate, -1));
+  return eve ? eve.form : null;
+}
+
+/** Variation de la condition sur les 7 jours qui précèdent `date` (null sans recul suffisant). */
+export function weeklyRamp(points: Pick<FitnessPoint, "date" | "fitness">[], date: string): number | null {
+  const now = points.find((p) => p.date === date);
+  const before = points.find((p) => p.date === addDays(date, -7));
+  return now && before ? now.fitness - before.fitness : null;
+}
+
 /** Zones de forme (Joe Friel, reprises par Intervals.icu). */
 export const FORM_ZONES = [
   { key: "transition", label: "Transition", min: 20, hint: "Très reposé : la condition baisse si cela dure." },
@@ -262,7 +388,7 @@ export function formZone(form: number): (typeof FORM_ZONES)[number] {
   return FORM_ZONES.find((zone) => form >= zone.min) ?? FORM_ZONES[FORM_ZONES.length - 1];
 }
 
-/** Début de l'historique lu : la première charge réelle, sans remonter plus loin que nécessaire. */
+/** Début de l'historique lu : un an affichable, plus la mise en route du calcul. */
 export function historyStart(today: string): string {
-  return addDays(today, -(HISTORY_DAYS + WARMUP_DAYS));
+  return addDays(today, -(MAX_HISTORY_DAYS + WARMUP_DAYS));
 }

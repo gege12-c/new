@@ -1,7 +1,6 @@
 import { Panel } from "@/components/ui/panel";
 import type { FitnessData } from "@/lib/data/fitness";
 import { FITNESS_DAYS, FORM_ZONES, formZone } from "@/lib/stats/fitness";
-import { addDays } from "@/lib/planning/dates";
 import { signed, ZONE_COLOR } from "@/lib/stats/fitness-format";
 import { FitnessChart } from "./fitness-chart";
 
@@ -9,10 +8,9 @@ const plural = (n: number, one: string, many: string) => `${n} ${n > 1 ? many : 
 
 /** Condition physique, fatigue et forme : le réel autorisé jusqu'à aujourd'hui, puis la prévision. */
 export function FitnessPanel({ data, viewer }: { data: FitnessData; viewer: "athlete" | "coach" }) {
-  const { coverage, current, points } = data;
+  const { coverage, current, inAWeek } = data;
   const own = viewer === "athlete";
-  const hasLoad = points.some((p) => p.load > 0) || (current?.fitness ?? 0) > 0;
-  const inAWeek = points.find((p) => p.date === addDays(data.today, 7));
+  const hasLoad = data.history.some((p) => p.load > 0) || data.model.planned.length > 0 || (current?.fitness ?? 0) > 0;
   const zone = current ? formZone(current.form) : null;
   const notes: string[] = [];
   if (!data.realizedAvailable) notes.push("Fichiers FIT et retours de séance : disponibles après la mise à jour de la base de données du site ; seule la prévision est calculée.");
@@ -59,6 +57,14 @@ export function FitnessPanel({ data, viewer }: { data: FitnessData; viewer: "ath
                 </span>
               </dd>
             </div>
+            {data.ramp !== null ? (
+              <div>
+                <dt className="text-[12px] font-semibold text-muted">Condition sur 7 jours</dt>
+                <dd className="mt-1 text-[14px] text-ink-soft">
+                  <span className="figure font-semibold text-ink">{signed(data.ramp)}</span> {data.ramp >= 0.5 ? "en hausse" : data.ramp <= -0.5 ? "en baisse" : "stable"}
+                </dd>
+              </div>
+            ) : null}
             {inAWeek?.projected ? (
               <div>
                 <dt className="text-[12px] font-semibold text-muted">Dans 7 jours (prévision)</dt>
@@ -68,7 +74,7 @@ export function FitnessPanel({ data, viewer }: { data: FitnessData; viewer: "ath
               </div>
             ) : null}
           </dl>
-          <FitnessChart points={points} today={data.today} />
+          <FitnessChart data={data} />
         </>
       ) : (
         <p className="text-[14px] text-muted">
@@ -100,7 +106,11 @@ export function FitnessPanel({ data, viewer }: { data: FitnessData; viewer: "ath
               Zones de forme (Joe Friel) :{" "}
               {FORM_ZONES.map((z, i) => `${z.label.toLowerCase()} ${i === FORM_ZONES.length - 1 ? `sous ${signed(FORM_ZONES[i - 1].min)}` : i === 0 ? `au-dessus de ${signed(z.min)}` : `de ${signed(z.min)} à ${signed(FORM_ZONES[i - 1].min)}`}`).join(", ")}.
             </li>
-            <li>Prévision : séances publiées à venir, d’après leurs cibles et les seuils actuels. Une séance non faite ou modifiée fera dévier la courbe.</li>
+            <li>
+              Prévision : séances publiées à venir, d’après leurs cibles et les seuils à leur date, jusqu’à la dernière séance prévue ou la prochaine course (six mois au plus) ; au-delà de la
+              dernière séance comptée, le repos est supposé. Une séance non faite ou modifiée fera dévier la courbe.
+            </li>
+            <li>Simulation : brouillons ajoutés ou séances retirées au choix, sans rien changer au calendrier. Forme au départ d’une course : celle de la veille au soir.</li>
           </ul>
         </details>
       </div>

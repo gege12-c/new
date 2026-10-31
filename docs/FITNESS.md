@@ -30,7 +30,18 @@ Le calcul part de zéro 120 jours avant la fenêtre affichée (13 semaines pass�
 
 RPE en intensité : 1 → 45 %, 2 → 52 %, 3 → 62 %, 4 → 70 %, 5 → 80 %, 6 → 87 %, 7 → 95 %, 8 → 102 %, 9 → 113 %, 10 → 125 % du seuil (interpolé), calé sur les zones (RPE 7–8 = seuil). Les seuils utilisés sont ceux en vigueur à la date de chaque séance.
 
-Une séance rattachée à un fichier FIT n'est comptée qu'une fois (par le fichier). Aujourd'hui : ce qui est fait, plus ce qui reste prévu ; à partir de demain : les séances publiées (les brouillons ne comptent pas). La prévision va jusqu'à la dernière séance prévue, six semaines au plus.
+Une séance rattachée à un fichier FIT n'est comptée qu'une fois (par le fichier). Aujourd'hui : ce qui est fait, plus ce qui reste prévu ; à partir de demain : les séances publiées (les brouillons ne comptent pas, sauf dans une simulation).
+
+## Prévision et simulation
+
+- **Horizon** : la dernière séance prévue (brouillons compris) ou la prochaine course (objectif A d'abord, sinon la première course à venir), une semaine au moins, six mois au plus. Après la dernière séance comptée, la prévision suppose le repos : la courbe continue en pointillés fins, marquée « Sans séance prévue ».
+- **Simulation** (athlète et coach) : chaque séance prévue peut être retirée du calcul (case à décocher, dans le détail d'un jour ou dans la liste par semaine), et les brouillons à venir ajoutés ; la courbe est recalculée aussitôt, dans le navigateur, sans rien changer au calendrier. « Revenir au plan publié » annule tout.
+- **Courses** : marquées sur la courbe (A, B, C) ; pour chaque course à venir, la forme prévue au départ, c'est-à-dire celle de la veille au soir (la charge de la course elle-même n'y entre pas).
+- **Détail d'un jour** : le jour pointé (aujourd'hui par défaut) donne condition, fatigue, forme et zone, puis chaque charge du jour : activité ou retour de séance, sa valeur et sa méthode (puissance, allure, FC, ressenti) ; séance prévue, avec sa case de simulation.
+- **Période** : 6 semaines, 3 mois (par défaut), 6 mois ou 1 an d'historique ; le calcul remonte toujours 120 jours avant le début de l'année affichable.
+- **Condition sur 7 jours** : variation de la condition sur la dernière semaine, affichée sans jugement (« en hausse », « stable », « en baisse »).
+
+Calcul de la simulation : `simulate(modèle, scénario)` dans `src/lib/stats/fitness.ts`, partagé entre le serveur (plan publié, chiffres du jour et à 7 jours) et le navigateur (scénarios). Le modèle tient l'état de la veille (condition et fatigue), la charge déjà faite aujourd'hui et les séances prévues jusqu'à l'horizon.
 
 ## Strava
 
@@ -42,4 +53,4 @@ Repères de Joe Friel, repris par Intervals.icu : transition au-dessus de +20, f
 
 ## Affichage
 
-Condition (bleu, aire) et fatigue (violet) en haut, forme colorée par zone en bas, sur fond des zones ; la prévision est en pointillés, après le trait « aujourd'hui ». Valeurs du jour pointé au doigt, à la souris ou au clavier (flèches, Origine, Fin). Sous le graphique : ce qui est compté (fichiers FIT, retours, séances prévues) et ce qui ne l'est pas, avec la raison.
+Condition (bleu, aire) et fatigue (violet) en haut, forme colorée par zone en bas, sur fond des zones ; la prévision est en pointillés, après le trait « aujourd'hui », et le repos supposé en pointillés fins. Jour pointé au doigt (touché), à la souris (survol, clic pour le garder) ou au clavier (flèches, Page précédente et suivante pour une semaine, Origine, Fin). Sous le graphique : le détail du jour, la forme prévue au départ des courses, la simulation, puis ce qui est compté (fichiers FIT, montre, retours, séances prévues) et ce qui ne l'est pas, avec la raison.

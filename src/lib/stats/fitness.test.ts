@@ -7,10 +7,15 @@ import {
   dailyLoads,
   feedbackLoad,
   fitnessSeries,
+  formOnRaceMorning,
   formZone,
   plannedLoad,
+  PUBLISHED_PLAN,
+  simulate,
   tss,
+  weeklyRamp,
   type FitnessCompletion,
+  type FitnessModel,
   type FitnessSession,
   type LoadActivity,
 } from "./fitness";
@@ -145,5 +150,77 @@ describe("charges du jour", () => {
     });
     expect(actual.size).toBe(0);
     expect(coverage).toMatchObject({ fitWithoutMeasure: 1, feedbackWithoutMeasure: 1 });
+  });
+});
+
+describe("simulation de la forme", () => {
+  const today = "2026-11-02";
+  const model: FitnessModel = {
+    today,
+    start: { fitness: 50, fatigue: 60 },
+    todayActual: 0,
+    planned: [
+      { kind: "planned", id: "p1", date: "2026-11-03", title: "Seuil", sport: "bike", load: 100, method: "plan" },
+      { kind: "planned", id: "p2", date: "2026-11-05", title: "Sortie longue", sport: "bike", load: 150, method: "plan" },
+      { kind: "planned", id: "d1", date: "2026-11-07", title: "Brouillon", sport: "run", load: 80, method: "plan", draft: true },
+    ],
+    horizon: "2026-11-10",
+  };
+
+  it("plan publié : les brouillons ne comptent pas ; après la dernière séance, repos supposé", () => {
+    const points = simulate(model, PUBLISHED_PLAN);
+    expect(points.map((p) => p.date)).toEqual(["2026-11-02", "2026-11-03", "2026-11-04", "2026-11-05", "2026-11-06", "2026-11-07", "2026-11-08", "2026-11-09", "2026-11-10"]);
+    expect(points.map((p) => p.load)).toEqual([0, 100, 0, 150, 0, 0, 0, 0, 0]);
+    expect(points[0].fitness).toBeCloseTo(50 - 50 / 42);
+    expect(points[0].fatigue).toBeCloseTo(60 - 60 / 7);
+    expect(points.every((p) => p.projected)).toBe(true);
+    expect(points.filter((p) => p.afterPlan).map((p) => p.date)[0]).toBe("2026-11-06");
+  });
+
+  it("brouillons inclus, séance retirée : la courbe change, rien d'autre", () => {
+    const withDraft = simulate(model, { includeDrafts: true, excluded: new Set() });
+    expect(withDraft[5].load).toBe(80);
+    expect(withDraft.filter((p) => p.afterPlan)[0].date).toBe("2026-11-08");
+    const withoutLong = simulate(model, { includeDrafts: false, excluded: new Set(["p2"]) });
+    expect(withoutLong[3].load).toBe(0);
+    expect(withoutLong[8].fitness).toBeLessThan(simulate(model, PUBLISHED_PLAN)[8].fitness);
+    expect(withoutLong[8].form).toBeGreaterThan(simulate(model, PUBLISHED_PLAN)[8].form);
+  });
+
+  it("ce qui est fait aujourd'hui compte, et n'est pas une prévision", () => {
+    const points = simulate({ ...model, todayActual: 90 }, PUBLISHED_PLAN);
+    expect(points[0]).toMatchObject({ load: 90, projected: false, afterPlan: false });
+  });
+
+  it("forme au départ d'une course : la veille au soir ; condition sur 7 jours", () => {
+    const points = simulate(model, PUBLISHED_PLAN);
+    expect(formOnRaceMorning(points, "2026-11-06")).toBeCloseTo(points[3].form);
+    expect(formOnRaceMorning(points, "2026-11-02")).toBeNull();
+    const steady = fitnessSeries(new Map(Array.from({ length: 30 }, (_, i) => [addDays("2026-10-01", i), 100] as const)), new Map(), "2026-10-01", "2026-10-30", "2026-11-01");
+    expect(weeklyRamp(steady, "2026-10-30")).toBeGreaterThan(0);
+    expect(weeklyRamp(steady, "2026-10-03")).toBeNull();
+  });
+});
+
+describe("détail des charges", () => {
+  it("chaque charge comptée ou prévue est détaillée ; un brouillon à venir est marqué, pas compté", () => {
+    const today = "2026-10-19";
+    const bike = (id: string, date: string, state = "published"): FitnessSession => ({ id, scheduled_date: date, state, content: workout(3600, 100), title: `Séance ${id}`, sport: "bike" });
+    const { items, planned } = dailyLoads({
+      today,
+      sessions: [bike("done", "2026-10-16"), bike("next", "2026-10-21"), bike("draft", "2026-10-22", "draft"), bike("old-draft", "2026-10-10", "draft")],
+      activities: [activity({ id: "a1", name: "Sortie du matin", local_date: "2026-10-15", weighted_power: 200 })],
+      matches: new Map(),
+      completions: new Map([["done", { session_id: "done", status: "done", rpe: 7 }]]),
+      thresholdsOn: at,
+    });
+    expect(items.map((i) => [i.kind, i.id, i.title, i.method, i.draft ?? false])).toEqual([
+      ["activity", "a1", "Sortie du matin", "power", false],
+      ["feedback", "done", "Séance done", "rpe", false],
+      ["planned", "next", "Séance next", "plan", false],
+      ["planned", "draft", "Séance draft", "plan", true],
+    ]);
+    expect(items[0].load).toBeCloseTo(64);
+    expect(planned.has("2026-10-22")).toBe(false);
   });
 });

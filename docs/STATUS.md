@@ -2,6 +2,19 @@
 
 Dernière mise à jour : 31 octobre 2026, nuit. Phases 1 à 5 livrées ; nuit du 30 au 31 octobre : séances envoyées seules sur la montre (Suunto, Garmin, COROS) et activités et mesures du matin rapportées, par intervals.icu ; courbes et intervalles de chaque activité, efforts prévus et réalisés, meilleures puissances, zones et seuils tirés d'un test, semaine de tous les athlètes ; une séance faite comptée une fois quelle que soit sa source ; jours indisponibles ; forme du jour ; agenda du téléphone ; plans d'entraînement ; vue saison ; séance écrite en texte ; contrôle de production plus parlant. Ce qui vous reste à faire est en fin de page (15 minutes).
 
+## Matin du 31 octobre : condition physique précise et simulation de la forme
+
+Demandé à 5 h 22 : « plus de précisions sur la forme de l'athlète (une courbe précise de sa condition physique) avec les séances passées, mais aussi une simulation de sa forme avec ses séances du futur ». Détail de la méthode : [FITNESS.md](FITNESS.md).
+
+Livré :
+
+- **Simulation de la forme** (page Progression, athlète et coach) : la prévision va jusqu'à la prochaine course objectif ou la dernière séance prévue (six mois au plus), le repos supposé ensuite ; chaque séance prévue peut être retirée du calcul et les brouillons ajoutés, la courbe change aussitôt sans toucher au calendrier ; « Revenir au plan publié ».
+- **Courses sur la courbe** (A, B, C) et forme prévue au départ de chacune (celle de la veille au soir).
+- **Détail du jour pointé** : condition, fatigue, forme, et chaque charge du jour avec sa méthode (puissance, allure, FC, ressenti, séance prévue).
+- **Période au choix** : 6 semaines, 3 mois, 6 mois, 1 an ; **condition sur 7 jours** (en hausse, stable, en baisse).
+
+Vérification : 5 nouveaux tests unitaires (simulation au plan publié, brouillons inclus, séance retirée, charge faite aujourd'hui, forme au départ d'une course, variation sur 7 jours, détail des charges et brouillons marqués) ; parcours `e2e/stats.spec.ts` étendu (course objectif et forme au départ, séance retirée puis remise, période d'un an).
+
 ## Nuit du 30 au 31 octobre : montre, activités de la montre, courbes, semaine des athlètes, jours indisponibles, forme du jour, agenda du téléphone, plans, saison, séance en texte
 
 Demandé le 30 octobre : « je veux juste que les séances préparées sur TriCoach soient exportables en guide sur ma montre », puis « fais ça pour Garmin et COROS également ». Une séance publiée part seule sur la montre de l'athlète, par intervals.icu, partenaire officiel de Suunto, Garmin et COROS ; l'envoi direct à Suunto est prêt pour le jour où Suunto ouvre son accès. Fonctionnement, conversion et limites : [WATCHES.md](WATCHES.md).
