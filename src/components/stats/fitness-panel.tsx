@@ -73,14 +73,14 @@ export function FitnessPanel({ data, viewer }: { data: FitnessData; viewer: "ath
       ) : (
         <p className="text-[14px] text-muted">
           {own
-            ? "Pas encore de charge à calculer : importez vos fichiers FIT ou donnez votre retour après chaque séance. La prévision apparaît dès que des séances sont prévues."
-            : "Pas encore de charge à calculer : aucun fichier FIT ni retour de séance de l’athlète, et aucune séance prévue avec une intensité."}
+            ? "Pas encore de charge à calculer : reliez votre montre par intervals.icu, importez vos fichiers FIT ou donnez votre retour après chaque séance. La prévision apparaît dès que des séances sont prévues."
+            : "Pas encore de charge à calculer : aucune activité ni retour de séance de l’athlète, et aucune séance prévue avec une intensité."}
         </p>
       )}
 
       <div className="mt-4 space-y-1.5 border-t border-line pt-3 text-[13px] text-ink-soft">
         <p>
-          Compté : {plural(coverage.fit, "fichier FIT", "fichiers FIT")}, {plural(coverage.feedback, "retour de séance", "retours de séance")} ; prévision :{" "}
+          Compté : {plural(coverage.fit, "activité (fichier ou montre)", "activités (fichiers ou montre)")}, {plural(coverage.feedback, "retour de séance", "retours de séance")} ; prévision :{" "}
           {plural(coverage.planned, "séance prévue", "séances prévues")}. Les activités Strava ne sont pas comptées (règles de Strava).
         </p>
         {notes.map((note) => (

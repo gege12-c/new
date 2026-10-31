@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { MiniProfile } from "@/components/calendar/session-chip";
 import { StatusGlyph } from "@/components/calendar/status-glyph";
 import { PageContainer } from "@/components/layout/page";
+import { WellnessCard } from "@/components/athlete/wellness-card";
 import { InstallCard } from "@/components/pwa/install-app";
 import { PlanningLive } from "@/components/realtime/planning-live";
 import { PriorityBadge, SPORT_STYLES, SportBadge, SportDot } from "@/components/sport";
@@ -16,6 +17,7 @@ import { getEvents, getMyCoaches, getThresholds } from "@/lib/data/athlete";
 import { unattachedActivities, withRealization } from "@/lib/activities/realization";
 import { getRealizedInRange } from "@/lib/data/activities";
 import { getSessionsInRange, type CalendarSession } from "@/lib/data/planning";
+import { getWellness } from "@/lib/data/wellness";
 import { calendarHref } from "@/lib/planning/calendar-query";
 import { addDays, dateRange, daysBetween, formatDayMonthLong, formatFullDate, formatWeekdayShort, relativeDay, startOfWeek } from "@/lib/planning/dates";
 import { sessionStatus, STATUS_LABELS } from "@/lib/planning/status";
@@ -98,13 +100,14 @@ async function AthleteHome({ searchParams }: Pick<PageProps<"/athlete">, "search
   const monday = startOfWeek(today);
   const weekAgo = addDays(today, -7);
   const from = weekAgo < monday ? weekAgo : monday;
-  const [planned, realized, events, coaches, thresholdRows, connection] = await Promise.all([
+  const [planned, realized, events, coaches, thresholdRows, connection, wellness] = await Promise.all([
     getSessionsInRange(supabase, userId, from, addDays(monday, 13)),
     getRealizedInRange(supabase, userId, from, addDays(monday, 13)),
     getEvents(supabase, userId),
     getMyCoaches(supabase, userId),
     getThresholds(supabase, userId),
     supabase.from("external_connections").select("status").eq("provider", "strava").maybeSingle(),
+    getWellness(supabase, userId, today, today),
   ]);
   const all = withRealization(planned, realized);
   const sessions = all.filter((s) => s.scheduled_date >= monday);
@@ -201,6 +204,9 @@ async function AthleteHome({ searchParams }: Pick<PageProps<"/athlete">, "search
               <span className="figure shrink-0 text-[18px]">{next.planned_duration_s ? formatDurationShort(next.planned_duration_s) : "—"}</span>
             </Link>
           ) : null}
+
+          {/* Base pas encore à jour : pas de saisie possible, rien n'est affiché. */}
+          {wellness ? <WellnessCard key={wellness[0]?.entry_date ?? "vide"} date={today} entry={wellness[0] ?? null} /> : null}
         </div>
 
         <div className="min-w-0 space-y-6">

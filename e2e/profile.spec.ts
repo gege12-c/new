@@ -135,10 +135,10 @@ test("inviter une athlète, puis remplir chaque formulaire du profil sportif", a
   await page.goto("/athlete/profile");
   const myCoach = panel(page, "Mon coach");
   await expect(panel(page, "Seuils").getByText("168 bpm").first()).toBeVisible();
-  await myCoach.getByLabel("Peut voir mes activités importées").uncheck();
+  await myCoach.getByLabel("Peut voir mes activités et ma forme du jour").uncheck();
   await myCoach.getByRole("button", { name: "Enregistrer les permissions" }).click();
   await expect(myCoach.getByText("Permissions mises à jour.")).toBeVisible();
-  await expect(myCoach.getByLabel("Peut voir mes activités importées")).not.toBeChecked();
+  await expect(myCoach.getByLabel("Peut voir mes activités et ma forme du jour")).not.toBeChecked();
   await expect(myCoach.getByLabel("Peut planifier mes séances")).toBeChecked();
   page.once("dialog", (dialog) => dialog.accept());
   await myCoach.getByRole("button", { name: "Retirer l’accès" }).click();

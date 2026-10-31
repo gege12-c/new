@@ -261,6 +261,16 @@ Migration `20261031010000_calendar_notes.sql`.
 
 Sécurité : lecture par l'athlète et ses coachs actifs (`has_athlete_access`, comme les compétitions) ; ajout par l'athlète ou un coach qui planifie pour lui (`can_plan_for`), l'auteur étant toujours l'utilisateur connecté ; modification et retrait par l'auteur, et par l'athlète sur son propre calendrier.
 
+## Forme du jour
+
+Migration `20261031020000_wellness.sql`.
+
+| Table | Rôle | Points clés |
+| --- | --- | --- |
+| `wellness_entries` | forme du jour d'un athlète, une ligne par date locale (clé `athlete_id`, `entry_date`) | échelles de 1 à 5 (qualité du sommeil et motivation : 5 = au mieux ; fatigue, courbatures, stress : 5 = au pire), durée du sommeil (h), FC au repos (bpm), VFC (ms), poids (kg), mot pour le coach (300 caractères) ; valeurs bornées ; au moins une valeur par ligne |
+
+Sécurité : écrite, modifiée et effacée par l'athlète seul ; lue par lui et par les coachs qu'il autorise à voir ses activités (`coach_can_view_activities`, même autorisation que les fichiers importés, libellée « Peut voir mes activités et ma forme du jour »). Effacée avec le compte ; incluse dans l'export des données personnelles.
+
 ## Journal d'audit
 
 Chaque création, modification et suppression sur les profils sportifs, relations, invitations, seuils, compétitions et séances est enregistrée avec son auteur. Pour une modification, seules les colonnes changées sont conservées (ancienne et nouvelle valeur). Le contenu structuré d'une séance est noté « modifié » sans être recopié, car l'enregistrement automatique le réécrit souvent.

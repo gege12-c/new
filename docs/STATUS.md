@@ -2,7 +2,7 @@
 
 Dernière mise à jour : 31 octobre 2026, nuit. Phases 1 à 5 livrées ; depuis le 30 octobre : séances envoyées seules sur la montre par intervals.icu (Suunto, Garmin, COROS), envoi direct à Suunto prêt en attendant l'accès partenaire, retrait de Gourmatch de la base partagée. Détail ci-dessous ; ce qui vous reste à faire est en fin de page.
 
-## Nuit du 30 au 31 octobre : montre, activités de la montre, jours indisponibles
+## Nuit du 30 au 31 octobre : montre, activités de la montre, jours indisponibles, forme du jour
 
 Demandé le 30 octobre : « je veux juste que les séances préparées sur TriCoach soient exportables en guide sur ma montre », puis « fais ça pour Garmin et COROS également ». Une séance publiée part seule sur la montre de l'athlète, par intervals.icu, partenaire officiel de Suunto, Garmin et COROS ; l'envoi direct à Suunto est prêt pour le jour où Suunto ouvre son accès. Fonctionnement, conversion et limites : [WATCHES.md](WATCHES.md).
 
@@ -24,6 +24,10 @@ Livré :
 - **Contrôle de production plus parlant** : `/api/health` dit si la base attend sa mise à jour (`database`) et quelles variables serveur manquent (`features`, oui ou non) ; le contrôle automatique après chaque déploiement le signale sans échouer.
 
 - **Jours indisponibles et notes de calendrier** (inspiré des notes et des « indisponibilités » d'intervals.icu, utile avec des rotations) : bouton « Indisponibilité » des calendriers de l'athlète et du coach ; types Indisponible, Déplacement, Malade, Blessure, Vacances, Note ; un jour ou une période, intitulé et précisions ; bandeau sur chaque jour couvert (vues mois, semaine, jour, liste), ouvert dans le panneau ; modifiable par son auteur, retirable par lui et par l'athlète ; le coach est prévenu sur son tableau de bord (« Indisponible : Rotation Tokyo, dès le 5 novembre »), dans la séance d'un jour indisponible et dans l'éditeur quand il crée une séance ce jour-là ; temps réel, journal d'audit, export des données personnelles.
+
+- **Forme du jour** (comme les données de forme d'intervals.icu, saisies à la main) : sur l'accueil de l'athlète, en dix secondes au doigt, cinq échelles (sommeil, fatigue, courbatures, stress, motivation) et, si besoin, durée du sommeil, FC au repos, VFC, poids et un mot pour le coach ; une valeur impossible est refusée sans perdre la saisie. Le coach voit sur son tableau de bord ce qui mérite son attention (« Forme du jour : fatigué, nuit de 5 h 30 », FC au repos à +5 bpm de la moyenne de l'athlète, calculée sur 5 jours au moins) ; la page Progression (athlète et coach) montre les 28 derniers jours (courbes des mesures à partir de 3 jours renseignés, une case par jour pour les échelles, tableau des valeurs). Visible des coachs autorisés à voir les activités de l'athlète (case renommée « Peut voir mes activités et ma forme du jour »).
+
+Vérification de la forme du jour : 4 tests de base (`tests/db/wellness.test.ts` : écriture par l'athlète seul, une ligne par jour, lecture selon l'autorisation, bornes), 4 tests unitaires (formulaire, signaux, FC au repos habituelle), parcours `e2e/wellness.spec.ts` (saisie, valeur refusée sans perte, signal sur le tableau de bord du coach, progression sans courbe sur un seul jour).
 
 Vérification des notes : 6 tests de base (`tests/db/calendar-notes.test.ts` : qui pose, qui lit, qui modifie et retire, périodes contrôlées, journal, temps réel), suppression du compte vérifiée ; 3 tests unitaires ; parcours `e2e/calendar-notes.spec.ts` (l'athlète pose une indisponibilité, le coach la voit dans le calendrier, l'éditeur et le tableau de bord, sans pouvoir la modifier ; elle est retirée ; une période à l'envers est refusée sans perdre la saisie).
 

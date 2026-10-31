@@ -79,8 +79,8 @@ test("l'athlète voit sa progression, sans aucune donnée Strava", async ({ brow
   await expect(page.getByText(/Les activités Strava n’entrent dans aucune statistique/)).toBeVisible();
 
   // Réalisé d'après le fichier FIT (1 h 03 au moins) et suivi : la séance d'hier est « faite ».
-  const realized = page.locator("dt", { hasText: "Réalisé (fichiers FIT)" }).locator("..");
-  await expect(realized).not.toContainText("aucun fichier FIT");
+  const realized = page.locator("dt", { hasText: "Réalisé (fichiers FIT et montre)" }).locator("..");
+  await expect(realized).not.toContainText("aucune activité comptée");
   const done = page.locator("dl div", { has: page.locator("dt", { hasText: /^Faites$/ }) });
   await expect(done.locator("dd").first()).not.toHaveText("0");
 
@@ -94,7 +94,7 @@ test("l'athlète voit sa progression, sans aucune donnée Strava", async ({ brow
 
   // Condition physique : le fichier FIT d'hier compte, Strava jamais ; la prévision suit le plan.
   const fitness = page.locator("section", { has: page.getByRole("heading", { name: "Condition physique" }) });
-  await expect(fitness).toContainText(/Compté : \d+ fichiers? FIT/);
+  await expect(fitness).toContainText(/Compté : \d+ activités? \(fichiers? ou montre\)/);
   await expect(fitness).toContainText("Les activités Strava ne sont pas comptées (règles de Strava).");
   await expect(fitness.locator("dt", { hasText: /^Condition$/ }).locator("+ dd")).toHaveText(/^\d+$/);
   await expect(fitness).toContainText(/Transition|Fraîcheur|Zone grise|Zone optimale|Risque élevé/);

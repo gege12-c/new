@@ -114,8 +114,8 @@ export function StatsView({ data, today, viewer, canSeeFiles }: { data: StatsDat
       <p className="flex items-start gap-2 text-[13.5px] leading-snug text-muted">
         <Info aria-hidden className="mt-0.5 size-4 shrink-0" />
         <span>
-          Calculé sur les séances publiées, les seuils, les retours de séance et les fichiers FIT importés. Les activités Strava n’entrent dans aucune statistique (règles de Strava) :{" "}
-          {own ? "importez le fichier FIT d’une activité, ou donnez votre retour de séance, pour qu’elle soit comptée." : "seuls les fichiers FIT et les retours de l’athlète sont comptés."}
+          Calculé sur les séances publiées, les seuils, les retours de séance, les fichiers FIT importés et les activités de la montre reçues par intervals.icu. Les activités Strava n’entrent dans aucune statistique (règles de Strava) :{" "}
+          {own ? "reliez votre montre par intervals.icu (profil sportif), importez le fichier FIT d’une activité, ou donnez votre retour de séance, pour qu’elle soit comptée." : "seuls les fichiers FIT et les retours de l’athlète sont comptés."}
         </span>
       </p>
 
@@ -123,7 +123,7 @@ export function StatsView({ data, today, viewer, canSeeFiles }: { data: StatsDat
 
       <Panel
         title="Volume par semaine"
-        description={`Prévu sur les ${VOLUME_WEEKS} dernières semaines, semaine en cours comprise${showRealized ? ", et réalisé d’après les fichiers FIT" : ""}.`}
+        description={`Prévu sur les ${VOLUME_WEEKS} dernières semaines, semaine en cours comprise${showRealized ? ", et réalisé d’après les fichiers FIT et la montre" : ""}.`}
       >
         {hasPlanned ? (
           <>
@@ -135,8 +135,8 @@ export function StatsView({ data, today, viewer, canSeeFiles }: { data: StatsDat
               </div>
               {showRealized ? (
                 <div>
-                  <dt className="text-[12px] text-muted">Réalisé (fichiers FIT)</dt>
-                  <dd className="figure text-[18px] text-ink">{totalRealized ? `${formatDurationShort(totalRealized)} en ${VOLUME_WEEKS} semaines` : "aucun fichier FIT"}</dd>
+                  <dt className="text-[12px] text-muted">Réalisé (fichiers FIT et montre)</dt>
+                  <dd className="figure text-[18px] text-ink">{totalRealized ? `${formatDurationShort(totalRealized)} en ${VOLUME_WEEKS} semaines` : "aucune activité comptée"}</dd>
                 </div>
               ) : null}
             </dl>
@@ -145,7 +145,7 @@ export function StatsView({ data, today, viewer, canSeeFiles }: { data: StatsDat
                 {incomplete} séance{incomplete > 1 ? "s" : ""} sans durée entièrement calculable (étapes libres ou en répétitions, seuils manquants) : le volume affiché les sous-estime.
               </p>
             ) : null}
-            {!canSeeFiles ? <p className="mt-2 text-[12.5px] text-muted">L’athlète ne partage pas ses fichiers FIT : le réalisé n’est pas affiché.</p> : null}
+            {!canSeeFiles ? <p className="mt-2 text-[12.5px] text-muted">L’athlète ne partage pas ses activités : le réalisé n’est pas affiché.</p> : null}
             {!data.activitiesAvailable ? <p className="mt-2 text-[12.5px] text-muted">Le réalisé sera disponible après la mise à jour de la base de données du site.</p> : null}
             <details className="mt-3">
               <summary className="cursor-pointer text-[13px] font-medium text-ink-soft hover:text-ink">Voir le tableau</summary>
@@ -166,7 +166,7 @@ export function StatsView({ data, today, viewer, canSeeFiles }: { data: StatsDat
                       </th>
                       {showRealized ? (
                         <th scope="col" className="py-1.5 font-medium">
-                          Réalisé (FIT)
+                          Réalisé
                         </th>
                       ) : null}
                     </tr>
@@ -247,8 +247,8 @@ export function StatsView({ data, today, viewer, canSeeFiles }: { data: StatsDat
                     ["done", "Faites", "retour de l’athlète"],
                     ["partial", "Faites en partie", "retour de l’athlète"],
                     ["skipped", "Pas faites", "retour de l’athlète"],
-                    ["fit", "Faites (fichier FIT)", "sans retour"],
-                    ["none", "Sans retour", "ni fichier FIT"],
+                    ["fit", "Faites (fichier FIT ou montre)", "sans retour"],
+                    ["none", "Sans retour", "ni activité comptée"],
                   ] as const
                 ).map(([key, label, hint]) => (
                   <div key={key} className="rounded-[10px] bg-surface-2 px-3 py-2">
@@ -274,9 +274,9 @@ export function StatsView({ data, today, viewer, canSeeFiles }: { data: StatsDat
         </div>
       </Panel>
 
-      <Panel title="Records" description="Tirés des fichiers FIT importés (résumés d’activité).">
+      <Panel title="Records" description="Tirés des fichiers FIT importés et des activités de la montre (résumés d’activité).">
         {!showRealized ? (
-          <p className="text-[13.5px] text-muted">{!data.activitiesAvailable ? "Disponible après la mise à jour de la base de données du site." : "L’athlète ne partage pas ses fichiers FIT."}</p>
+          <p className="text-[13.5px] text-muted">{!data.activitiesAvailable ? "Disponible après la mise à jour de la base de données du site." : "L’athlète ne partage pas ses activités."}</p>
         ) : data.records.length ? (
           <dl className="grid gap-x-8 gap-y-3 sm:grid-cols-3">
             {(["swim", "bike", "run"] as const).map((sport) => {
@@ -295,14 +295,14 @@ export function StatsView({ data, today, viewer, canSeeFiles }: { data: StatsDat
                       </dd>
                     ))
                   ) : (
-                    <dd className="mt-1.5 text-[13px] text-muted">Aucun fichier FIT.</dd>
+                    <dd className="mt-1.5 text-[13px] text-muted">Aucune activité.</dd>
                   )}
                 </div>
               );
             })}
           </dl>
         ) : (
-          <p className="text-[13.5px] text-muted">{own ? "Aucun fichier FIT importé pour l’instant : importez vos activités depuis le profil sportif." : "Aucun fichier FIT importé par l’athlète."}</p>
+          <p className="text-[13.5px] text-muted">{own ? "Aucune activité comptée pour l’instant : reliez votre montre par intervals.icu ou importez vos fichiers FIT, depuis le profil sportif." : "Aucune activité de l’athlète (fichier FIT ou montre) pour l’instant."}</p>
         )}
       </Panel>
     </div>

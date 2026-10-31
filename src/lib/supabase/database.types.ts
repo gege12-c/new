@@ -1380,6 +1380,66 @@ export type Database = {
           },
         ];
       };
+      wellness_entries: {
+        Row: {
+          athlete_id: string;
+          created_at: string;
+          entry_date: string;
+          fatigue: number | null;
+          hrv_ms: number | null;
+          motivation: number | null;
+          note: string | null;
+          resting_hr: number | null;
+          sleep_hours: number | null;
+          sleep_quality: number | null;
+          soreness: number | null;
+          stress: number | null;
+          updated_at: string;
+          weight_kg: number | null;
+        };
+        ComputedFields: never;
+        Insert: {
+          athlete_id?: string;
+          created_at?: string;
+          entry_date: string;
+          fatigue?: number | null;
+          hrv_ms?: number | null;
+          motivation?: number | null;
+          note?: string | null;
+          resting_hr?: number | null;
+          sleep_hours?: number | null;
+          sleep_quality?: number | null;
+          soreness?: number | null;
+          stress?: number | null;
+          updated_at?: string;
+          weight_kg?: number | null;
+        };
+        Update: {
+          athlete_id?: string;
+          created_at?: string;
+          entry_date?: string;
+          fatigue?: number | null;
+          hrv_ms?: number | null;
+          motivation?: number | null;
+          note?: string | null;
+          resting_hr?: number | null;
+          sleep_hours?: number | null;
+          sleep_quality?: number | null;
+          soreness?: number | null;
+          stress?: number | null;
+          updated_at?: string;
+          weight_kg?: number | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "wellness_entries_athlete_id_fkey";
+            columns: ["athlete_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       workout_exports: {
         Row: {
           athlete_id: string;

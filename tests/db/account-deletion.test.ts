@@ -107,6 +107,7 @@ describe("suppression de son compte", () => {
       "athlete_thresholds",
       "athlete_events",
       "calendar_notes",
+      "wellness_entries",
       "coach_athlete_links",
       "sync_jobs",
       "audit_logs",

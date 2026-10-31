@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { CalendarOff } from "lucide-react";
+import { CalendarOff, HeartPulse } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 import { revokeInvitation } from "@/app/(app)/actions";
@@ -16,6 +16,8 @@ import { withoutStrava, withRealization } from "@/lib/activities/realization";
 import { getRealizedInRange } from "@/lib/data/activities";
 import { getAthletesOverview, getCoachDashboard, getCoachedAthletes, getPendingInvitations, getSyncStatuses, type SyncStatus } from "@/lib/data/coach";
 import { getUpcomingUnavailability } from "@/lib/data/notes";
+import { getWellness } from "@/lib/data/wellness";
+import { wellnessFlags } from "@/lib/wellness/wellness";
 import { noteTitle } from "@/lib/planning/notes";
 import { addDays, daysBetween, formatDayMonth, formatWeekRange, formatWeekdayShort, relativeDay, startOfWeek } from "@/lib/planning/dates";
 import { sessionStatus, STATUS_LABELS, type SessionState, type SessionStatus } from "@/lib/planning/status";
@@ -76,12 +78,14 @@ async function CoachContent() {
   const ids = links.map((l) => l.athlete_id);
   // Sept derniers jours (retours de l’athlète) et deux semaines à venir.
   const recentFrom = addDays(today, -7) < monday ? addDays(today, -7) : monday;
-  const [overview, dashboard, realized, syncStatuses, unavailability] = await Promise.all([
+  const [overview, dashboard, realized, syncStatuses, unavailability, wellness] = await Promise.all([
     getAthletesOverview(supabase, ids, today),
     getCoachDashboard(supabase, ids, recentFrom, addDays(monday, 13)),
     getRealizedInRange(supabase, ids, addDays(today, -7), today),
     getSyncStatuses(supabase, ids),
     getUpcomingUnavailability(supabase, ids, today, addDays(today, 13)),
+    // Seuls les athlètes qui l'autorisent à voir leurs activités (RLS) ; 28 jours pour la FC au repos habituelle.
+    getWellness(supabase, ids, addDays(today, -28), today),
   ]);
   // Bilans : sans les activités Strava, même partagées par l’athlète (aucune statistique tirée de Strava).
   const allSessions = withRealization(dashboard.sessions, withoutStrava(realized));
@@ -134,6 +138,9 @@ async function CoachContent() {
                 const lastComment = dashboard.comments.find((c) => c.athlete_id === link.athlete_id && c.visibility === "shared");
                 const target = athleteProfile?.weekly_hours_target ? Number(athleteProfile.weekly_hours_target) * 3600 : null;
                 const away = unavailability.find((n) => n.athlete_id === link.athlete_id);
+                const history = (wellness ?? []).filter((w) => w.athlete_id === link.athlete_id);
+                const form = history.find((w) => w.entry_date === today);
+                const formFlags = form ? wellnessFlags(form, history) : [];
                 return (
                   <li key={link.id}>
                     <Link
@@ -155,6 +162,12 @@ async function CoachContent() {
                           <p className="mt-1 flex flex-wrap gap-1.5">
                             <SyncPill status={sync} />
                           </p>
+                          {form ? (
+                            <p className={cn("mt-1 flex items-center gap-1 text-[12.5px] font-medium", formFlags.length ? "text-warning" : "text-ink-soft")}>
+                              <HeartPulse className="size-3.5 shrink-0" aria-hidden />
+                              <span className="truncate">{formFlags.length ? `Forme du jour : ${formFlags.map((f) => f.text).join(", ")}` : "Forme du jour : rien à signaler"}</span>
+                            </p>
+                          ) : null}
                           {away ? (
                             <p className="mt-1 flex items-center gap-1 text-[12.5px] font-medium text-warning">
                               <CalendarOff className="size-3.5 shrink-0" aria-hidden />
