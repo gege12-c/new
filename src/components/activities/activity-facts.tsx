@@ -27,6 +27,17 @@ export function ViewOnStrava({ externalId, className }: { externalId: string; cl
 }
 
 const SOURCE_LABELS: Record<CalendarActivity["source"], string> = { strava: "Strava", fit_upload: "Fichier FIT", intervals: "Montre, via intervals.icu" };
+
+/** Marque de l'appareil d'après le nom transmis par intervals.icu (« ZWIFT », « Garmin Edge 1030 Plus »…). */
+const BRANDS: [RegExp, string][] = [
+  [/zwift/i, "Zwift"],
+  [/garmin/i, "Garmin"],
+  [/suunto/i, "Suunto"],
+  [/coros/i, "COROS"],
+  [/wahoo|elemnt/i, "Wahoo"],
+  [/polar/i, "Polar"],
+];
+const deviceBrand = (device: string | null | undefined) => (device ? (BRANDS.find(([re]) => re.test(device))?.[1] ?? null) : null);
 export const SOURCE_SHORT: Record<CalendarActivity["source"], string> = { strava: "Strava", fit_upload: "fichier FIT", intervals: "montre" };
 
 /** Lien vers l'activité chez intervals.icu (l'athlète peut l'y corriger ou la supprimer). */
@@ -45,10 +56,11 @@ function ViewOnIntervals({ externalId }: { externalId: string }) {
   );
 }
 
-export function SourceBadge({ activity }: { activity: Pick<CalendarActivity, "source"> }) {
+export function SourceBadge({ activity }: { activity: Pick<CalendarActivity, "source"> & { device_name?: string | null } }) {
+  const brand = activity.source === "intervals" ? deviceBrand(activity.device_name) : null;
   return (
     <span className="rounded-[6px] bg-surface-3 px-1.5 py-[2px] text-[11.5px] font-semibold text-ink-soft">
-      {SOURCE_LABELS[activity.source]}
+      {brand ? `${brand}, via intervals.icu` : SOURCE_LABELS[activity.source]}
     </span>
   );
 }
@@ -109,7 +121,7 @@ export function ActivityFacts({ activity, timeZone, children }: { activity: Cale
       {activity.source === "intervals" ? (
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-2.5">
           <ViewOnIntervals externalId={activity.external_id} />
-          <span className="text-[12px] text-muted">Reçue de votre montre par intervals.icu : pour la corriger ou la retirer, faites-le là-bas.</span>
+          <span className="text-[12px] text-muted">Reçue par intervals.icu : pour la corriger ou la retirer, faites-le là-bas.</span>
         </div>
       ) : null}
       {children ? <div className="mt-3 flex flex-wrap gap-2 border-t border-line pt-3">{children}</div> : null}

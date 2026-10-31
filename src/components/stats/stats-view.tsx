@@ -119,9 +119,13 @@ export function StatsView({
   const plannedWeeks = volumes.slice(firstPlanned);
   const averagePlanned = plannedWeeks.reduce((sum, v) => sum + v.plannedTotal, 0) / Math.max(1, plannedWeeks.length);
   const totalRealized = volumes.reduce((sum, v) => sum + v.realizedTotal, 0);
+  // Fait en moyenne depuis la première semaine avec une activité (avant : pas encore de données).
+  const firstRealized = Math.max(0, volumes.findIndex((v) => v.realizedTotal > 0));
+  const averageRealized = totalRealized / Math.max(1, volumes.length - firstRealized);
   const incomplete = volumes.reduce((sum, v) => sum + v.incomplete, 0);
   const intensityReady = intensity.sessions >= MIN_INTENSITY_SESSIONS && intensity.classified >= MIN_INTENSITY_SECONDS;
   const own = viewer === "athlete";
+  const detailsPending = Boolean(data.details && data.details.done < data.details.total);
 
   return (
     <div className="space-y-6">
@@ -137,34 +141,41 @@ export function StatsView({
 
       <Panel
         title="Volume par semaine"
-        description={`Prévu sur les ${VOLUME_WEEKS} dernières semaines, semaine en cours comprise${showRealized ? ", et réalisé d’après les fichiers FIT et la montre" : ""}.`}
+        description={
+          showRealized
+            ? `Fait (activités de la montre et fichiers FIT, avec ou sans séance) et prévu (séances publiées), sur les ${VOLUME_WEEKS} dernières semaines, semaine en cours comprise.`
+            : `Prévu sur les ${VOLUME_WEEKS} dernières semaines, semaine en cours comprise.`
+        }
       >
-        {hasPlanned ? (
+        {hasPlanned || (showRealized && totalRealized > 0) ? (
           <>
             <VolumeChart volumes={volumes} showRealized={showRealized} />
             <dl className="mt-4 flex flex-wrap gap-x-8 gap-y-2 border-t border-line pt-3">
-              <div>
-                <dt className="text-[12px] text-muted">Prévu en moyenne{firstPlanned > 0 ? ` depuis le ${dayMonth(volumes[firstPlanned].week)}` : ""}</dt>
-                <dd className="figure text-[18px] text-ink">{formatDurationShort(averagePlanned)} par semaine</dd>
-              </div>
               {showRealized ? (
                 <div>
-                  <dt className="text-[12px] text-muted">Réalisé (fichiers FIT et montre)</dt>
-                  <dd className="figure text-[18px] text-ink">{totalRealized ? `${formatDurationShort(totalRealized)} en ${VOLUME_WEEKS} semaines` : "aucune activité comptée"}</dd>
+                  <dt className="text-[12px] text-muted">Fait (montre et fichiers FIT){totalRealized && firstRealized > 0 ? `, en moyenne depuis le ${dayMonth(volumes[firstRealized].week)}` : ", en moyenne"}</dt>
+                  <dd className="figure text-[18px] text-ink">{totalRealized ? `${formatDurationShort(averageRealized)} par semaine` : "aucune activité comptée"}</dd>
                 </div>
               ) : null}
+              <div>
+                <dt className="text-[12px] text-muted">Prévu en moyenne{hasPlanned && firstPlanned > 0 ? ` depuis le ${dayMonth(volumes[firstPlanned].week)}` : ""}</dt>
+                <dd className="figure text-[18px] text-ink">{hasPlanned ? `${formatDurationShort(averagePlanned)} par semaine` : "rien de prévu"}</dd>
+              </div>
             </dl>
             {incomplete ? (
               <p className="mt-2 text-[12.5px] text-muted">
-                {incomplete} séance{incomplete > 1 ? "s" : ""} sans durée entièrement calculable (étapes libres ou en répétitions, seuils manquants) : le volume affiché les sous-estime.
+                {incomplete} séance{incomplete > 1 ? "s" : ""} sans durée entièrement calculable (étapes libres ou en répétitions, seuils manquants) : le volume prévu les sous-estime.
               </p>
             ) : null}
-            {!canSeeFiles ? <p className="mt-2 text-[12.5px] text-muted">L’athlète ne partage pas ses activités : le réalisé n’est pas affiché.</p> : null}
-            {!data.activitiesAvailable ? <p className="mt-2 text-[12.5px] text-muted">Le réalisé sera disponible après la mise à jour de la base de données du site.</p> : null}
+            {!canSeeFiles ? <p className="mt-2 text-[12.5px] text-muted">L’athlète ne partage pas ses activités : le fait n’est pas affiché.</p> : null}
+            {!data.activitiesAvailable ? <p className="mt-2 text-[12.5px] text-muted">Le fait sera disponible après la mise à jour de la base de données du site.</p> : null}
             <details className="mt-3">
               <summary className="cursor-pointer text-[13px] font-medium text-ink-soft hover:text-ink">Voir le tableau</summary>
               <div className="mt-2 overflow-x-auto">
-                <table className="w-full min-w-[560px] text-left text-[12.5px]">
+                <table className="w-full min-w-[620px] text-left text-[12.5px]">
+                  <caption className="sr-only">
+                    {showRealized ? "Fait par discipline et par semaine, prévu en dessous ; totaux fait et prévu" : "Prévu par discipline et par semaine"}
+                  </caption>
                   <thead className="text-muted">
                     <tr>
                       <th scope="col" className="py-1.5 pr-3 font-medium">
@@ -175,14 +186,14 @@ export function StatsView({
                           {SPORT_NAME[sport]}
                         </th>
                       ))}
-                      <th scope="col" className="py-1.5 pr-3 font-medium">
-                        Total prévu
-                      </th>
                       {showRealized ? (
-                        <th scope="col" className="py-1.5 font-medium">
-                          Réalisé
+                        <th scope="col" className="py-1.5 pr-3 font-medium">
+                          Total fait
                         </th>
                       ) : null}
+                      <th scope="col" className="py-1.5 font-medium">
+                        Total prévu
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="figure divide-y divide-line text-ink">
@@ -192,12 +203,21 @@ export function StatsView({
                           {dayMonth(week.week)}
                         </th>
                         {STAT_SPORTS.map((sport) => (
-                          <td key={sport} className="py-1.5 pr-3">
-                            {week.planned[sport] ? formatDurationShort(week.planned[sport]) : "—"}
+                          <td key={sport} className="py-1.5 pr-3 align-top">
+                            {showRealized ? (
+                              <>
+                                {week.realized[sport] ? formatDurationShort(week.realized[sport]) : "—"}
+                                {week.planned[sport] ? <span className="block text-[11.5px] text-muted">prévu {formatDurationShort(week.planned[sport])}</span> : null}
+                              </>
+                            ) : week.planned[sport] ? (
+                              formatDurationShort(week.planned[sport])
+                            ) : (
+                              "—"
+                            )}
                           </td>
                         ))}
-                        <td className="py-1.5 pr-3 font-semibold">{week.plannedTotal ? formatDurationShort(week.plannedTotal) : "—"}</td>
-                        {showRealized ? <td className="py-1.5">{week.realizedTotal ? formatDurationShort(week.realizedTotal) : "—"}</td> : null}
+                        {showRealized ? <td className="py-1.5 pr-3 align-top font-semibold">{week.realizedTotal ? formatDurationShort(week.realizedTotal) : "—"}</td> : null}
+                        <td className="py-1.5 align-top text-ink-soft">{week.plannedTotal ? formatDurationShort(week.plannedTotal) : "—"}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -206,7 +226,11 @@ export function StatsView({
             </details>
           </>
         ) : (
-          <EmptyState title="Aucune séance publiée sur cette période">Le volume apparaît dès que des séances sont publiées dans le calendrier.</EmptyState>
+          <EmptyState title="Rien de prévu ni de fait sur cette période">
+            {showRealized
+              ? "Le volume apparaît dès qu’une séance est publiée ou qu’une activité arrive (montre par intervals.icu, fichier FIT)."
+              : "Le volume apparaît dès que des séances sont publiées dans le calendrier."}
+          </EmptyState>
         )}
       </Panel>
 
@@ -330,16 +354,29 @@ export function StatsView({
         ) : !data.power || !data.run || !data.swim ? (
           <p className="text-[13.5px] text-muted">Disponible après la mise à jour de la base de données du site.</p>
         ) : data.power.activities || data.run.activities || data.swim.activities ? (
-          <RecordsPanel
-            power={data.power}
-            run={data.run}
-            swim={data.swim}
-            estimates={data.estimates}
-            athleteId={data.athleteId}
-            today={today}
-            calendarBase={own ? "/athlete/calendar" : `/coach/athletes/${data.athleteId}`}
-            canApply={canEditThresholds}
-          />
+          <>
+            <RecordsPanel
+              power={data.power}
+              run={data.run}
+              swim={data.swim}
+              estimates={data.estimates}
+              athleteId={data.athleteId}
+              today={today}
+              calendarBase={own ? "/athlete/calendar" : `/coach/athletes/${data.athleteId}`}
+              canApply={canEditThresholds}
+            />
+            {detailsPending ? (
+              <p className="mt-3 text-[12.5px] text-muted" data-details-progress>
+                Courbes lues pour {data.details!.done} activité{data.details!.done > 1 ? "s" : ""} sur {data.details!.total} de l’année : les records et les seuils estimés se complètent pendant que
+                TriCoach est ouvert, le vélo d’abord.
+              </p>
+            ) : null}
+          </>
+        ) : detailsPending ? (
+          <p className="text-[13.5px] text-muted" data-details-progress>
+            Les courbes des {data.details!.total} activités de l’année reçues d’intervals.icu sont en cours de lecture ({data.details!.done} pour l’instant) : les records apparaissent
+            au fil de la lecture, pendant que TriCoach est ouvert.
+          </p>
         ) : (
           <p className="text-[13.5px] text-muted">
             {own

@@ -30,8 +30,8 @@ export type Database = {
           moving_s: number | null;
           name: string | null;
           source: string;
-          sport: string;
           source_load: number | null;
+          sport: string;
           sport_detail: string | null;
           start_time: string;
           timezone: string | null;
@@ -66,8 +66,8 @@ export type Database = {
           moving_s?: number | null;
           name?: string | null;
           source: string;
-          sport: string;
           source_load?: number | null;
+          sport: string;
           sport_detail?: string | null;
           start_time: string;
           timezone?: string | null;
@@ -101,8 +101,8 @@ export type Database = {
           moving_s?: number | null;
           name?: string | null;
           source?: string;
-          sport?: string;
           source_load?: number | null;
+          sport?: string;
           sport_detail?: string | null;
           start_time?: string;
           timezone?: string | null;
@@ -631,7 +631,6 @@ export type Database = {
           connected_at: string;
           external_athlete_id: string;
           history_from: string | null;
-          wellness_from: string | null;
           id: string;
           last_error: string | null;
           last_error_at: string | null;
@@ -641,6 +640,7 @@ export type Database = {
           status: string;
           sync_lease_until: string | null;
           updated_at: string;
+          wellness_from: string | null;
         };
         ComputedFields: never;
         Insert: {
@@ -650,7 +650,6 @@ export type Database = {
           connected_at?: string;
           external_athlete_id: string;
           history_from?: string | null;
-          wellness_from?: string | null;
           id?: string;
           last_error?: string | null;
           last_error_at?: string | null;
@@ -660,6 +659,7 @@ export type Database = {
           status?: string;
           sync_lease_until?: string | null;
           updated_at?: string;
+          wellness_from?: string | null;
         };
         Update: {
           activities_skipped?: number;
@@ -668,7 +668,6 @@ export type Database = {
           connected_at?: string;
           external_athlete_id?: string;
           history_from?: string | null;
-          wellness_from?: string | null;
           id?: string;
           last_error?: string | null;
           last_error_at?: string | null;
@@ -678,6 +677,7 @@ export type Database = {
           status?: string;
           sync_lease_until?: string | null;
           updated_at?: string;
+          wellness_from?: string | null;
         };
         Relationships: [
           {

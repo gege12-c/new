@@ -8,6 +8,7 @@ import { paceCurve, powerCurve, type PaceCurve, type PowerCurve } from "@/lib/st
 import { isMissingSchema } from "@/lib/supabase/schema";
 import type { ServerSupabase } from "@/lib/supabase/server";
 import { currentThresholds, toAthleteThresholds } from "@/lib/thresholds";
+import { getDetailsProgress, type DetailsProgress } from "./activities";
 import { getThresholds } from "./athlete";
 import { getFitnessData, type FitnessData } from "./fitness";
 import { getSessionsInRange } from "./planning";
@@ -38,6 +39,8 @@ export interface StatsData {
   swim: PaceCurve | null;
   /** Seuils estimés d'après les records des 3 derniers mois, et les seuils en vigueur pour comparer. */
   estimates: { ftp: FtpEstimate | null; pace: PaceEstimate | null; currentFtp: number | null; currentPace: number | null };
+  /** Lecture des détails des activités reçues d'intervals.icu (courbes) : où elle en est. */
+  details: DetailsProgress | null;
   athleteId: string;
 }
 
@@ -50,7 +53,7 @@ export async function getStatsData(supabase: ServerSupabase, athleteId: string, 
   const intensityFrom = addDays(weeks[weeks.length - INTENSITY_WEEKS], 0);
   const adherenceFrom = weeks[weeks.length - ADHERENCE_WEEKS];
 
-  const [sessions, thresholdRows, recent, all, fitness, curves] = await Promise.all([
+  const [sessions, thresholdRows, recent, all, fitness, curves, details] = await Promise.all([
     getSessionsInRange(supabase, athleteId, from, to),
     getThresholds(supabase, athleteId),
     supabase.from("activities").select(ACTIVITY_COLUMNS).eq("athlete_id", athleteId).in("source", [...DURABLE_SOURCES]).is("duplicate_of", null).gte("local_date", from).lte("local_date", to),
@@ -65,6 +68,7 @@ export async function getStatsData(supabase: ServerSupabase, athleteId: string, 
       .is("activity.duplicate_of", null)
       .gte("activity.local_date", addDays(today, -365))
       .limit(2000),
+    getDetailsProgress(supabase, athleteId, today),
   ]);
   if (curves.error && !isMissingSchema(curves.error)) throw curves.error;
   const curveRows = (curves.data ?? []).flatMap((row) =>
@@ -128,6 +132,7 @@ export async function getStatsData(supabase: ServerSupabase, athleteId: string, 
       currentFtp: now.has("bike.ftp_w") ? Number(now.get("bike.ftp_w")!.value) : null,
       currentPace: now.has("run.threshold_pace_s_per_km") ? Number(now.get("run.threshold_pace_s_per_km")!.value) : null,
     },
+    details,
     athleteId,
   };
 }

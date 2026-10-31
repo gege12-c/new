@@ -34,6 +34,15 @@ const MAX_SPEED: Record<PaceSport, number> = { run: 7, swim: 2.6 };
  * par distance. Les courbes reçues avant sont relues une fois (src/lib/intervals/service.ts).
  */
 export const STREAMS_VERSION = 2;
+
+/**
+ * Détails d'une activité (courbes, intervalles, records) déjà lus avec le calcul en vigueur. Prend
+ * la version des mesures enregistrées (`metrics.v`), ou l'absence de ligne de courbes (null).
+ */
+export function detailsUpToDate(version: unknown): boolean {
+  return typeof version === "number" && version >= STREAMS_VERSION;
+}
+
 /** Intervalles gardés au plus par activité. */
 export const MAX_LAPS = 300;
 /** Longueur de courbe lue au plus (48 h à une mesure par seconde). */

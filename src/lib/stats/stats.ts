@@ -9,6 +9,7 @@ import { computeTotals, intensityPercent, stepQuantities } from "@/lib/workout/c
 import type { SegmentSport, Workout, WorkoutNode } from "@/lib/workout/schema";
 import type { AthleteThresholds } from "@/lib/workout/zones";
 import { addDays, startOfWeek } from "@/lib/planning/dates";
+import { activityDuration } from "@/lib/activities/compare";
 
 /** Ordre d'empilement des disciplines : validé pour qu'aucune paire voisine ne se confonde. */
 export const STAT_SPORTS = ["swim", "bike", "strength", "run", "other"] as const satisfies readonly SegmentSport[];
@@ -53,7 +54,7 @@ export function lastWeeks(today: string, count: number): string[] {
 
 const isCounted = (s: StatSession) => s.state === "published";
 
-/** Volume prévu (séances publiées) et réalisé (fichiers FIT) par semaine et par discipline, en secondes. */
+/** Volume prévu (séances publiées) et réalisé (montre, fichiers FIT) par semaine et par discipline, en secondes. */
 /** Seuils de l'athlète en vigueur à une date (les estimations de durée en dépendent). */
 export type ThresholdsOn = (date: string) => AthleteThresholds | undefined;
 
@@ -72,7 +73,8 @@ export function weeklyVolumes(weeks: string[], sessions: StatSession[], activiti
   }
   for (const activity of activities) {
     const entry = byWeek.get(startOfWeek(activity.local_date));
-    const seconds = activity.moving_s ?? activity.elapsed_s;
+    // Comme partout : en mouvement pour l'endurance, durée totale pour le renforcement et le reste.
+    const seconds = activityDuration(activity);
     if (!entry || !seconds) continue;
     const key = (STAT_SPORTS as readonly string[]).includes(activity.sport) ? (activity.sport as StatSport) : "other";
     entry.realized[key] += seconds;

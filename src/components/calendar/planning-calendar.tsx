@@ -33,7 +33,7 @@ import {
 } from "@/lib/planning/dates";
 import { isUnavailability, NOTE_LABELS, notesByDay, noteTitle, type CalendarNote } from "@/lib/planning/notes";
 import { ATHLETE_STATUS_FILTERS, sessionStatus, STATUS_LABELS } from "@/lib/planning/status";
-import { plannedVolume } from "@/lib/planning/volume";
+import { weekBalance, type DoneLike, type WeekBalance } from "@/lib/planning/volume";
 import { formatDurationShort as formatDuration } from "@/lib/workout/format";
 import { SPORT_LABELS, type SessionSport } from "@/lib/workout/schema";
 import type { AthleteThresholds } from "@/lib/workout/zones";
@@ -477,31 +477,59 @@ function AddButton({ href, date, label = "Ajouter" }: { href: string | null; dat
   );
 }
 
-function WeekSummary({ sessions, monday }: { sessions: CalendarSession[]; monday: ISODate }) {
-  const volume = plannedVolume(sessions);
-  const max = Math.max(1, ...volume.bySport.map((v) => v.seconds));
+/** Activités faites de la semaine : sans séance (listées par jour) et rattachées aux séances affichées. */
+function weekDone(days: ISODate[], byDate: Map<ISODate, CalendarSession[]>, activitiesByDate: Map<ISODate, LinkedActivity[]>): DoneLike[] {
+  return days.flatMap((d) => [...(activitiesByDate.get(d) ?? []), ...(byDate.get(d) ?? []).flatMap((s) => s.realization?.attached ?? [])]);
+}
+
+function UnknownAndStrava({ balance, className }: { balance: WeekBalance; className?: string }) {
+  if (!balance.unknownDuration && !balance.stravaSkipped) return null;
+  return (
+    <p className={cn("text-[11px] leading-snug text-muted", className)}>
+      {balance.unknownDuration
+        ? `${balance.unknownDuration} séance${balance.unknownDuration > 1 ? "s" : ""} sans durée calculable, non comptée${balance.unknownDuration > 1 ? "s" : ""} dans le prévu. `
+        : ""}
+      {balance.stravaSkipped ? `${balance.stravaSkipped > 1 ? `${balance.stravaSkipped} activités Strava non comptées` : "Une activité Strava non comptée"} (règles de Strava).` : ""}
+    </p>
+  );
+}
+
+/** Colonne de droite de la vue mois : fait et prévu de la semaine, par discipline. */
+function WeekSummary({ sessions, activities, monday, today }: { sessions: CalendarSession[]; activities: DoneLike[]; monday: ISODate; today: ISODate }) {
+  const balance = weekBalance(sessions, activities);
+  const started = monday <= today;
   return (
     <div className="flex h-full flex-col gap-2 p-2.5">
       <p className="text-[11px] font-semibold text-muted">Semaine {isoWeekNumber(monday)}</p>
-      <p className="figure text-[19px] leading-none text-ink">{volume.totalSeconds ? formatDuration(volume.totalSeconds) : "—"}</p>
-      <ul className="space-y-1.5">
-        {volume.bySport.map((v) => (
-          <li key={v.sport} className="space-y-0.5">
-            <span className="flex items-center justify-between gap-2 text-[11.5px] text-ink-soft">
+      <dl className="space-y-0.5">
+        {started ? (
+          <div className="flex items-baseline justify-between gap-2">
+            <dt className="text-[11.5px] text-muted">Fait</dt>
+            <dd className="figure text-[17px] leading-tight text-ink">{balance.done ? formatDuration(balance.done) : "—"}</dd>
+          </div>
+        ) : null}
+        <div className="flex items-baseline justify-between gap-2">
+          <dt className="text-[11.5px] text-muted">Prévu</dt>
+          <dd className={cn("figure leading-tight", started ? "text-[13px] text-ink-soft" : "text-[17px] text-ink")}>{balance.planned ? formatDuration(balance.planned) : "—"}</dd>
+        </div>
+      </dl>
+      <ul className="space-y-1">
+        {balance.bySport.map((v) => (
+          <li key={v.sport} className="flex items-center justify-between gap-2 text-[11.5px] text-ink-soft">
+            <span className="flex min-w-0 items-center gap-1.5">
+              <SportDot sport={v.sport} className="size-2" />
               <span className="truncate">{SPORT_LABELS[v.sport]}</span>
-              <span className="figure">{v.seconds ? formatDuration(v.seconds) : "—"}</span>
             </span>
-            <span className="block h-[5px] overflow-hidden rounded-full bg-surface-3">
-              <span className={cn("block h-full rounded-full", SPORT_STYLES[v.sport].solid)} style={{ width: `${(v.seconds / max) * 100}%` }} />
+            <span className="figure shrink-0 text-right">
+              {started ? <span className="text-ink">{v.done ? formatDuration(v.done) : "—"}</span> : null}
+              {started ? <span className="text-muted"> / </span> : null}
+              <span className={started ? "text-muted" : undefined}>{v.planned ? formatDuration(v.planned) : "—"}</span>
             </span>
           </li>
         ))}
       </ul>
-      {volume.unknownDuration ? (
-        <p className="text-[11px] leading-snug text-muted">
-          {volume.unknownDuration} séance{volume.unknownDuration > 1 ? "s" : ""} sans durée calculable, non comptée{volume.unknownDuration > 1 ? "s" : ""}.
-        </p>
-      ) : null}
+      {started && balance.bySport.length ? <p className="text-[10.5px] text-muted">fait / prévu</p> : null}
+      <UnknownAndStrava balance={balance} />
     </div>
   );
 }
@@ -518,7 +546,7 @@ function MonthView(props: ViewProps) {
             {formatWeekdayShort(day)}
           </div>
         ))}
-        <div className="hidden px-2.5 py-2 text-[12px] font-semibold text-muted xl:block">Volume prévu</div>
+        <div className="hidden px-2.5 py-2 text-[12px] font-semibold text-muted xl:block">Volume</div>
       </div>
       {weeks.map((week) => (
         <div key={week[0]} className="grid grid-cols-7 border-b border-line last:border-b-0 xl:grid-cols-[repeat(7,minmax(0,1fr))_168px]">
@@ -577,7 +605,7 @@ function MonthView(props: ViewProps) {
             );
           })}
           <div className="hidden border-l border-line bg-surface-2/30 xl:block">
-            <WeekSummary sessions={week.flatMap((d) => byDate.get(d) ?? [])} monday={week[0]} />
+            <WeekSummary sessions={week.flatMap((d) => byDate.get(d) ?? [])} activities={weekDone(week, byDate, activitiesByDate)} monday={week[0]} today={today} />
           </div>
         </div>
       ))}
@@ -633,39 +661,57 @@ function DayColumn({ day, props, size }: { day: ISODate; props: ViewProps; size:
   );
 }
 
-/** Bandeau de volume de la semaine : total, barre empilée par discipline, légende. */
-function WeekStrip({ sessions, monday }: { sessions: CalendarSession[]; monday: ISODate }) {
-  const volume = plannedVolume(sessions);
-  const total = Math.max(1, volume.totalSeconds);
+/** Une ligne du bandeau de la semaine : total, barre empilée par discipline, détail. */
+function StripRow({ label, total, scale, parts, detail }: { label: string; total: number; scale: number; parts: { sport: SessionSport; seconds: number }[]; detail: ReactNode }) {
   return (
-    <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-[14px] border border-line bg-surface px-4 py-3">
-      <div className="flex items-baseline gap-2">
-        <span className="text-[12px] font-semibold text-muted">Semaine {isoWeekNumber(monday)}</span>
-        <span className="figure text-[22px] leading-none">{volume.totalSeconds ? formatDuration(volume.totalSeconds) : "—"}</span>
-        <span className="text-[12px] text-muted">
-          {volume.sessions} séance{volume.sessions > 1 ? "s" : ""}
-        </span>
-      </div>
-      <div className="flex h-2 min-w-40 flex-1 overflow-hidden rounded-full bg-surface-3" aria-hidden>
-        {volume.bySport.map((v) => (
-          <span key={v.sport} className={cn("h-full", SPORT_STYLES[v.sport].solid)} style={{ width: `${(v.seconds / total) * 100}%` }} />
+    <div role="group" aria-label={label} className="grid grid-cols-[3.25rem_4.5rem_minmax(0,1fr)] items-center gap-x-3 gap-y-1 sm:grid-cols-[3.25rem_4.5rem_minmax(8rem,14rem)_minmax(0,1fr)]">
+      <span className="text-[12px] font-semibold text-muted">{label}</span>
+      <span className="figure text-[19px] leading-none">{total ? formatDuration(total) : "—"}</span>
+      <span className="flex h-2 overflow-hidden rounded-full bg-surface-3" aria-hidden>
+        {parts.map((p) => (
+          <span key={p.sport} className={cn("h-full", SPORT_STYLES[p.sport].solid)} style={{ width: `${(p.seconds / scale) * 100}%` }} />
         ))}
-      </div>
+      </span>
+      <div className="col-span-3 sm:col-span-1">{detail}</div>
+    </div>
+  );
+}
+
+/** Bandeau de la semaine : ce qui est fait (activités reçues, avec ou sans séance) et ce qui est prévu. */
+function WeekStrip({ sessions, activities, monday, today }: { sessions: CalendarSession[]; activities: DoneLike[]; monday: ISODate; today: ISODate }) {
+  const balance = weekBalance(sessions, activities);
+  const scale = Math.max(1, balance.planned, balance.done);
+  const started = monday <= today;
+  const list = (rows: { sport: SessionSport; seconds: number }[], empty: string) =>
+    rows.length ? (
       <ul className="flex flex-wrap gap-x-4 gap-y-1">
-        {volume.bySport.map((v) => (
-          <li key={v.sport} className="flex items-center gap-1.5 text-[12.5px] text-ink-soft">
-            <SportDot sport={v.sport} />
-            {SPORT_LABELS[v.sport]}
-            <span className="figure text-ink">{v.seconds ? formatDuration(v.seconds) : "—"}</span>
+        {rows.map((r) => (
+          <li key={r.sport} className="flex items-center gap-1.5 text-[12.5px] text-ink-soft">
+            <SportDot sport={r.sport} />
+            {SPORT_LABELS[r.sport]}
+            <span className="figure text-ink">{formatDuration(r.seconds)}</span>
           </li>
         ))}
       </ul>
-      {volume.unknownDuration ? (
-        <p className="w-full text-[12px] text-muted">
-          {volume.unknownDuration} séance{volume.unknownDuration > 1 ? "s" : ""} sans durée calculable, non comptée{volume.unknownDuration > 1 ? "s" : ""}.
-        </p>
-      ) : null}
-    </div>
+    ) : (
+      <p className="text-[12.5px] text-muted">{empty}</p>
+    );
+  const done = balance.bySport.filter((v) => v.done > 0).map((v) => ({ sport: v.sport, seconds: v.done }));
+  const planned = balance.bySport.filter((v) => v.planned > 0).map((v) => ({ sport: v.sport, seconds: v.planned }));
+  return (
+    <section aria-label={`Semaine ${isoWeekNumber(monday)} : fait et prévu`} className="space-y-2 rounded-[14px] border border-line bg-surface px-4 py-3">
+      <p className="text-[12px] font-semibold text-muted">
+        Semaine {isoWeekNumber(monday)}
+        <span className="font-normal">
+          {" "}
+          · {balance.sessions} séance{balance.sessions > 1 ? "s" : ""} prévue{balance.sessions > 1 ? "s" : ""}
+          {started ? `, ${balance.activities} activité${balance.activities > 1 ? "s" : ""} faite${balance.activities > 1 ? "s" : ""}` : ""}
+        </span>
+      </p>
+      {started ? <StripRow label="Fait" total={balance.done} scale={scale} parts={done} detail={list(done, "Aucune activité reçue")} /> : null}
+      <StripRow label="Prévu" total={balance.planned} scale={scale} parts={planned} detail={list(planned, "Rien de prévu")} />
+      <UnknownAndStrava balance={balance} className="text-[12px]" />
+    </section>
   );
 }
 
@@ -675,7 +721,7 @@ function WeekView(props: ViewProps) {
   const weekSessions = days.flatMap((d) => props.byDate.get(d) ?? []);
   return (
     <div className="space-y-3">
-      <WeekStrip sessions={weekSessions} monday={monday} />
+      <WeekStrip sessions={weekSessions} activities={weekDone(days, props.byDate, props.activitiesByDate)} monday={monday} today={props.today} />
       <div className="grid gap-1 rounded-[14px] border border-line bg-surface p-1.5 sm:grid-cols-2 lg:grid-cols-7 lg:divide-x lg:divide-line">
         {days.map((day) => (
           <DayColumn key={day} day={day} props={props} size="regular" />

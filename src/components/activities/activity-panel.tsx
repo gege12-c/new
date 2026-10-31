@@ -2,8 +2,10 @@ import Link from "next/link";
 import { SportGlyph } from "@/components/sport";
 import { PanelFrame } from "@/components/planning/panel-frame";
 import { activityTitle } from "@/lib/activities/labels";
-import { getActivityDetail, getActivityStreams } from "@/lib/data/activities";
+import { availableMetrics } from "@/lib/activities/streams";
+import { getActivityDetail, getActivityStreams, getDetailsProgress } from "@/lib/data/activities";
 import { formatDayMonth } from "@/lib/planning/dates";
+import { localDate } from "@/lib/utils";
 import type { ServerSupabase } from "@/lib/supabase/server";
 import { formatTimeOfDay } from "@/lib/workout/format";
 import { SPORT_LABELS, type SessionSport } from "@/lib/workout/schema";
@@ -40,6 +42,10 @@ export async function ActivityPanel({
     );
   }
   const curves = activity.source === "strava" ? undefined : (await getActivityStreams(supabase, [activity.id])).get(activity.id);
+  // Lus, mais sans courbe (saisie à la main, appareil sans capteur) ; ou pas encore lus chez intervals.icu.
+  const emptyCurves = curves ? !availableMetrics(curves.series).length && !curves.laps.length : activity.source === "fit_upload" || (activity.source === "intervals" && activity.detailsRead);
+  const pending = activity.source === "intervals" && !curves && !activity.detailsRead;
+  const progress = pending ? await getDetailsProgress(supabase, activity.athlete_id, localDate(timeZone)) : null;
   const canManage = viewer === "athlete" || (canPlan && activity.source !== "strava");
   const attached = activity.links.filter((l) => l.status === "auto" || l.status === "confirmed");
   const proposed = activity.links.filter((l) => l.status === "proposed");
@@ -54,7 +60,20 @@ export async function ActivityPanel({
         <ActivityFacts activity={activity} timeZone={timeZone}>
           {canManage && activity.source === "fit_upload" && viewer === "athlete" ? <DeleteImportedButton activityId={activity.id} onDeletedHref={closeHref} /> : null}
         </ActivityFacts>
-        {curves ? <ActivityAnalysis streams={curves} sport={activity.sport} /> : null}
+        {curves && !emptyCurves ? <ActivityAnalysis streams={curves} sport={activity.sport} /> : null}
+        {emptyCurves ? (
+          <p className="text-[13.5px] text-muted">
+            {activity.source === "intervals"
+              ? "intervals.icu n’a pas de courbes pour cette activité (saisie à la main, ou enregistrée sans capteur) : seuls les totaux ci-dessus sont connus."
+              : "Pas de courbes enregistrées pour ce fichier : seuls les totaux ci-dessus sont connus."}
+          </p>
+        ) : null}
+        {pending ? (
+          <p className="rounded-[12px] bg-surface-2 px-3 py-2.5 text-[13.5px] text-ink-soft">
+            Courbes, puissance et intervalles pas encore reçus d’intervals.icu : ils se lisent pendant que TriCoach est ouvert, les activités récentes et le vélo d’abord
+            {progress && progress.total ? ` (${progress.done} activité${progress.done > 1 ? "s" : ""} sur ${progress.total} de l’année pour l’instant)` : ""}.
+          </p>
+        ) : null}
 
         {attached.map((link) => (
           <div key={link.session_id} className="flex flex-wrap items-center justify-between gap-2 rounded-[12px] bg-success-soft/60 px-3 py-2.5">

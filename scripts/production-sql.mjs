@@ -49,6 +49,15 @@ export function buildPendingSql() {
     "",
     "begin;",
     "",
+    "-- Collé une seconde fois : refusé d'emblée, rien n'est modifié (même pour une migration rejouable).",
+    "do $$",
+    "begin",
+    `  if exists (select 1 from supabase_migrations.schema_migrations where version in (${pending.map((m) => `'${m.version}'`).join(", ")})) then`,
+    `    raise exception 'TriCoach : migration already exists (déjà appliquée) : ${pending.map((m) => m.version).join(", ")}. Rien n''a été modifié.';`,
+    "  end if;",
+    "end;",
+    "$$;",
+    "",
   ];
   for (const migration of pending) {
     parts.push(`-- ===== ${migration.file} =====`, "", readFileSync(path.join(MIGRATIONS, migration.file), "utf8").trimEnd(), "");

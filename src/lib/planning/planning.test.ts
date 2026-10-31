@@ -18,7 +18,7 @@ import {
 import { snapshotToValues } from "./editor-values";
 import { changedFields, normalizeTime, SessionValuesSchema, snapshotOf } from "./snapshot";
 import { sessionStatus } from "./status";
-import { plannedVolume } from "./volume";
+import { plannedVolume, weekBalance } from "./volume";
 
 describe("dates du calendrier", () => {
   it("calcule semaines, mois et numéros ISO sans décalage d'heure d'été", () => {
@@ -109,6 +109,29 @@ describe("statut et volumes", () => {
     expect(summary.totalSeconds).toBe(5400);
     expect(summary.unknownDuration).toBe(1);
     expect(summary.bySport[1].meters).toBe(10000);
+  });
+
+  it("met le fait à côté du prévu, activités sans séance comprises, sans Strava ni double compte", () => {
+    const activity = (id: string, sport: string, source: string, moving_s: number | null, elapsed_s: number | null, distance_m: number | string | null = null) => ({ id, sport, source, moving_s, elapsed_s, distance_m });
+    const balance = weekBalance(
+      [{ sport: "run", state: "published", planned_duration_s: 1400, planned_distance_m: null }],
+      [
+        activity("zwift", "bike", "intervals", 3017, 3100, "24892.7"),
+        activity("run", "run", "intervals", 1102, 1200, 3000),
+        // Vue deux fois (rattachée à la séance et listée dans la journée) : comptée une fois.
+        activity("run", "run", "intervals", 1102, 1200, 3000),
+        // Renforcement : durée totale, pas seulement en mouvement.
+        activity("gainage", "strength", "fit_upload", 600, 900),
+        activity("strava", "bike", "strava", 3600, 3600),
+      ],
+    );
+    expect(balance.bySport.map((v) => [v.sport, v.planned, v.done, v.activities])).toEqual([
+      ["bike", 0, 3017, 1],
+      ["run", 1400, 1102, 1],
+      ["strength", 0, 900, 1],
+    ]);
+    expect(balance.bySport[0].doneMeters).toBeCloseTo(24892.7);
+    expect([balance.planned, balance.done, balance.sessions, balance.activities, balance.stravaSkipped]).toEqual([1400, 5019, 1, 3, 1]);
   });
 });
 

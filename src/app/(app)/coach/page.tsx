@@ -21,7 +21,7 @@ import { wellnessFlags } from "@/lib/wellness/wellness";
 import { noteTitle } from "@/lib/planning/notes";
 import { addDays, daysBetween, formatDayMonth, formatWeekRange, formatWeekdayShort, relativeDay, startOfWeek } from "@/lib/planning/dates";
 import { sessionStatus, STATUS_LABELS, type SessionState, type SessionStatus } from "@/lib/planning/status";
-import { plannedVolume } from "@/lib/planning/volume";
+import { weekBalance } from "@/lib/planning/volume";
 import { todayIn } from "@/lib/time";
 import { formatDurationShort } from "@/lib/workout/format";
 import type { SessionSport } from "@/lib/workout/schema";
@@ -81,14 +81,16 @@ async function CoachContent() {
   const [overview, dashboard, realized, syncStatuses, unavailability, wellness] = await Promise.all([
     getAthletesOverview(supabase, ids, today),
     getCoachDashboard(supabase, ids, recentFrom, addDays(monday, 13)),
-    getRealizedInRange(supabase, ids, addDays(today, -7), today),
+    // Sept derniers jours : statuts des séances passées, et ce qui est fait depuis lundi.
+    getRealizedInRange(supabase, ids, recentFrom, today),
     getSyncStatuses(supabase, ids),
     getUpcomingUnavailability(supabase, ids, today, addDays(today, 13)),
     // Seuls les athlètes qui l'autorisent à voir leurs activités (RLS) ; 28 jours pour la FC au repos habituelle.
     getWellness(supabase, ids, addDays(today, -28), today),
   ]);
   // Bilans : sans les activités Strava, même partagées par l’athlète (aucune statistique tirée de Strava).
-  const allSessions = withRealization(dashboard.sessions, withoutStrava(realized));
+  const counted = withoutStrava(realized);
+  const allSessions = withRealization(dashboard.sessions, counted);
   const drafts = allSessions.filter((s) => s.state === "draft" && s.scheduled_date >= monday).length;
 
   return (
@@ -138,8 +140,9 @@ async function CoachContent() {
                   .sort((a, b) => b.updated_at.localeCompare(a.updated_at))[0];
                 const feedbackSession = lastFeedback ? athleteSessions.find((s) => s.id === lastFeedback.session_id) : undefined;
                 const sync = syncStatuses.find((st) => st.athlete_id === link.athlete_id && st.provider === "strava");
-                const volume = plannedVolume(thisWeek);
-                const total = Math.max(1, volume.totalSeconds);
+                // Fait depuis lundi : activités reçues, avec ou sans séance, si l'athlète les partage.
+                const showsDone = link.can_view_activities && !realized.unavailable;
+                const balance = weekBalance(thisWeek, showsDone ? counted.activities.filter((a) => a.athlete_id === link.athlete_id && a.local_date >= monday) : []);
                 const upcoming = sessions.filter((s) => s.scheduled_date >= today && s.state !== "cancelled").slice(0, 3);
                 const draftCount = sessions.filter((s) => s.state === "draft").length;
                 const lastComment = dashboard.comments.find((c) => c.athlete_id === link.athlete_id && c.visibility === "shared");
@@ -191,15 +194,34 @@ async function CoachContent() {
                           Cette semaine
                           {draftCount ? <span className="font-semibold text-warning">{draftCount} brouillon{draftCount > 1 ? "s" : ""}</span> : null}
                         </p>
-                        <p className="mt-0.5 flex items-baseline gap-2">
-                          <span className="figure text-[20px] leading-none">{volume.totalSeconds ? formatDurationShort(volume.totalSeconds) : "—"}</span>
-                          {target ? <span className="figure text-[12px] text-muted">/ {formatDurationShort(target)} visées</span> : null}
-                        </p>
-                        <span className="mt-2 flex h-1.5 overflow-hidden rounded-full bg-surface-3" aria-hidden>
-                          {volume.bySport.map((v) => (
-                            <span key={v.sport} className={cn("h-full", SPORT_STYLES[v.sport].solid)} style={{ width: `${(v.seconds / Math.max(total, target ?? 0)) * 100}%` }} />
-                          ))}
-                        </span>
+                        {showsDone ? (
+                          <>
+                            <p className="mt-0.5 flex flex-wrap items-baseline gap-x-2">
+                              <span className="figure text-[20px] leading-none">{balance.done ? formatDurationShort(balance.done) : "—"}</span>
+                              <span className="text-[12px] text-muted">
+                                fait, {balance.planned ? `${formatDurationShort(balance.planned)} prévues` : "rien de prévu"}
+                                {target ? ` / ${formatDurationShort(target)} visées` : ""}
+                              </span>
+                            </p>
+                            <span className="mt-2 flex h-1.5 overflow-hidden rounded-full bg-surface-3" aria-hidden>
+                              {balance.bySport.map((v) => (
+                                <span key={v.sport} className={cn("h-full", SPORT_STYLES[v.sport].solid)} style={{ width: `${(v.done / Math.max(1, balance.done, balance.planned, target ?? 0)) * 100}%` }} />
+                              ))}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <p className="mt-0.5 flex items-baseline gap-2">
+                              <span className="figure text-[20px] leading-none">{balance.planned ? formatDurationShort(balance.planned) : "—"}</span>
+                              <span className="text-[12px] text-muted">prévues{target ? ` / ${formatDurationShort(target)} visées` : ""}</span>
+                            </p>
+                            <span className="mt-2 flex h-1.5 overflow-hidden rounded-full bg-surface-3" aria-hidden>
+                              {balance.bySport.map((v) => (
+                                <span key={v.sport} className={cn("h-full", SPORT_STYLES[v.sport].solid)} style={{ width: `${(v.planned / Math.max(1, balance.planned, target ?? 0)) * 100}%` }} />
+                              ))}
+                            </span>
+                          </>
+                        )}
                         {realized.unavailable ? null : <p className="mt-2.5 text-[12px] font-semibold text-muted">7 derniers jours</p>}
                         {realized.unavailable ? null : recentCounts.length ? (
                           <ul className="mt-1 flex flex-wrap gap-x-3 gap-y-1" aria-label="Séances des 7 derniers jours">

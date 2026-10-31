@@ -5,7 +5,7 @@ import { intervalsDeps } from "@/lib/devices/deps";
 import { enqueueDeviceSync } from "@/lib/devices/jobs";
 import { runIntervalsJobs } from "@/lib/intervals/service";
 
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 /** Une relecture au plus toutes les 10 minutes par athlète, quel que soit le nombre d'onglets ouverts. */
 const BUCKET_MS = 10 * 60_000;

@@ -100,7 +100,7 @@ test("l'athlète voit sa progression, sans aucune donnée Strava", async ({ brow
   await expect(page.getByText(/Les activités Strava n’entrent dans aucune statistique/)).toBeVisible();
 
   // Réalisé d'après le fichier FIT (1 h 03 au moins) et suivi : la séance d'hier est « faite ».
-  const realized = page.locator("dt", { hasText: "Réalisé (fichiers FIT et montre)" }).locator("..");
+  const realized = page.locator("dt", { hasText: "Fait (montre et fichiers FIT)" }).locator("..");
   await expect(realized).not.toContainText("aucune activité comptée");
   const done = page.locator("dl div", { has: page.locator("dt", { hasText: /^Faites$/ }) });
   await expect(done.locator("dd").first()).not.toHaveText("0");

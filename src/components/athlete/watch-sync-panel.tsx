@@ -2,11 +2,13 @@ import { Link2 } from "lucide-react";
 import { buttonClasses } from "@/components/ui/button";
 import { Notice } from "@/components/ui/feedback";
 import { Panel } from "@/components/ui/panel";
+import { getDetailsProgress, type DetailsProgress } from "@/lib/data/activities";
 import { getDeviceAccounts, type DeviceAccount, type DeviceLastError } from "@/lib/data/devices";
 import { isIntervalsOAuthReady, isIntervalsReady } from "@/lib/intervals/config";
 import { isSuuntoReady } from "@/lib/suunto/config";
 import { SCHEMA_PENDING_MESSAGE } from "@/lib/supabase/schema";
 import type { ServerSupabase } from "@/lib/supabase/server";
+import { todayIn } from "@/lib/time";
 import { IntervalsKeyForm, WatchSyncControls } from "./watch-sync-controls";
 import { IntervalsThresholds } from "./intervals-thresholds";
 
@@ -39,7 +41,7 @@ const ERRORS: Record<Exclude<DeviceLastError, null | "reauth_required">, string>
 const when = (iso: string, timeZone: string) =>
   new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit", timeZone }).format(new Date(iso));
 
-function AccountState({ account, where, timeZone }: { account: DeviceAccount; where: string; timeZone: string }) {
+function AccountState({ account, where, timeZone, details }: { account: DeviceAccount; where: string; timeZone: string; details?: DetailsProgress | null }) {
   return (
     <>
       <div className="text-[13.5px] text-ink-soft">
@@ -64,13 +66,31 @@ function AccountState({ account, where, timeZone }: { account: DeviceAccount; wh
         </p>
       </div>
       {account.lastError && account.lastError !== "reauth_required" ? <Notice tone="warning">{ERRORS[account.lastError]}</Notice> : null}
-      {account.activities ? <ActivitiesState activities={account.activities} timeZone={timeZone} /> : null}
+      {account.activities ? <ActivitiesState activities={account.activities} timeZone={timeZone} details={details ?? null} /> : null}
     </>
   );
 }
 
+/** Détails (courbes, puissance, intervalles) des activités de l'année : lus, ou en cours de lecture. */
+function DetailsState({ details }: { details: DetailsProgress }) {
+  if (!details.total) return null;
+  if (details.done >= details.total) {
+    return (
+      <p>
+        Détails (courbes, puissance, intervalles) : lus pour {details.total > 1 ? `vos ${details.total} activités` : "votre activité"} de l’année.
+      </p>
+    );
+  }
+  return (
+    <p>
+      Détails (courbes, puissance, intervalles) : <span className="figure font-semibold text-ink">{details.done}</span> activité{details.done > 1 ? "s" : ""} sur{" "}
+      <span className="figure">{details.total}</span> de l’année. Les autres se lisent pendant que TriCoach est ouvert, les plus récentes et le vélo d’abord.
+    </p>
+  );
+}
+
 /** Retour des activités faites avec la montre, par intervals.icu. */
-function ActivitiesState({ activities, timeZone }: { activities: NonNullable<DeviceAccount["activities"]>; timeZone: string }) {
+function ActivitiesState({ activities, timeZone, details }: { activities: NonNullable<DeviceAccount["activities"]>; timeZone: string; details: DetailsProgress | null }) {
   return (
     <div className="space-y-2 text-[13.5px] text-ink-soft">
       <p>
@@ -81,9 +101,10 @@ function ActivitiesState({ activities, timeZone }: { activities: NonNullable<Dev
             mesures du matin (FC au repos, VFC, sommeil, poids), si votre montre les transmet, complètent votre forme du jour sans remplacer ce que vous saisissez.
           </>
         ) : (
-          "Activités faites : première réception en cours (les 90 derniers jours)."
+          "Activités faites : première réception en cours (la dernière année)."
         )}
       </p>
+      {activities.syncedAt && details ? <DetailsState details={details} /> : null}
       {activities.fromStrava ? (
         <Notice tone="warning">
           {activities.fromStrava > 1
@@ -113,7 +134,7 @@ export async function WatchSyncPanel({
   suuntoCallback?: string;
   intervalsCallback?: string;
 }) {
-  const accounts = await getDeviceAccounts(supabase, userId);
+  const [accounts, details] = await Promise.all([getDeviceAccounts(supabase, userId), todayIn(timeZone).then((today) => getDetailsProgress(supabase, userId, today))]);
   const intervalsReady = isIntervalsReady();
   const suuntoReady = isSuuntoReady();
   const oauthReady = isIntervalsOAuthReady();
@@ -153,7 +174,7 @@ export async function WatchSyncPanel({
               <p className="text-[13.5px] text-muted">Pas encore disponible sur ce site : il manque la clé de chiffrement des comptes reliés.</p>
             ) : accounts.intervals?.status === "active" ? (
               <>
-                <AccountState account={accounts.intervals} where="dans votre calendrier intervals.icu" timeZone={timeZone} />
+                <AccountState account={accounts.intervals} where="dans votre calendrier intervals.icu" timeZone={timeZone} details={details} />
                 <WatchSyncControls provider="intervals" />
                 <IntervalsThresholds />
               </>

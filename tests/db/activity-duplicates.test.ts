@@ -46,14 +46,18 @@ async function session(date: string) {
 }
 
 /** Départ à 07:00 heure de Paris (05:00 UTC en été), décalé de `shiftS` secondes. */
-async function activity(source: "strava" | "intervals" | "fit_upload", date: string, options: { shiftS?: number; seconds?: number; sport?: string } = {}) {
+async function activity(
+  source: "strava" | "intervals" | "fit_upload",
+  date: string,
+  options: { shiftS?: number; seconds?: number; sport?: string; power?: number; hr?: number } = {},
+) {
   const shift = options.shiftS ?? 0;
   const local = new Date(Date.parse(`${date}T07:00:00Z`) + shift * 1000).toISOString().slice(11, 19);
   const { rows } = await asSuperuser(
     `insert into public.activities
-       (athlete_id, source, external_id, connection_id, sport, start_time, local_date, local_start_time, moving_s, elapsed_s, expires_at)
+       (athlete_id, source, external_id, connection_id, sport, start_time, local_date, local_start_time, moving_s, elapsed_s, expires_at, avg_power, avg_hr)
      values ($1, $2, $3, $4, $5, ($6 || 'T05:00:00Z')::timestamptz + make_interval(secs => $7), $6::date, $8::time, $9, $9,
-             case when $2 = 'strava' then now() + interval '6 days' end)
+             case when $2 = 'strava' then now() + interval '6 days' end, $10, $11)
      returning id`,
     [
       athlete.id,
@@ -65,6 +69,8 @@ async function activity(source: "strava" | "intervals" | "fit_upload", date: str
       shift,
       local,
       options.seconds ?? 3540,
+      options.power ?? null,
+      options.hr ?? null,
     ],
   );
   return rows[0].id as string;
@@ -131,6 +137,44 @@ describe("une même séance faite, plusieurs sources", () => {
     // Même source : deux activités Strava distinctes, même proches, restent distinctes.
     const twin = await activity("strava", day, { shiftS: 15 });
     expect(await duplicateOf(twin)).toBeNull();
+  });
+
+  it("deux appareils sur la même sortie, reçus d'intervals.icu : un seul original, le plus complet, et il prend le rattachement", async () => {
+    const day = freshDay();
+    const planned = await session(day);
+    // La montre (fréquence cardiaque seule) arrive d'abord, puis le compteur (puissance) : il devient l'original.
+    const watch = await activity("intervals", day, { hr: 140, seconds: 3580 });
+    const computer = await activity("intervals", day, { shiftS: 38, hr: 166, power: 149, seconds: 3550 });
+    expect(await duplicateOf(watch)).toBe(computer);
+    expect(await duplicateOf(computer)).toBeNull();
+    expect(await matches(watch)).toEqual([]);
+    expect(await matches(computer)).toEqual([{ session_id: planned, status: "auto" }]);
+    // La puissance arrive plus tard sur la montre (analyse refaite) : à égalité, le premier arrivé redevient l'original.
+    await asSuperuser("update public.activities set avg_power = 150 where id = $1", [watch]);
+    expect(await duplicateOf(computer)).toBe(watch);
+    expect(await duplicateOf(watch)).toBeNull();
+    expect(await matches(watch)).toEqual([{ session_id: planned, status: "auto" }]);
+  });
+
+  it("Strava plus complet qu'une montre : la montre reste l'original (Strava n'est qu'un cache, jamais compté)", async () => {
+    const day = freshDay();
+    const watch = await activity("intervals", day, { hr: 150 });
+    const strava = await activity("strava", day, { shiftS: 20, hr: 150, power: 230 });
+    expect(await duplicateOf(strava)).toBe(watch);
+    expect(await duplicateOf(watch)).toBeNull();
+  });
+
+  it("deux fichiers FIT de la même sortie : un seul original ; deux sorties distinctes du même appareil restent distinctes", async () => {
+    const day = freshDay();
+    const first = await activity("fit_upload", day, { power: 210 });
+    const second = await activity("fit_upload", day, { shiftS: 20 });
+    expect(await duplicateOf(second)).toBe(first);
+    // Démarrage raté puis vraie sortie : départs proches, durées sans rapport.
+    const other = freshDay();
+    const aborted = await activity("intervals", other, { seconds: 77 });
+    const ride = await activity("intervals", other, { shiftS: 111, seconds: 5132 });
+    expect(await duplicateOf(aborted)).toBeNull();
+    expect(await duplicateOf(ride)).toBeNull();
   });
 
   it("l'original effacé, son doublon prend sa place et son rattachement", async () => {

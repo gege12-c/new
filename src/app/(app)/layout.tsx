@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { BottomNav, MobileSettingsLink, SidebarNav, type NavGroup, type NavKey } from "@/components/app-nav";
 import { Brand } from "@/components/brand";
 import { NotificationBell } from "@/components/notifications/bell";
+import { DetailsCatchUp } from "@/components/realtime/details-catch-up";
 import { Skeleton } from "@/components/ui/feedback";
 import { getIsAdmin, getProfile } from "@/lib/auth/dal";
 import { initials } from "@/lib/utils";
@@ -50,6 +51,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         </header>
         {children}
       </div>
+      <DetailsCatchUp />
 
       <nav
         aria-label="Navigation principale"

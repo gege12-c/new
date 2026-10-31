@@ -1,7 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { intervalsDeps } from "@/lib/devices/deps";
-import { enqueueDailyIntervals, runIntervalsJobs } from "@/lib/intervals/service";
+import { enqueueDailyIntervals, readIntervalsDetailsDaily, runIntervalsJobs } from "@/lib/intervals/service";
 import { getSiteUrl } from "@/lib/site";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isMissingSchema } from "@/lib/supabase/schema";
@@ -49,6 +49,14 @@ async function intervalsDaily() {
   return { connections, ...(await runIntervalsJobs(deps, { limit: 20, budgetMs: 15_000 })) };
 }
 
+/** Détails des activités de l'année encore en attente (courbes, intervalles) : un lot par compte. */
+async function intervalsDetails(budgetMs: number) {
+  const deps = intervalsDeps();
+  if (!deps) return "not_configured" as const;
+  if (budgetMs < 3000) return "no_time" as const;
+  return readIntervalsDetailsDaily(deps, budgetMs);
+}
+
 /** La fenêtre des montres Suunto avance d'un jour : séance de J+6 à envoyer, séance d'hier à retirer. */
 async function suuntoDaily() {
   const deps = suuntoDeps(await getSiteUrl());
@@ -73,10 +81,13 @@ async function maintenance() {
  */
 export async function GET(request: NextRequest) {
   if (!authorized(request)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const started = Date.now();
   const reminders = await remindMissingFeedback();
   const strava = await stravaDaily();
   const intervals = await intervalsDaily();
   const suunto = await suuntoDaily();
   const cleanup = strava === "not_configured" ? await maintenance() : "with_strava";
-  return NextResponse.json({ status: "ok", reminders, strava, intervals, suunto, maintenance: cleanup });
+  // Le temps qui reste (la dernière lecture commencée doit finir avant la limite de 60 s).
+  const details = await intervalsDetails(Math.min(15_000, 35_000 - (Date.now() - started)));
+  return NextResponse.json({ status: "ok", reminders, strava, intervals, details, suunto, maintenance: cleanup });
 }

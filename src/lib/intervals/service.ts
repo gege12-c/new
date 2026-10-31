@@ -33,7 +33,7 @@ import { missingColumn } from "@/lib/supabase/schema";
 import { parseWorkout } from "@/lib/workout/schema";
 import { IntervalsApi, IntervalsError, type IntervalsAuth, type IntervalsEvent } from "./api";
 import { alignmentUpdates, appliedAsSent, compareThresholds, type SyncedThresholdKey, type ThresholdComparison } from "./thresholds";
-import { INTERVALS_STREAM_TYPES, intervalsLaps, intervalsStreams, powerBests, reduceStreams, streamMetrics, STREAMS_VERSION } from "@/lib/activities/streams";
+import { detailsUpToDate, INTERVALS_STREAM_TYPES, intervalsLaps, intervalsStreams, powerBests, reduceStreams, streamMetrics } from "@/lib/activities/streams";
 import { INTERVALS_FULL_HISTORY_DAYS, INTERVALS_HISTORY_DAYS, INTERVALS_RECENT_DAYS, normalizeIntervalsActivity, sameActivity } from "./activities";
 import { missingMeasures, morningMeasures, WELLNESS_RECENT_DAYS, type MorningMeasures } from "./wellness";
 import { buildIntervalsEvents, intervalsExternalId, INTERVALS_FORMAT_VERSION, INTERVALS_WINDOW_DAYS, type IntervalsBuild } from "./workout";
@@ -667,78 +667,192 @@ async function pullActivities(deps: IntervalsDeps, connection: DeviceConnection,
   return { saved: changed.length, removed: gone.length, fromStrava };
 }
 
-/** Courbes lues au plus par passage (deux appels chacune), les plus récentes d'abord ; la suite au passage suivant. */
-export const STREAMS_PER_RUN = 20;
-const STREAMS_BUDGET_MS = 20_000;
-/** Courbes lues sur un an : les records de la saison et la FTP estimée en dépendent. */
+/** Détails lus au plus par synchronisation (deux appels chacun) ; le reste par la lecture de rattrapage. */
+export const STREAMS_PER_RUN = 40;
+const STREAMS_BUDGET_MS = 15_000;
+/** Détails lus sur un an : les records de la saison et la FTP estimée en dépendent. */
 export const STREAMS_HISTORY_DAYS = INTERVALS_FULL_HISTORY_DAYS;
+/**
+ * Activités lues en même temps (deux appels chacune, l'un après l'autre) : bien en dessous de la
+ * limite d'intervals.icu (10 appels par seconde).
+ */
+export const DETAILS_PARALLEL = 2;
+/** Activités récentes, lues avant tout le reste : celle qu'on vient de faire a ses détails tout de suite. */
+const DETAILS_RECENT_DAYS = 14;
+
+export interface DetailsProgress {
+  /** Activités dont les détails ont été lus pendant cet appel. */
+  read: number;
+  /** Activités de l'année qui attendent encore leurs détails. */
+  remaining: number;
+  /** Activités reçues d'intervals.icu sur l'année (doublons exclus). */
+  total: number;
+  /** Lecture interrompue (quota, panne passagère) : reprise plus tard. */
+  paused: boolean;
+}
+
+type BacklogRow = { id: string; external_id: string; sport: string; local_date: string };
 
 /**
- * Courbes et intervalles détectés des activités reçues de l'année qui n'en ont pas encore, ou dont
- * les mesures datent d'un calcul plus ancien (STREAMS_VERSION) : relues une fois.
- * Une activité sans courbe chez intervals.icu (saisie à la main, introuvable) est notée vide, pour ne
- * pas être relue ; un quota atteint ou une panne passagère arrête la lecture, reprise au passage suivant.
+ * Activités de l'année sans détails à jour (jamais lus, ou lus avec un calcul plus ancien), dans
+ * l'ordre de lecture : les 14 derniers jours, puis le vélo, puis la course et la natation, puis le
+ * reste ; chaque groupe de la plus récente à la plus ancienne. Les doublons ne sont pas lus.
  */
-async function pullStreams(deps: IntervalsDeps, connection: DeviceConnection, today: string): Promise<number> {
+async function detailsBacklog(deps: IntervalsDeps, athleteId: string, today: string): Promise<{ total: number; missing: BacklogRow[] }> {
   const { data: rows, error } = await deps.admin
     .from("activities")
-    .select("id, external_id, sport, stored:activity_streams(activity_id, metrics)")
-    .eq("athlete_id", connection.athlete_id)
+    .select("id, external_id, sport, local_date, stored:activity_streams(version:metrics->v)")
+    .eq("athlete_id", athleteId)
     .eq("source", "intervals")
+    .is("duplicate_of", null)
     .gte("local_date", addDays(today, -STREAMS_HISTORY_DAYS))
     .order("start_time", { ascending: false })
-    .limit(1500);
+    .limit(2000);
   if (error) throw new Error(`Activités reçues illisibles : ${error.message}`);
-  const outdated = (stored: { metrics: unknown } | null | undefined) => {
-    if (!stored) return true;
-    const version = (stored.metrics as { v?: unknown } | null)?.v;
-    return typeof version !== "number" || version < STREAMS_VERSION;
-  };
-  const missing = (rows ?? []).filter((row) => outdated(Array.isArray(row.stored) ? row.stored[0] : row.stored));
-  if (!missing.length) return 0;
+  const recent = addDays(today, -DETAILS_RECENT_DAYS);
+  const rank = (row: BacklogRow) => (row.local_date >= recent ? 0 : row.sport === "bike" ? 1 : row.sport === "run" || row.sport === "swim" ? 2 : 3);
+  const missing = (rows ?? [])
+    .filter((row) => {
+      const stored = (Array.isArray(row.stored) ? row.stored[0] : row.stored) as { version?: unknown } | null | undefined;
+      return !detailsUpToDate(stored?.version);
+    })
+    .map(({ id, external_id, sport, local_date }) => ({ id, external_id, sport, local_date }))
+    // Tri stable : l'ordre chronologique inverse est gardé dans chaque groupe.
+    .sort((a, b) => rank(a) - rank(b));
+  return { total: rows?.length ?? 0, missing };
+}
+
+/**
+ * Détails d'une activité (courbes, intervalles détectés, records), lus chez intervals.icu.
+ * Une activité sans courbe (saisie à la main, introuvable) est notée vide, pour ne pas être relue.
+ * « stop » : quota, clé ou panne passagère, la lecture reprend plus tard.
+ */
+async function readActivityDetails(deps: IntervalsDeps, key: IntervalsAuth, activity: BacklogRow): Promise<"read" | "stop"> {
+  let streamsBody: unknown;
+  let lapsBody: unknown = null;
+  try {
+    streamsBody = await deps.api.streams(key, activity.external_id, Object.keys(INTERVALS_STREAM_TYPES));
+    lapsBody = await deps.api.intervals(key, activity.external_id).catch((failure) => {
+      // Intervalles indisponibles : les courbes restent utiles sans eux.
+      if (failure instanceof IntervalsError && (failure.kind === "bad_request" || failure.kind === "invalid_response")) return null;
+      throw failure;
+    });
+  } catch (failure) {
+    if (failure instanceof IntervalsError && (failure.kind === "bad_request" || failure.kind === "invalid_response")) {
+      streamsBody = null;
+    } else {
+      // Clé refusée : à signaler (reconnexion) ; quota ou panne passagère : reprise plus tard.
+      if (!(failure instanceof IntervalsError) || failure.kind === "unauthorized") throw failure;
+      return "stop";
+    }
+  }
+  const raw = intervalsStreams(streamsBody);
+  const reduced = reduceStreams(raw);
+  const laps = intervalsLaps(lapsBody);
+  const { error: saveError } = await deps.admin.from("activity_streams").upsert(
+    {
+      activity_id: activity.id,
+      sample_s: reduced?.sample_s ?? 1,
+      series: (reduced?.series ?? {}) as unknown as NonNullable<Json>,
+      laps: laps as unknown as NonNullable<Json>,
+      laps_origin: laps.length ? "detected" : null,
+      bests: powerBests(raw) as unknown as NonNullable<Json>,
+      metrics: streamMetrics(raw, activity.sport) as unknown as NonNullable<Json>,
+    },
+    { onConflict: "activity_id" },
+  );
+  // Activité effacée entre-temps : rien à garder.
+  if (saveError && saveError.code !== "23503") throw new Error(`Courbes non enregistrées : ${saveError.message}`);
+  return "read";
+}
+
+/** Lit les détails en attente, deux activités à la fois, dans la limite donnée et le temps imparti. */
+async function readDetails(deps: IntervalsDeps, connection: DeviceConnection, today: string, options: { max: number; budgetMs: number }): Promise<DetailsProgress> {
+  const { total, missing } = await detailsBacklog(deps, connection.athlete_id, today);
+  if (!missing.length) return { read: 0, remaining: 0, total, paused: false };
   const key = await apiKey(deps, connection);
+  const queue = missing.slice(0, options.max);
   const started = Date.now();
+  let next = 0;
   let read = 0;
-  for (const activity of missing.slice(0, STREAMS_PER_RUN)) {
-    if (Date.now() - started > STREAMS_BUDGET_MS) break;
-    let streamsBody: unknown;
-    let lapsBody: unknown = null;
-    try {
-      streamsBody = await deps.api.streams(key, activity.external_id, Object.keys(INTERVALS_STREAM_TYPES));
-      lapsBody = await deps.api.intervals(key, activity.external_id).catch((failure) => {
-        // Intervalles indisponibles : les courbes restent utiles sans eux.
-        if (failure instanceof IntervalsError && (failure.kind === "bad_request" || failure.kind === "invalid_response")) return null;
-        throw failure;
-      });
-    } catch (failure) {
-      if (failure instanceof IntervalsError && (failure.kind === "bad_request" || failure.kind === "invalid_response")) {
-        streamsBody = null;
-      } else {
-        // Quota, clé, panne : la suite au prochain passage.
-        if (!(failure instanceof IntervalsError)) throw failure;
-        break;
+  let paused = false;
+  let failure: unknown = null;
+  const worker = async () => {
+    while (!paused && failure === null && Date.now() - started <= options.budgetMs) {
+      const activity = queue[next];
+      if (!activity) return;
+      next += 1;
+      try {
+        if ((await readActivityDetails(deps, key, activity)) === "stop") {
+          paused = true;
+          return;
+        }
+        read += 1;
+      } catch (error) {
+        // L'autre lecture s'arrête aussi : rien ne continue après l'échec signalé.
+        failure ??= error;
+        return;
       }
     }
-    const raw = intervalsStreams(streamsBody);
-    const reduced = reduceStreams(raw);
-    const laps = intervalsLaps(lapsBody);
-    const { error: saveError } = await deps.admin.from("activity_streams").upsert(
-      {
-        activity_id: activity.id,
-        sample_s: reduced?.sample_s ?? 1,
-        series: (reduced?.series ?? {}) as unknown as NonNullable<Json>,
-        laps: laps as unknown as NonNullable<Json>,
-        laps_origin: laps.length ? "detected" : null,
-        bests: powerBests(raw) as unknown as NonNullable<Json>,
-        metrics: streamMetrics(raw, activity.sport) as unknown as NonNullable<Json>,
-      },
-      { onConflict: "activity_id" },
-    );
-    // Activité effacée entre-temps : rien à garder.
-    if (saveError && saveError.code !== "23503") throw new Error(`Courbes non enregistrées : ${saveError.message}`);
-    read += 1;
+  };
+  await Promise.all(Array.from({ length: Math.min(DETAILS_PARALLEL, queue.length) }, worker));
+  if (failure !== null) throw failure;
+  return { read, remaining: missing.length - read, total, paused };
+}
+
+/** Pendant une synchronisation : une part des détails en attente (le reste par le rattrapage). */
+async function pullStreams(deps: IntervalsDeps, connection: DeviceConnection, today: string): Promise<number> {
+  try {
+    return (await readDetails(deps, connection, today, { max: STREAMS_PER_RUN, budgetMs: STREAMS_BUDGET_MS })).read;
+  } catch (error) {
+    throw await translate(deps, connection, error);
   }
-  return read;
+}
+
+/** Bail d'une lecture de rattrapage : un seul exécutant à la fois par compte, comme les envois. */
+const DETAILS_LEASE_SECONDS = 90;
+
+export type DetailsResult = ({ status: "ok" } & DetailsProgress) | { status: "not_linked" } | { status: "busy" } | { status: "reauth" };
+
+/**
+ * Rattrapage des détails (courbes, intervalles, records) des activités de l'année, demandé tant que
+ * TriCoach est ouvert et chaque nuit : un lot dans le temps imparti, sous le bail du compte (jamais
+ * en même temps qu'une synchronisation). Ce qui reste est dit, rien n'est deviné.
+ */
+export async function readIntervalsDetails(deps: IntervalsDeps, athleteId: string, options: { budgetMs: number; max?: number }): Promise<DetailsResult> {
+  const connection = await intervalsConnection(deps, athleteId);
+  if (!connection) return { status: "not_linked" };
+  if (connection.status !== "active") return { status: "reauth" };
+  const { data: leased } = await deps.admin.rpc("acquire_sync_lease", { p_connection: connection.id, p_seconds: DETAILS_LEASE_SECONDS });
+  if (!leased) return { status: "busy" };
+  try {
+    const today = await todayOf(deps, athleteId);
+    return { status: "ok", ...(await readDetails(deps, connection, today, { max: options.max ?? 400, budgetMs: options.budgetMs })) };
+  } catch (error) {
+    // Clé refusée : la connexion passe « à reconnecter », comme pendant une synchronisation.
+    const translated = await translate(deps, connection, error);
+    if (translated instanceof DeviceReauthError) return { status: "reauth" };
+    throw translated;
+  } finally {
+    await deps.admin.rpc("release_sync_lease", { p_connection: connection.id });
+  }
+}
+
+/** Chaque nuit : un lot de détails pour chaque compte relié, dans le temps imparti (le reste à l'ouverture). */
+export async function readIntervalsDetailsDaily(deps: IntervalsDeps, budgetMs: number): Promise<{ read: number; remaining: number }> {
+  const started = Date.now();
+  const { data: connections } = await deps.admin.from("external_connections").select("athlete_id").eq("provider", "intervals").eq("status", "active");
+  const total = { read: 0, remaining: 0 };
+  for (const connection of connections ?? []) {
+    const left = budgetMs - (Date.now() - started);
+    if (left < 2000) break;
+    const result = await readIntervalsDetails(deps, connection.athlete_id, { budgetMs: left });
+    if (result.status === "ok") {
+      total.read += result.read;
+      total.remaining += result.remaining;
+    }
+  }
+  return total;
 }
 
 /** Exécute les dépôts dus (un seul à la fois par compte), dans le temps imparti. */

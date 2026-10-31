@@ -5,7 +5,7 @@ import type { CalendarActivity, CalendarSession } from "@/lib/data/planning-type
 export const DONE_RATIO = 0.8;
 
 /** Durée qui compte : temps en mouvement en natation, vélo et course ; temps total sinon. */
-export function activityDuration(activity: Pick<CalendarActivity, "sport" | "moving_s" | "elapsed_s">): number | null {
+export function activityDuration(activity: { sport: string } & Pick<CalendarActivity, "moving_s" | "elapsed_s">): number | null {
   return ["swim", "bike", "run"].includes(activity.sport) ? (activity.moving_s ?? activity.elapsed_s) : (activity.elapsed_s ?? activity.moving_s);
 }
 

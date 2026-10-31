@@ -15,6 +15,7 @@ import { Panel } from "@/components/ui/panel";
 import { WorkoutProfile } from "@/components/workout/workout-profile";
 import { getProfile, requireSession } from "@/lib/auth/dal";
 import { getEvents, getMyCoaches, getThresholds } from "@/lib/data/athlete";
+import { activityDuration } from "@/lib/activities/compare";
 import { unattachedActivities, withRealization } from "@/lib/activities/realization";
 import { getRealizedInRange } from "@/lib/data/activities";
 import { getDeviceAccounts } from "@/lib/data/devices";
@@ -23,7 +24,7 @@ import { getWellness } from "@/lib/data/wellness";
 import { calendarHref } from "@/lib/planning/calendar-query";
 import { addDays, dateRange, daysBetween, formatDayMonthLong, formatFullDate, formatWeekdayShort, relativeDay, startOfWeek } from "@/lib/planning/dates";
 import { sessionStatus, STATUS_LABELS } from "@/lib/planning/status";
-import { plannedVolume } from "@/lib/planning/volume";
+import { weekBalance } from "@/lib/planning/volume";
 import { THRESHOLD_DEFS, currentThresholds, formatThresholdValue, toAthleteThresholds } from "@/lib/thresholds";
 import { isIntervalsReady } from "@/lib/intervals/config";
 import { isSuuntoReady } from "@/lib/suunto/config";
@@ -174,8 +175,16 @@ async function AthleteHome({ searchParams }: Pick<PageProps<"/athlete">, "search
   const next = sessions.find((s) => s.scheduled_date > today && s.state !== "cancelled");
   const week = dateRange(monday, addDays(monday, 6));
   const weekSessions = sessions.filter((s) => s.scheduled_date <= week[6]);
-  const volume = plannedVolume(weekSessions);
-  const maxDay = Math.max(1, ...week.map((d) => weekSessions.filter((s) => s.scheduled_date === d && s.state !== "cancelled").reduce((sum, s) => sum + (s.planned_duration_s ?? 0), 0)));
+  // Fait cette semaine : toutes les activités reçues, rattachées à une séance ou non (Strava non compté).
+  const weekActivities = realized.activities.filter((a) => a.local_date >= monday && a.local_date <= week[6]);
+  const balance = weekBalance(weekSessions, weekActivities);
+  const days = week.map((day) => {
+    const planned = weekSessions.filter((s) => s.scheduled_date === day && s.state !== "cancelled");
+    const done = weekActivities.filter((a) => a.local_date === day && a.source !== "strava");
+    return { day, planned, done, plannedSeconds: planned.reduce((sum, s) => sum + (s.planned_duration_s ?? 0), 0), doneSeconds: done.reduce((sum, a) => sum + (activityDuration(a) ?? 0), 0) };
+  });
+  const maxDay = Math.max(1, ...days.map((d) => Math.max(d.plannedSeconds, d.doneSeconds)));
+  const legendSport = balance.bySport[0]?.sport ?? "bike";
   const nextEvent = events.find((e) => e.event_date >= today);
   const current = currentThresholds(thresholdRows, today);
   const keys = ["bike.ftp_w", "run.threshold_pace_s_per_km", "swim.css_s_per_100m"];
@@ -294,49 +303,94 @@ async function AthleteHome({ searchParams }: Pick<PageProps<"/athlete">, "search
               </Link>
             }
           >
-            <div className="grid grid-cols-7 gap-1.5" role="list" aria-label="Jours de la semaine">
-              {week.map((day) => {
-                const daySessions = weekSessions.filter((s) => s.scheduled_date === day && s.state !== "cancelled");
-                return (
-                  <Link
-                    key={day}
-                    role="listitem"
-                    href={calendarHref("/athlete/calendar", { view: "day", date: day })}
-                    aria-label={`${formatFullDate(day)} : ${daySessions.length ? daySessions.map((s) => s.title).join(", ") : "repos"}`}
-                    className={cn("flex flex-col items-center gap-1.5 rounded-[10px] py-2", day === today ? "bg-surface-3" : "hover:bg-surface-2")}
-                  >
-                    <span className="text-[11px] font-semibold uppercase text-muted">{formatWeekdayShort(day).slice(0, 1)}</span>
-                    <span className={cn("figure text-[14px]", day === today ? "text-ink" : "text-ink-soft")}>{Number(day.slice(8))}</span>
-                    <span className="flex h-14 w-3 flex-col-reverse overflow-hidden rounded-full bg-surface-2" aria-hidden>
-                      {daySessions.map((s) => (
-                        <span key={s.id} className={SPORT_STYLES[s.sport].solid} style={{ height: `${((s.planned_duration_s ?? 0) / maxDay) * 100}%` }} />
-                      ))}
+            <div className="grid grid-cols-7 gap-1.5" role="list" aria-label="Jours de la semaine, prévu et fait">
+              {days.map(({ day, planned, done, plannedSeconds, doneSeconds }) => (
+                <Link
+                  key={day}
+                  role="listitem"
+                  href={calendarHref("/athlete/calendar", { view: "day", date: day })}
+                  aria-label={`${formatFullDate(day)} : ${planned.length ? `prévu ${planned.map((s) => s.title).join(", ")}` : "rien de prévu"} ; ${
+                    done.length ? `fait ${done.map((a) => `${SPORT_LABELS[a.sport]} ${formatDurationShort(activityDuration(a) ?? 0)}`).join(", ")}` : "rien de fait"
+                  }`}
+                  className={cn("flex flex-col items-center gap-1.5 rounded-[10px] py-2", day === today ? "bg-surface-3" : "hover:bg-surface-2")}
+                >
+                  <span className="text-[11px] font-semibold uppercase text-muted">{formatWeekdayShort(day).slice(0, 1)}</span>
+                  <span className={cn("figure text-[14px]", day === today ? "text-ink" : "text-ink-soft")}>{Number(day.slice(8))}</span>
+                  <span className="flex h-14 items-end gap-[3px]" aria-hidden>
+                    {/* À gauche le prévu (teinte claire), à droite le fait (couleur pleine). */}
+                    <span className="flex h-full w-[7px] flex-col-reverse overflow-hidden rounded-full bg-surface-2">
+                      {plannedSeconds
+                        ? planned.map((s) => <span key={s.id} className={SPORT_STYLES[s.sport].soft} style={{ height: `${((s.planned_duration_s ?? 0) / maxDay) * 100}%` }} />)
+                        : null}
                     </span>
-                  </Link>
-                );
-              })}
-            </div>
-            <div className="mt-4 flex items-baseline justify-between border-t border-line pt-3">
-              <span className="text-[13px] font-semibold text-muted">Volume prévu</span>
-              <span className="figure text-[22px]">{volume.totalSeconds ? formatDurationShort(volume.totalSeconds) : "—"}</span>
-            </div>
-            <ul className="mt-2 space-y-1.5">
-              {volume.bySport.map((v) => (
-                <li key={v.sport} className="flex items-center justify-between gap-3 text-[14px]">
-                  <span className="flex items-center gap-2">
-                    <SportDot sport={v.sport} />
-                    {SPORT_LABELS[v.sport]}
+                    <span className="flex h-full w-[7px] flex-col-reverse overflow-hidden rounded-full bg-surface-2">
+                      {doneSeconds
+                        ? done.map((a) => <span key={a.id} className={SPORT_STYLES[a.sport].solid} style={{ height: `${((activityDuration(a) ?? 0) / maxDay) * 100}%` }} />)
+                        : null}
+                    </span>
                   </span>
-                  <span className="figure text-ink-soft">
-                    {v.seconds ? formatDurationShort(v.seconds) : "—"}
-                    {v.meters ? <span className="ml-2 text-muted">{formatDistance(v.meters, v.sport === "swim" ? "swim" : undefined)}</span> : null}
-                  </span>
-                </li>
+                </Link>
               ))}
-            </ul>
-            {volume.unknownDuration ? (
+            </div>
+            <p className="mt-2 flex justify-center gap-4 text-[11.5px] text-muted" aria-hidden>
+              {/* Aux couleurs de la semaine : teinte claire pour le prévu, couleur pleine pour le fait. */}
+              <span className="flex items-center gap-1.5">
+                <span className={cn("h-3 w-[7px] rounded-full", SPORT_STYLES[legendSport].soft)} />
+                prévu
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className={cn("h-3 w-[7px] rounded-full", SPORT_STYLES[legendSport].solid)} />
+                fait
+              </span>
+            </p>
+            <table className="mt-3 w-full border-t border-line text-[14px]">
+              <caption className="sr-only">Volume de la semaine, prévu et fait, par discipline</caption>
+              <thead>
+                <tr className="text-[12px] text-muted">
+                  <th scope="col" className="pt-3 text-left font-semibold">
+                    <span className="sr-only">Discipline</span>
+                  </th>
+                  <th scope="col" className="pt-3 text-right font-semibold">
+                    Prévu
+                  </th>
+                  <th scope="col" className="w-24 pt-3 text-right font-semibold">
+                    Fait
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row" className="py-1 text-left text-[13px] font-semibold text-muted">
+                    Total
+                  </th>
+                  <td className="figure py-1 text-right text-[20px]">{balance.planned ? formatDurationShort(balance.planned) : "—"}</td>
+                  <td className="figure py-1 text-right text-[20px]">{balance.done ? formatDurationShort(balance.done) : "—"}</td>
+                </tr>
+                {balance.bySport.map((v) => (
+                  <tr key={v.sport}>
+                    <th scope="row" className="py-1 text-left font-normal">
+                      <span className="flex items-center gap-2">
+                        <SportDot sport={v.sport} />
+                        {SPORT_LABELS[v.sport]}
+                      </span>
+                    </th>
+                    <td className="figure py-1 text-right text-ink-soft">{v.planned ? formatDurationShort(v.planned) : "—"}</td>
+                    <td className="figure py-1 text-right text-ink">
+                      {v.done ? formatDurationShort(v.done) : "—"}
+                      {v.doneMeters ? <span className="block text-[12px] text-muted">{formatDistance(v.doneMeters, v.sport === "swim" ? "swim" : undefined)}</span> : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {balance.unknownDuration ? (
               <p className="mt-2 text-[12px] text-muted">
-                {volume.unknownDuration} séance{volume.unknownDuration > 1 ? "s" : ""} sans durée calculable, non comptée{volume.unknownDuration > 1 ? "s" : ""}.
+                {balance.unknownDuration} séance{balance.unknownDuration > 1 ? "s" : ""} sans durée calculable, non comptée{balance.unknownDuration > 1 ? "s" : ""} dans le prévu.
+              </p>
+            ) : null}
+            {balance.stravaSkipped ? (
+              <p className="mt-2 text-[12px] text-muted">
+                {balance.stravaSkipped > 1 ? `${balance.stravaSkipped} activités Strava ne sont pas comptées` : "Une activité Strava n’est pas comptée"} (règles de Strava) : elles restent dans le calendrier.
               </p>
             ) : null}
           </Panel>

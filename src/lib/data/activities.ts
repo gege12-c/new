@@ -6,7 +6,7 @@
 import "server-only";
 import { addDays } from "@/lib/planning/dates";
 import type { RealizedRange } from "@/lib/activities/realization";
-import { readStoredStreams, type ActivityStreams } from "@/lib/activities/streams";
+import { detailsUpToDate, readStoredStreams, type ActivityStreams } from "@/lib/activities/streams";
 import { isMissingSchema } from "@/lib/supabase/schema";
 import type { ServerSupabase } from "@/lib/supabase/server";
 import type { ActivityMatch, CalendarActivity, MatchStatus, SessionCompletion } from "./planning-types";
@@ -37,6 +37,37 @@ export function toCalendarActivity(row: ActivityRow): CalendarActivity {
 }
 
 const LIVE_STATUSES: MatchStatus[] = ["auto", "confirmed", "proposed"];
+
+/** Activités de l'année reçues d'intervals.icu, et celles dont les détails sont lus (calcul en vigueur). */
+export interface DetailsProgress {
+  total: number;
+  done: number;
+}
+
+/**
+ * Avancement de la lecture des détails (courbes, puissance, intervalles) des activités reçues
+ * d'intervals.icu sur un an, doublons exclus ; null tant que la base n'est pas à jour.
+ */
+export async function getDetailsProgress(supabase: ServerSupabase, athleteId: string, today: string): Promise<DetailsProgress | null> {
+  const { data, error } = await supabase
+    .from("activities")
+    .select("id, stored:activity_streams(version:metrics->v)")
+    .eq("athlete_id", athleteId)
+    .eq("source", "intervals")
+    .is("duplicate_of", null)
+    .gte("local_date", addDays(today, -365))
+    .limit(2000);
+  if (error) {
+    if (isMissingSchema(error)) return null;
+    throw error;
+  }
+  const rows = data ?? [];
+  const done = rows.filter((row) => {
+    const stored = (Array.isArray(row.stored) ? row.stored[0] : row.stored) as { version?: unknown } | null | undefined;
+    return detailsUpToDate(stored?.version);
+  }).length;
+  return { total: rows.length, done };
+}
 
 /** Réalisation visible d’un ou plusieurs athlètes pour les séances et les activités de la période. */
 export async function getRealizedInRange(supabase: ServerSupabase, athlete: string | string[], from: string, to: string): Promise<RealizedRange> {
@@ -170,6 +201,9 @@ export async function getSessionRealization(
 }
 
 export interface ActivityDetail extends CalendarActivity {
+  athlete_id: string;
+  /** Détails (courbes, intervalles) déjà lus avec le calcul en vigueur, qu'il y ait des courbes ou non. */
+  detailsRead: boolean;
   links: (Pick<ActivityMatch, "session_id" | "status"> & { title: string; scheduled_date: string; sport: string })[];
   /** Séances visibles des jours voisins, auxquelles l’activité peut être rattachée. */
   candidates: { id: string; title: string; scheduled_date: string; sport: string; start_time: string | null; state: string }[];
@@ -179,7 +213,7 @@ export interface ActivityDetail extends CalendarActivity {
 export async function getActivityDetail(supabase: ServerSupabase, activityId: string): Promise<ActivityDetail | null> {
   const { data, error } = await supabase
     .from("activities")
-    .select(`${ACTIVITY_COLUMNS}, athlete_id, links:session_activity_matches(session_id, status, session:planned_sessions(title, scheduled_date, sport))`)
+    .select(`${ACTIVITY_COLUMNS}, athlete_id, stored:activity_streams(version:metrics->v), links:session_activity_matches(session_id, status, session:planned_sessions(title, scheduled_date, sport))`)
     .eq("id", activityId)
     .maybeSingle();
   if (isMissingSchema(error)) return null;
@@ -187,9 +221,10 @@ export async function getActivityDetail(supabase: ServerSupabase, activityId: st
   if (!data) return null;
   const row = data as unknown as ActivityRow & {
     athlete_id: string;
+    stored: { version: unknown } | { version: unknown }[] | null;
     links: { session_id: string; status: string; session: { title: string; scheduled_date: string; sport: string } | null }[];
   };
-  const { links, athlete_id, ...rest } = row;
+  const { links, athlete_id, stored, ...rest } = row;
   const activity = toCalendarActivity(rest);
   const sessions = await supabase
     .from("planned_sessions")
@@ -203,6 +238,8 @@ export async function getActivityDetail(supabase: ServerSupabase, activityId: st
   if (sessions.error) throw sessions.error;
   return {
     ...activity,
+    athlete_id,
+    detailsRead: detailsUpToDate((Array.isArray(stored) ? stored[0] : stored)?.version),
     links: links
       .filter((l) => l.session && l.status !== "rejected")
       .map((l) => ({ session_id: l.session_id, status: l.status as MatchStatus, title: l.session!.title, scheduled_date: l.session!.scheduled_date, sport: l.session!.sport })),

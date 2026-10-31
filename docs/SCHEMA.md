@@ -243,13 +243,13 @@ Migration `20261031000000_intervals_activities.sql`.
 | `activities.source` | `strava`, `fit_upload` ou `intervals` (activités de la montre reçues par intervals.icu) | `intervals` : durable comme un fichier (ni connexion ni expiration), écrite par le serveur seul (aucune politique d'ajout ni de suppression pour l'API), lisible comme un fichier importé (l'athlète, et ses coachs autorisés à voir ses activités) |
 | `activities.source_load` | charge d'entraînement calculée par la source (intervals.icu : `icu_training_load`, avec ses propres seuils) | 0 à 2000, une décimale ; écrite par le serveur seul ; reprise telle quelle par la courbe de condition (migration `20261031070000`) |
 | `external_connections.history_from` | plus ancien jour d'activités demandé à intervals.icu | un an reçu une fois, puis les 14 derniers jours ; vide : l'historique sera demandé au prochain passage |
-| `activities.duplicate_of` | même séance faite, arrivée par une autre source : l'original | jamais rapprochée, comptée ni affichée ; original effacé : le doublon le remplace (`on delete set null`, puis nouvelle résolution) |
+| `activities.duplicate_of` | même séance faite, arrivée par une autre source ou enregistrée par un second appareil (compteur et montre sur la même sortie, migration `20261031090000`) : l'original | jamais rapprochée, comptée ni affichée ; original effacé : le doublon le remplace (`on delete set null`, puis nouvelle résolution) |
 | `external_connections.activities_synced_at`, `activities_skipped` | dernière réception des activités, et activités qu'intervals.icu n'a pas transmises (reçues de Strava) | la première réception remonte à 90 jours, les suivantes à 14 |
 
 | Fonction | Usage |
 | --- | --- |
-| `private.same_workout(a, b)` | même athlète, sources différentes, même discipline, départ à 5 minutes près (heure locale comprise), durée à 20 % près |
-| `private.resolve_activity_duplicates(activité)` | désigne l'original du groupe (fichier ou montre avant Strava, puis le premier arrivé), marque les doublons, reporte sur l'original un rattachement confirmé et les séances écartées, puis recalcule les rapprochements ; appelée par le déclencheur `activities_dedupe`, qui passe avant `activities_rematch` |
+| `private.same_workout(a, b)` | même athlète, même discipline, départ à 5 minutes près (heure locale comprise), durée à 20 % près ; sources différentes, ou même source durable (`intervals`, `fit_upload` : deux appareils sur la même sortie) ; deux activités Strava ne sont jamais fusionnées |
+| `private.resolve_activity_duplicates(activité)` | désigne l'original du groupe (fichier ou montre avant Strava, puis la plus complète : puissance, puis fréquence cardiaque, puis distance ; puis la première arrivée), marque les doublons, reporte sur l'original un rattachement confirmé et les séances écartées, puis recalcule les rapprochements ; appelée par le déclencheur `activities_dedupe` (qui passe avant `activities_rematch`), aussi quand la puissance, la fréquence cardiaque ou la distance d'une activité change |
 | `private.rematch_window` | ignore désormais les doublons |
 | `schema_version()` | dernière migration inscrite dans l'historique Supabase, lisible sans compte : le contrôle de production (`/api/health`) dit si la base attend sa mise à jour |
 

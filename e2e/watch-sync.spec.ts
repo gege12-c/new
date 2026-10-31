@@ -168,6 +168,12 @@ test("relier sa montre par intervals.icu : la séance publiée part, l'activité
   await expect(page.getByRole("row", { name: /^Effort 1 10:00/ })).toContainText("260 W");
   await expect(page.getByText("Meilleures puissances de la séance")).toBeVisible();
 
+  // La semaine de la sortie compte ce qui est fait, à côté du prévu.
+  await page.goto(`/athlete/calendar?view=week&date=${yesterday}`);
+  const week = page.getByRole("region", { name: /^Semaine \d+ : fait et prévu$/ });
+  await expect(week.getByRole("group", { name: "Fait" })).toContainText(/Vélo\s*\d/);
+  await expect(week.getByRole("group", { name: "Prévu" })).toContainText("Vélo");
+
   // Déliaison : les séances à venir quittent le calendrier intervals.icu, la clé est effacée.
   await page.goto("/athlete/profile#montre-auto");
   await panel.getByRole("button", { name: "Délier intervals.icu" }).click();

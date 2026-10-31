@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import { useDetailsCatchUp } from "./details-catch-up";
 
 type LiveState = "connecting" | "live" | "offline";
 
@@ -32,6 +33,8 @@ export function PlanningLive({
 }) {
   const router = useRouter();
   const [state, setState] = useState<LiveState>("connecting");
+  // Détails des activités de l'athlète suivi (l'athlète lui-même a les siens partout, voir le gabarit).
+  useDetailsCatchUp(athleteId, !self);
 
   // Activités faites avec la montre : relues chez intervals.icu à l'ouverture (au plus toutes les
   // 10 minutes par athlète et par onglet) ; ce qui arrive est signalé par le canal ci-dessous.
