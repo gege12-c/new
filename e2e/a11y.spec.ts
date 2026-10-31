@@ -94,6 +94,8 @@ for (const colorScheme of ["light", "dark"] as const) {
       `/coach/athletes/${athlete.id}/sessions/${sessionId}`,
       `/coach/athletes/${athlete.id}/sessions/new`,
       `/coach/athletes/${athlete.id}/stats`,
+      `/coach/athletes/${athlete.id}/season`,
+      `/coach/athletes/${athlete.id}?note=new`,
       `/coach/athletes/${athlete.id}/profile`,
       "/coach/library",
       "/notifications",
@@ -107,7 +109,17 @@ for (const colorScheme of ["light", "dark"] as const) {
   test(`pages de l'athlète sur téléphone, thème ${colorScheme === "light" ? "clair" : "sombre"}`, async ({ browser }) => {
     const page = await signedIn(browser, "athlete", { ...devices["Pixel 7"], colorScheme });
     const problems: string[] = [];
-    for (const path of ["/athlete", "/athlete/calendar", `/athlete/calendar?session=${sessionId}`, "/athlete/sessions/new", "/athlete/stats", "/athlete/profile", "/settings"]) {
+    for (const path of [
+      "/athlete",
+      "/athlete/calendar",
+      `/athlete/calendar?session=${sessionId}`,
+      "/athlete/calendar?note=new",
+      "/athlete/sessions/new",
+      "/athlete/stats",
+      "/athlete/season",
+      "/athlete/profile",
+      "/settings",
+    ]) {
       problems.push(...(await audit(page, path, colorScheme)));
     }
     expect(problems, problems.join("\n")).toEqual([]);

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Suspense } from "react";
 import { ActivityPanel } from "@/components/activities/activity-panel";
 import { NotePanel } from "@/components/calendar/note-panel";
@@ -55,7 +56,12 @@ async function AthleteCalendar({ searchParams }: Pick<PageProps<"/athlete/calend
     <>
       <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <h1 className="display text-[30px] sm:text-[36px]">Calendrier</h1>
-        <PlanningLive athleteId={userId} self />
+        <div className="flex items-center gap-3">
+          <Link href="/athlete/season" className="text-[13px] font-semibold text-ink-soft underline decoration-line-strong underline-offset-4 hover:text-ink">
+            Vue saison
+          </Link>
+          <PlanningLive athleteId={userId} self />
+        </div>
       </header>
       <SportStatusFilters basePath={BASE} query={query} sports={sports} />
       <PlanningCalendar

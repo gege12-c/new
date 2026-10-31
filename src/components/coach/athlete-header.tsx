@@ -29,13 +29,14 @@ export function AthleteHeader({
   thresholds: ThresholdRow[];
   nextEvent: { name: string; event_date: string; priority: string } | null;
   today: string;
-  active: "calendar" | "profile" | "stats";
+  active: "calendar" | "season" | "profile" | "stats";
   readOnly: boolean;
 }) {
   const current = currentThresholds(thresholds, today);
   const days = nextEvent ? daysBetween(today, nextEvent.event_date) : null;
   const tabs = [
     { key: "calendar", label: "Calendrier", href: `/coach/athletes/${athleteId}` },
+    { key: "season", label: "Saison", href: `/coach/athletes/${athleteId}/season` },
     { key: "profile", label: "Profil et seuils", href: `/coach/athletes/${athleteId}/profile` },
     { key: "stats", label: "Progression", href: `/coach/athletes/${athleteId}/stats` },
   ] as const;
