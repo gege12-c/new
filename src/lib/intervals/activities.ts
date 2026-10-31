@@ -12,8 +12,10 @@ import { zonedLocalToUtc } from "@/lib/time-zone";
 
 export { zonedLocalToUtc };
 
-/** Première réception : l'historique utile à la courbe de condition (constante de 42 jours). */
+/** Courbes lues : les activités des 90 derniers jours. */
 export const INTERVALS_HISTORY_DAYS = 90;
+/** Historique reçu une fois : un an, pour que la condition (constante de 42 jours) ne parte pas de zéro. */
+export const INTERVALS_FULL_HISTORY_DAYS = 365;
 /** Réceptions suivantes : la période relue, où les activités retirées chez intervals.icu le sont aussi ici. */
 export const INTERVALS_RECENT_DAYS = 14;
 
@@ -47,12 +49,14 @@ export const IntervalsActivitySchema = z
     average_speed: number,
     trainer: z.boolean().nullish().catch(null),
     device_name: text,
+    icu_training_load: number,
   })
   .loose();
 export type IntervalsActivity = z.infer<typeof IntervalsActivitySchema>;
 
 export type IntervalsActivityOutcome =
-  | { kind: "activity"; fields: ActivityFields }
+  /** sourceLoad : charge calculée par intervals.icu (avec ses seuils), null s'il n'en donne pas. */
+  | { kind: "activity"; fields: ActivityFields; sourceLoad: number | null }
   /** Reçue de Strava par intervals.icu : non transmise par son API. */
   | { kind: "strava" }
   | { kind: "unreadable" };
@@ -88,8 +92,10 @@ export function normalizeIntervalsActivity(raw: unknown, athleteTimeZone: string
   }
   if (Number.isNaN(start.getTime())) return { kind: "unreadable" };
 
+  const load = a.icu_training_load;
   return {
     kind: "activity",
+    sourceLoad: typeof load === "number" && Number.isFinite(load) && load >= 0 && load <= 2000 ? Math.round(load * 10) / 10 : null,
     fields: {
       external_id: a.id,
       group_key: null,

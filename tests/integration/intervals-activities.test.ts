@@ -1,7 +1,7 @@
 /**
  * Retour des activités par intervals.icu, de bout en bout, contre une vraie pile Supabase (base, API,
- * triggers de rapprochement et de doublons) et un faux intervals.icu : historique de 90 jours à la
- * première réception, rattachement à la séance, aucune réécriture d'une activité inchangée,
+ * triggers de rapprochement et de doublons) et un faux intervals.icu : historique d'un an à la
+ * première réception (avec la charge calculée par intervals.icu), rattachement à la séance, aucune réécriture d'une activité inchangée,
  * modification et retrait répercutés, activités reçues de Strava ignorées (comptées), même séance
  * déjà arrivée par Strava gardée en doublon, courbes et intervalles lus une fois (relus si l'activité
  * change). Lancement : pile locale démarrée, variables de .env.local-stack.
@@ -52,7 +52,7 @@ describe.skipIf(!url || !serviceKey)("activités faites, reçues d'intervals.icu
   };
   const nudge = () => admin.from("sync_jobs").insert({ kind: "intervals_sync", athlete_id: athleteId });
   const received = async () =>
-    (await admin.from("activities").select("id, external_id, name, avg_power, duplicate_of, updated_at").eq("athlete_id", athleteId).eq("source", "intervals").order("start_time")).data ?? [];
+    (await admin.from("activities").select("id, external_id, name, avg_power, source_load, duplicate_of, updated_at").eq("athlete_id", athleteId).eq("source", "intervals").order("start_time")).data ?? [];
   const ride = (id: string, day: string, extra: Record<string, unknown> = {}) => ({
     id,
     start_date_local: `${day}T07:02:00`,
@@ -88,10 +88,12 @@ describe.skipIf(!url || !serviceKey)("activités faites, reçues d'intervals.icu
     if (session.error) throw session.error;
     sessionId = session.data.id;
     fake.addKey(key, athlete);
-    fake.addActivity(athlete, ride("i100", addDays(today, -1), withCurves));
+    fake.addActivity(athlete, ride("i100", addDays(today, -1), { ...withCurves, icu_training_load: 74.27 }));
     fake.addActivity(athlete, ride("i101", addDays(today, -60), { type: "Run", name: "Footing", icu_average_watts: null }));
-    // Hors de l'historique relu à la première réception.
+    // Dans l'année reçue à la première réception, sans courbe (plus de 90 jours).
     fake.addActivity(athlete, ride("i102", addDays(today, -120)));
+    // Hors de l'historique d'un an.
+    fake.addActivity(athlete, ride("i104", addDays(today, -400)));
     // Reçue de Strava par intervals.icu : non transmise.
     fake.addActivity(athlete, { id: "i103", start_date_local: `${addDays(today, -2)}T18:00:00`, type: "Run", source: "STRAVA" });
   });
@@ -100,16 +102,19 @@ describe.skipIf(!url || !serviceKey)("activités faites, reçues d'intervals.icu
     if (athleteId) await admin.auth.admin.deleteUser(athleteId);
   });
 
-  it("première réception : 90 jours, rattachement à la séance prévue, activités de Strava comptées à part", async () => {
+  it("première réception : un an, charge d'intervals.icu, rattachement à la séance prévue, activités de Strava comptées à part", async () => {
     expect(await connectIntervals(deps, athleteId, key)).toEqual({ status: "connected" });
     await run();
-    expect((await received()).map((a) => a.external_id)).toEqual(["i101", "i100"]);
+    expect((await received()).map((a) => a.external_id)).toEqual(["i102", "i101", "i100"]);
+    expect((await received()).find((a) => a.external_id === "i100")!.source_load).toBe(74.3);
+    expect((await received()).find((a) => a.external_id === "i101")!.source_load).toBeNull();
     const yesterday = (await received()).find((a) => a.external_id === "i100")!;
     const { data: match } = await admin.from("session_activity_matches").select("session_id, status").eq("activity_id", yesterday.id).single();
     expect(match).toEqual({ session_id: sessionId, status: "auto" });
-    const { data: connection } = await admin.from("external_connections").select("activities_synced_at, activities_skipped").eq("athlete_id", athleteId).eq("provider", "intervals").single();
+    const { data: connection } = await admin.from("external_connections").select("activities_synced_at, activities_skipped, history_from").eq("athlete_id", athleteId).eq("provider", "intervals").single();
     expect(connection!.activities_synced_at).not.toBeNull();
     expect(connection!.activities_skipped).toBe(1);
+    expect(connection!.history_from).toBe(addDays(today, -365));
 
     // Courbes : réduites (un point toutes les 5 s), sans la trace GPS ; intervalles détectés ; meilleures puissances.
     const stored = await curves();
@@ -152,7 +157,7 @@ describe.skipIf(!url || !serviceKey)("activités faites, reçues d'intervals.icu
     fake.removeActivity(athlete, "i101");
     await nudge();
     await run();
-    expect((await received()).map((a) => a.external_id)).toEqual(["i101"]);
+    expect((await received()).map((a) => a.external_id)).toEqual(["i102", "i101"]);
   });
 
   it("mesures du matin : complètent la forme du jour, sans jamais remplacer une saisie de l'athlète", async () => {

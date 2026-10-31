@@ -31,6 +31,7 @@ export type Database = {
           name: string | null;
           source: string;
           sport: string;
+          source_load: number | null;
           sport_detail: string | null;
           start_time: string;
           timezone: string | null;
@@ -66,6 +67,7 @@ export type Database = {
           name?: string | null;
           source: string;
           sport: string;
+          source_load?: number | null;
           sport_detail?: string | null;
           start_time: string;
           timezone?: string | null;
@@ -100,6 +102,7 @@ export type Database = {
           name?: string | null;
           source?: string;
           sport?: string;
+          source_load?: number | null;
           sport_detail?: string | null;
           start_time?: string;
           timezone?: string | null;
@@ -627,6 +630,7 @@ export type Database = {
           athlete_id: string;
           connected_at: string;
           external_athlete_id: string;
+          history_from: string | null;
           id: string;
           last_error: string | null;
           last_error_at: string | null;
@@ -644,6 +648,7 @@ export type Database = {
           athlete_id: string;
           connected_at?: string;
           external_athlete_id: string;
+          history_from?: string | null;
           id?: string;
           last_error?: string | null;
           last_error_at?: string | null;
@@ -660,6 +665,7 @@ export type Database = {
           athlete_id?: string;
           connected_at?: string;
           external_athlete_id?: string;
+          history_from?: string | null;
           id?: string;
           last_error?: string | null;
           last_error_at?: string | null;

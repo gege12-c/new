@@ -102,6 +102,22 @@ describe("charge d'entraînement", () => {
     expect(heartIntensity(150, 180, 170)).toBeCloseTo(0.833, 3);
   });
 
+  it("charge calculée par intervals.icu : reprise telle quelle, sans seuil de TriCoach", () => {
+    expect(activityLoad(activity({ weighted_power: 250, source_load: 26 }), thresholds)).toEqual({ load: 26, method: "source", estimated: false });
+    expect(activityLoad(activity({ source_load: 0, moving_s: null, elapsed_s: null }), undefined)).toMatchObject({ load: 0, method: "source" });
+    const { coverage } = dailyLoads({
+      today: "2026-10-31",
+      sessions: [],
+      activities: [activity({ id: "icu", local_date: "2026-10-30", source_load: 33 }), activity({ id: "fit", local_date: "2026-10-30", weighted_power: 200 })],
+      matches: new Map(),
+      completions: new Map(),
+      thresholdsOn: at,
+      estimatedOn: () => true,
+    });
+    // La charge d'intervals.icu ne dépend pas des seuils de TriCoach : jamais une estimation « antérieure aux seuils ».
+    expect(coverage).toMatchObject({ fit: 2, source: 1, backdated: 1 });
+  });
+
   it("FC de repos de référence : médiane des jours renseignés, trois au moins", () => {
     expect(medianRestingHr([64, 46, 45, null, 49])).toBe(47.5);
     expect(medianRestingHr([46, 45, 49])).toBe(46);

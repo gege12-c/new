@@ -12,3 +12,9 @@ export function isMissingSchema(error: ErrorLike): boolean {
 }
 
 export const SCHEMA_PENDING_MESSAGE = "Cette fonction sera disponible après la mise à jour de la base de données du site.";
+
+/** Colonne d'une migration pas encore appliquée (lecture : 42703 ; écriture par PostgREST : PGRST204). */
+export function missingColumn(error: ErrorLike): boolean {
+  if (!error) return false;
+  return ["42703", "PGRST204"].includes(String(error.code ?? ""));
+}

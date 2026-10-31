@@ -21,6 +21,11 @@ export function FitnessPanel({ data, viewer }: { data: FitnessData; viewer: "ath
       }.`,
     );
   }
+  if (coverage.source) {
+    notes.push(
+      `${plural(coverage.source, "activité reçue", "activités reçues")} d’intervals.icu : ${coverage.source > 1 ? "comptées" : "comptée"} avec la charge calculée par intervals.icu (avec ses propres seuils), pour que les deux courbes concordent. Gardez les mêmes seuils des deux côtés : la prévision utilise ceux de TriCoach.`,
+    );
+  }
   if (coverage.backdated) {
     notes.push(
       `${plural(coverage.backdated, "activité est antérieure", "activités sont antérieures")} ${own ? "à vos seuils" : "aux seuils de l’athlète"} : ${coverage.backdated > 1 ? "comptées" : "comptée"} avec leur première valeur, en estimation. ${
@@ -125,6 +130,7 @@ export function FitnessPanel({ data, viewer }: { data: FitnessData; viewer: "ath
               Avec la courbe de la montre ou du fichier, la charge est calculée seconde par seconde : puissance normalisée, allure normalisée corrigée de la pente en course (une côte compte ce
               qu’elle coûte), fréquence cardiaque où les passages intenses pèsent plus. Sinon, les moyennes de l’activité.
             </li>
+            <li>Activité reçue d’intervals.icu : sa charge est celle calculée par intervals.icu, la même que dans son calendrier.</li>
             <li>
               Seuils saisis après une activité : leur première valeur sert pour elle, comme le fait Intervals.icu en important un historique. Une séance enregistrée par deux
               appareils (même discipline, enregistrements qui se recouvrent) n’est comptée qu’une fois.

@@ -29,10 +29,11 @@ import type { AdminClient } from "@/lib/supabase/admin";
 import type { Json } from "@/lib/supabase/database.types";
 import { currentThresholds, toAthleteThresholds, type ThresholdRow } from "@/lib/thresholds";
 import { localDate } from "@/lib/utils";
+import { missingColumn } from "@/lib/supabase/schema";
 import { parseWorkout } from "@/lib/workout/schema";
 import { IntervalsApi, IntervalsError, type IntervalsEvent } from "./api";
 import { activityMetrics, INTERVALS_STREAM_TYPES, intervalsLaps, intervalsStreams, powerBests, reduceStreams } from "@/lib/activities/streams";
-import { INTERVALS_HISTORY_DAYS, INTERVALS_RECENT_DAYS, normalizeIntervalsActivity, sameActivity } from "./activities";
+import { INTERVALS_FULL_HISTORY_DAYS, INTERVALS_HISTORY_DAYS, INTERVALS_RECENT_DAYS, normalizeIntervalsActivity, sameActivity } from "./activities";
 import { missingMeasures, morningMeasures, WELLNESS_RECENT_DAYS } from "./wellness";
 import { buildIntervalsEvents, intervalsExternalId, INTERVALS_FORMAT_VERSION, INTERVALS_WINDOW_DAYS, type IntervalsBuild } from "./workout";
 
@@ -417,18 +418,24 @@ const ACTIVITY_SELECT =
   "id, external_id, sport, sport_detail, name, start_time, local_date, local_start_time, timezone, elapsed_s, moving_s, distance_m, elevation_gain_m, avg_hr, max_hr, avg_power, weighted_power, max_power, avg_cadence, avg_speed_mps, trainer, manual, device_name";
 
 /**
- * Activités faites : 90 jours à la première réception, puis les 14 derniers jours à chaque passage.
+ * Activités faites : un an à la première réception (une fois aussi pour une connexion plus ancienne),
+ * puis les 14 derniers jours à chaque passage, avec la charge calculée par intervals.icu.
  * Seules les activités nouvelles ou modifiées sont écrites (chaque écriture relance le rapprochement).
  */
 async function pullActivities(deps: IntervalsDeps, connection: DeviceConnection, today: string) {
-  const { data: state } = await deps.admin
-    .from("external_connections")
-    .select("activities_synced_at")
-    .eq("id", connection.id)
-    .maybeSingle();
+  // Base pas encore à jour (sans charge reçue ni historique d'un an) : la réception d'avant.
+  const withHistory = await deps.admin.from("external_connections").select("activities_synced_at, history_from").eq("id", connection.id).maybeSingle();
+  const upToDate = !missingColumn(withHistory.error);
+  if (withHistory.error && upToDate) throw new Error(`État de la réception illisible : ${withHistory.error.message}`);
+  const state = upToDate
+    ? withHistory.data
+    : ((await deps.admin.from("external_connections").select("activities_synced_at").eq("id", connection.id).maybeSingle()).data as { activities_synced_at: string | null; history_from?: string | null } | null);
   const { data: profile } = await deps.admin.from("profiles").select("timezone").eq("id", connection.athlete_id).maybeSingle();
   const timeZone = profile?.timezone ?? "Europe/Paris";
-  const oldest = addDays(today, -(state?.activities_synced_at ? INTERVALS_RECENT_DAYS : INTERVALS_HISTORY_DAYS));
+  // Un an d'historique, reçu une fois (aussi pour une connexion plus ancienne), puis les 14 derniers jours.
+  const yearAgo = addDays(today, -INTERVALS_FULL_HISTORY_DAYS);
+  const needsHistory = upToDate ? !state?.history_from || state.history_from > yearAgo : !state?.activities_synced_at;
+  const oldest = needsHistory ? (upToDate ? yearAgo : addDays(today, -INTERVALS_HISTORY_DAYS)) : addDays(today, -INTERVALS_RECENT_DAYS);
   const newest = addDays(today, 1);
 
   const listed = await withKey(deps, connection, (key) => deps.api.activities(key, oldest, newest));
@@ -442,35 +449,57 @@ async function pullActivities(deps: IntervalsDeps, connection: DeviceConnection,
 
   const { data: stored, error } = await deps.admin
     .from("activities")
-    .select(ACTIVITY_SELECT)
+    .select(upToDate ? `${ACTIVITY_SELECT}, source_load` : ACTIVITY_SELECT)
     .eq("athlete_id", connection.athlete_id)
     .eq("source", "intervals")
     .gte("local_date", oldest)
-    .lte("local_date", newest);
+    .lte("local_date", newest)
+    .limit(2000);
   if (error) throw new Error(`Activités reçues illisibles : ${error.message}`);
-  const storedByExternal = new Map((stored ?? []).map((row) => [row.external_id, row]));
+  const rows = (stored ?? []) as unknown as (Record<string, unknown> & { id: string; external_id: string; source_load?: number | string | null })[];
+  const storedByExternal = new Map(rows.map((row) => [row.external_id, row]));
+  const sameLoad = (a: number | string | null | undefined, b: number | null) => (a === null || a === undefined ? b === null : b !== null && Math.abs(Number(a) - b) < 0.05);
 
+  // Contenu changé (ses courbes sont relues), ou seulement la charge calculée par intervals.icu.
+  const contentChanged = new Set<string>();
   const changed = [...upstream.values()]
-    .filter(({ fields }) => {
+    .filter(({ fields, sourceLoad }) => {
       const row = storedByExternal.get(fields.external_id);
-      return !row || !sameActivity(row as unknown as Record<string, unknown>, fields);
+      if (!row || !sameActivity(row, fields)) {
+        contentChanged.add(fields.external_id);
+        return true;
+      }
+      return upToDate && !sameLoad(row.source_load, sourceLoad);
     })
-    .map(({ fields }) => ({ ...fields, athlete_id: connection.athlete_id, source: "intervals" as const, fetched_at: deps.now().toISOString() }));
+    .map(({ fields, sourceLoad }) => ({
+      ...fields,
+      ...(upToDate ? { source_load: sourceLoad } : {}),
+      athlete_id: connection.athlete_id,
+      source: "intervals" as const,
+      fetched_at: deps.now().toISOString(),
+    }));
   for (let i = 0; i < changed.length; i += 50) {
     const { error: saveError } = await deps.admin.from("activities").upsert(changed.slice(i, i + 50), { onConflict: "athlete_id,source,external_id" });
     if (saveError) throw new Error(`Activités non enregistrées : ${saveError.message}`);
   }
   // Activité modifiée chez intervals.icu (souvent : analyse terminée) : ses courbes sont relues.
-  const updated = changed.map((a) => storedByExternal.get(a.external_id)?.id).filter((id): id is string => Boolean(id));
+  const updated = changed
+    .filter((a) => contentChanged.has(a.external_id))
+    .map((a) => storedByExternal.get(a.external_id)?.id)
+    .filter((id): id is string => Boolean(id));
   if (updated.length) await deps.admin.from("activity_streams").delete().in("activity_id", updated);
-  const gone = (stored ?? []).filter((row) => !upstream.has(row.external_id)).map((row) => row.id);
+  const gone = rows.filter((row) => !upstream.has(row.external_id)).map((row) => row.id);
   if (gone.length) {
     const { error: removeError } = await deps.admin.from("activities").delete().in("id", gone);
     if (removeError) throw new Error(`Activités retirées non effacées : ${removeError.message}`);
   }
   await deps.admin
     .from("external_connections")
-    .update({ activities_synced_at: deps.now().toISOString(), activities_skipped: fromStrava })
+    .update({
+      activities_synced_at: deps.now().toISOString(),
+      activities_skipped: fromStrava,
+      ...(upToDate && needsHistory ? { history_from: oldest } : {}),
+    })
     .eq("id", connection.id);
   if (changed.length || gone.length) {
     await log(deps, { level: "info", event: "intervals_activities", message: `${changed.length} reçue(s), ${gone.length} retirée(s)`, athleteId: connection.athlete_id });

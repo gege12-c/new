@@ -52,9 +52,11 @@ export interface LoadActivity {
   hr_rms?: number | null;
   /** Départ (instant UTC) : reconnaît une même séance enregistrée par deux appareils. */
   start_time?: string | null;
+  /** Charge calculée par la source (intervals.icu, avec ses seuils) : reprise telle quelle. */
+  source_load?: number | null;
 }
 
-export type LoadMethod = "power" | "pace" | "graded_pace" | "swim" | "heart_rate" | "rpe" | "plan";
+export type LoadMethod = "source" | "power" | "pace" | "graded_pace" | "swim" | "heart_rate" | "rpe" | "plan";
 
 export interface LoadEstimate {
   load: number;
@@ -65,6 +67,10 @@ export interface LoadEstimate {
 
 /** Charge d'une activité d'après ses mesures et les seuils du jour, ou null si rien n'est exploitable. */
 export function activityLoad(activity: LoadActivity, thresholds?: AthleteThresholds): LoadEstimate | null {
+  // Charge déjà calculée par intervals.icu : la même que chez lui, pour que les courbes concordent.
+  if (typeof activity.source_load === "number" && Number.isFinite(activity.source_load) && activity.source_load >= 0) {
+    return { load: activity.source_load, method: "source", estimated: false };
+  }
   const seconds = activity.moving_s ?? activity.elapsed_s;
   if (!seconds) return null;
   const ftp = thresholds?.bike?.ftpW;
@@ -263,6 +269,8 @@ export interface FitnessInputs {
 export interface FitnessCoverage {
   /** Fichiers FIT comptés. */
   fit: number;
+  /** Activités comptées avec la charge calculée par intervals.icu. */
+  source: number;
   /** Activités comptées avec un seuil saisi après elles (sa première valeur). */
   backdated: number;
   /** Enregistrements en double d'une même séance (deux appareils), comptés une seule fois. */
@@ -294,7 +302,7 @@ export function dailyLoads(inputs: FitnessInputs): {
   const add = (map: Map<string, number>, date: string, load: number) => map.set(date, (map.get(date) ?? 0) + load);
   const sessionTitle = (session: FitnessSession) => session.title ?? "Séance";
   const sessionSport = (session: FitnessSession) => session.sport ?? session.content.segments[0]?.sport ?? "other";
-  const coverage: FitnessCoverage = { fit: 0, backdated: 0, duplicates: 0, feedback: 0, planned: 0, fitWithoutMeasure: 0, feedbackWithoutMeasure: 0, plannedPartly: 0 };
+  const coverage: FitnessCoverage = { fit: 0, source: 0, backdated: 0, duplicates: 0, feedback: 0, planned: 0, fitWithoutMeasure: 0, feedbackWithoutMeasure: 0, plannedPartly: 0 };
   const sessionsWithFit = new Set<string>();
 
   // Une séance enregistrée par deux appareils ne compte qu'une fois ; la séance rattachée au double
@@ -323,6 +331,7 @@ export function dailyLoads(inputs: FitnessInputs): {
       add(actual, activity.local_date, measured.load);
       items.push(activityItem(measured.load, measured.method));
       coverage.fit += 1;
+      if (measured.method === "source") coverage.source += 1;
       const keys = LOAD_THRESHOLD_KEYS[measured.method];
       if (keys && estimatedOn?.(activity.local_date, keys)) coverage.backdated += 1;
       continue;

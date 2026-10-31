@@ -30,6 +30,8 @@ describe("activités reçues d'intervals.icu", () => {
     const outcome = normalizeIntervalsActivity(ride, "Europe/Paris");
     expect(outcome).toEqual({
       kind: "activity",
+      // Charge calculée par intervals.icu : reprise telle quelle par la courbe de condition.
+      sourceLoad: 74,
       fields: {
         external_id: "i55751783",
         group_key: null,

@@ -30,6 +30,7 @@ const PERIODS = [
 ] as const;
 
 const METHOD_LABELS: Record<LoadMethod, string> = {
+  source: "calculée par intervals.icu",
   power: "puissance",
   pace: "allure moyenne",
   graded_pace: "allure normalisée, pente comprise",

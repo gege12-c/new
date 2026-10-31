@@ -126,8 +126,12 @@ test("le coach voit l'historique des exports de son athlète", async ({ browser 
   const { athlete } = accounts();
   const page = await signedIn(browser, "coach");
   await page.goto(`/coach/athletes/${athlete.id}?view=week&date=${day}&session=${sessionId}`);
-  await page.getByText(/Exports précédents/).click();
-  await expect(page.getByText(/Garmin · partie 2 — .*, par Athlete E2E/)).toBeVisible();
+  // La fiche arrive en flux : un clic reçu avant la fin peut tomber sur un élément remplacé ensuite.
+  const history = page.locator("details", { has: page.getByText(/Exports précédents/) });
+  await expect(async () => {
+    if (!(await history.evaluate((details) => (details as HTMLDetailsElement).open))) await history.locator("summary").click();
+    await expect(page.getByText(/Garmin · partie 2 — .*, par Athlete E2E/)).toBeVisible({ timeout: 1000 });
+  }).toPass({ timeout: 15_000 });
   await expect(page.getByText(/Zwift · partie 1 — .*, par Athlete E2E/)).toBeVisible();
 });
 

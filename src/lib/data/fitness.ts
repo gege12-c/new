@@ -22,7 +22,7 @@ import {
 } from "@/lib/stats/fitness";
 import { DURABLE_SOURCES } from "@/lib/activities/schema";
 import { StoredMetricsSchema } from "@/lib/activities/streams";
-import { isMissingSchema } from "@/lib/supabase/schema";
+import { isMissingSchema, missingColumn } from "@/lib/supabase/schema";
 import type { ServerSupabase } from "@/lib/supabase/server";
 import { thresholdsAsOf, toAthleteThresholds } from "@/lib/thresholds";
 import { getEvents, getThresholds } from "./athlete";
@@ -64,7 +64,7 @@ const daysBetween = (from: string, to: string) => Math.round((Date.parse(`${to}T
 export async function getFitnessData(supabase: ServerSupabase, athleteId: string, today: string): Promise<FitnessData> {
   const start = historyStart(today);
   const limit = addDays(today, PROJECTION_DAYS);
-  const [sessions, thresholdRows, events, activities, completions, matches, curves, wellness] = await Promise.all([
+  const [sessions, thresholdRows, events, activities, completions, matches, curves, wellness, sourceLoads] = await Promise.all([
     getSessionsInRange(supabase, athleteId, start, limit),
     getThresholds(supabase, athleteId),
     getEvents(supabase, athleteId),
@@ -93,7 +93,11 @@ export async function getFitnessData(supabase: ServerSupabase, athleteId: string
       .lte("entry_date", today)
       .not("resting_hr", "is", null)
       .limit(RESTING_HR_DAYS + 1),
+    // Charges calculées par intervals.icu (base à jour) : reprises telles quelles.
+    supabase.from("activities").select("id, source_load").eq("athlete_id", athleteId).not("source_load", "is", null).gte("local_date", start).lte("local_date", today).limit(5000),
   ]);
+  if (sourceLoads.error && !isMissingSchema(sourceLoads.error) && !missingColumn(sourceLoads.error)) throw sourceLoads.error;
+  const loadsFromSource = new Map((sourceLoads.error ? [] : (sourceLoads.data ?? [])).map((row) => [row.id as string, Number(row.source_load)]));
   if (wellness.error && !isMissingSchema(wellness.error)) throw wellness.error;
   const measuredRestingHr = medianRestingHr(wellness.error ? [] : (wellness.data ?? []).map((row) => row.resting_hr));
   // Base sans les courbes ou sans leurs mesures : les moyennes servent, comme avant.
@@ -115,7 +119,8 @@ export async function getFitnessData(supabase: ServerSupabase, athleteId: string
     activities: realizedAvailable
       ? ((activities.data ?? []) as LoadActivity[]).map((a) => {
           const m = metrics.get(a.id);
-          return m ? { ...a, np: m.np ?? null, ngs: m.ngs ?? null, hr_rms: m.hr_rms ?? null } : a;
+          const withSource = { ...a, source_load: loadsFromSource.get(a.id) ?? null };
+          return m ? { ...withSource, np: m.np ?? null, ngs: m.ngs ?? null, hr_rms: m.hr_rms ?? null } : withSource;
         })
       : [],
     matches: new Map(realizedAvailable ? (matches.data ?? []).map((m) => [m.activity_id as string, m.session_id as string]) : []),

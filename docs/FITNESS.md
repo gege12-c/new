@@ -11,7 +11,7 @@ Modèle impulsion-réponse de Banister, dans la forme popularisée par TrainingP
 - **fatigue** (ATL) : la même chose sur 7 jours ;
 - **forme** (TSB) : `condition(j) − fatigue(j)`, le même jour (comme Intervals.icu).
 
-Le calcul part de zéro 120 jours avant la fenêtre affichée (13 semaines passées), pour que la condition affichée n'y parte pas de zéro. Avec moins de 42 jours d'historique réel, l'écran indique que la condition est encore sous-estimée.
+Le calcul part de zéro 120 jours avant la fenêtre affichée (13 semaines passées), pour que la condition affichée n'y parte pas de zéro. Avec moins de 42 jours d'historique réel, l'écran indique que la condition est encore sous-estimée. Quand la montre est reliée par intervals.icu, un an d'activités est reçu une fois (puis les 14 derniers jours à chaque passage) : sans lui, la condition de juillet d'un athlète très chargé manquait à celle d'octobre.
 
 ## Charge d'une séance
 
@@ -19,11 +19,12 @@ Le calcul part de zéro 120 jours avant la fenêtre affichée (13 semaines pass�
 
 | Source | Intensité | Qualité |
 | --- | --- | --- |
+| Activité reçue d'intervals.icu | charge calculée par intervals.icu (`icu_training_load`, avec ses propres seuils), reprise telle quelle : la courbe de TriCoach concorde avec la sienne | celle d'intervals.icu |
 | Activité (montre ou fichier FIT), vélo | puissance normalisée / FTP : celle de la source, sinon celle tirée de la courbe ; à défaut, puissance moyenne / FTP | exacte (estimée sans puissance normalisée) |
 | Activité, course, avec sa courbe | vitesse normalisée ajustée à la pente / vitesse au seuil | mesurée seconde par seconde |
 | Activité, course, sans courbe | vitesse moyenne / vitesse au seuil (allure seuil) | estimée |
 | Activité, natation | vitesse moyenne / CSS | estimée |
-| Activité, autres cas | FC quadratique moyenne de la courbe (à défaut, FC moyenne) / FC seuil (vélo ou course) | estimée (approximation du hrTSS) |
+| Activité, autres cas | FC quadratique moyenne de la courbe (à défaut, FC moyenne) rapportée à la FC seuil (vélo ou course) ; avec la FC de repos, sur la réserve cardiaque : (FC − repos) / (seuil − repos) | estimée (approximation du hrTSS) |
 | Fichier FIT sans mesure exploitable | ressenti (RPE) donné pour la séance rattachée, sur la durée du fichier | estimée ; sinon non comptée |
 | Retour de séance « faite » sans fichier FIT | ressenti (RPE) sur la durée prévue ; sans ressenti, la charge prévue de la séance | estimée |
 | Retour « en partie » | non comptée : la part faite n'est pas connue | — |
@@ -38,6 +39,12 @@ Quand l'activité arrive avec sa courbe (montre reliée par intervals.icu, fichi
 - **FC quadratique moyenne** : racine de la moyenne des carrés ; elle donne le même résultat que la somme, seconde par seconde, de (FC / FC seuil)², c'est-à-dire la charge des passages intenses, que la FC moyenne sous-estime.
 
 RPE en intensité : 1 → 45 %, 2 → 52 %, 3 → 62 %, 4 → 70 %, 5 → 80 %, 6 → 87 %, 7 → 95 %, 8 → 102 %, 9 → 113 %, 10 → 125 % du seuil (interpolé), calé sur les zones (RPE 7–8 = seuil). Les seuils utilisés sont ceux en vigueur à la date de chaque séance.
+
+**FC de repos** : celle du profil sportif, sinon la médiane des 60 derniers jours de la forme du jour (souvent transmise par la montre), trois jours renseignés au moins. Sur la réserve cardiaque, une FC proche du repos pèse peu, comme dans le TRIMP de Banister et le HRSS d'Intervals.icu : une marche à 90 bpm compte 9 à 11 points par heure au lieu de 25 (Intervals.icu : 9 pour 47 minutes à 92 bpm).
+
+**Seuils saisis après les activités** : un seuil n'est en vigueur qu'à partir de sa date ; pour une activité plus ancienne, sa première valeur sert, en estimation, et l'écran compte ces activités (« antérieures à vos seuils »). C'est ce que fait Intervals.icu en important un historique. Sans cela, un athlète qui saisit ses seuils après avoir relié sa montre voyait une condition presque nulle et une forme qui plongeait dès qu'il s'entraînait.
+
+**Même séance enregistrée par deux appareils** (la montre et le compteur du vélo, tous deux transmis) : même discipline, enregistrements qui se recouvrent sur la moitié au moins du plus court. Seul le plus riche en mesures compte (puissance normalisée, puis puissance, allure ajustée, vitesse, FC, puis la durée) ; la séance rattachée au double reste « faite d'après un fichier ».
 
 Une séance rattachée à un fichier FIT n'est comptée qu'une fois (par le fichier). Aujourd'hui : ce qui est fait, plus ce qui reste prévu ; à partir de demain : les séances publiées (les brouillons ne comptent pas, sauf dans une simulation).
 
