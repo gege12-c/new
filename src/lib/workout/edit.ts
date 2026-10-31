@@ -232,13 +232,13 @@ export function defaultWorkout(sport: SessionSport, thresholds?: AthleteThreshol
 }
 
 /** Contenu sans ses identifiants : deux séances de même forme se comparent ainsi. */
-function shapeOf(workout: Workout): string {
+export function workoutShape(workout: Workout): string {
   return JSON.stringify(workout, (key, value) => (key === "id" ? undefined : value));
 }
 
 /** La séance est-elle encore celle proposée au départ pour cette discipline (rien n’a été modifié) ? */
 export function isDefaultWorkout(workout: Workout, sport: SessionSport, thresholds?: AthleteThresholds): boolean {
-  return shapeOf(workout) === shapeOf(defaultWorkout(sport, thresholds));
+  return workoutShape(workout) === workoutShape(defaultWorkout(sport, thresholds));
 }
 
 // ---------------------------------------------------------------------------

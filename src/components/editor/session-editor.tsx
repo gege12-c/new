@@ -23,7 +23,8 @@ import { Menu, type MenuItem } from "@/components/ui/menu";
 import { snapshotToValues, type EditorValues } from "@/lib/planning/editor-values";
 import { FIELD_LABELS, SessionValuesSchema, stableJson, type EditableField, type SessionSnapshot } from "@/lib/planning/snapshot";
 import type { SessionState } from "@/lib/planning/status";
-import { addSegment, defaultWorkout, isDefaultWorkout, setSegmentSport } from "@/lib/workout/edit";
+import { addSegment, defaultWorkout, isDefaultWorkout, setSegmentSport, workoutShape } from "@/lib/workout/edit";
+import { buildStarter, matchingStarter, STARTER_TITLES, type Starter } from "@/lib/workout/starters";
 import {
   OBJECTIVE_LABELS,
   SESSION_OBJECTIVES,
@@ -41,6 +42,7 @@ import { analyzeWorkout, type WorkoutIssue } from "@/lib/workout/warnings";
 import type { AthleteThresholds } from "@/lib/workout/zones";
 import { cn } from "@/lib/utils";
 import { WorkoutPreview } from "./preview";
+import { StarterPicker } from "./starters";
 import { StructureEditor } from "./structure-editor";
 import { TextWorkoutButton } from "./text-workout";
 
@@ -146,6 +148,10 @@ export function SessionEditor(props: SessionEditorProps) {
   const [notice, setNotice] = useState<string | null>(null);
   const [savedId, setSavedId] = useState<string | null>(mode === "template" ? props.templateId : props.sessionId);
   const [confirm, setConfirm] = useState<null | "delete" | "discard">(null);
+  // Séance type posée sur un déroulé déjà travaillé : de quoi revenir en arrière.
+  const [undo, setUndo] = useState<{ starter: Starter; previous: EditorValues; shape: string } | null>(null);
+  // Création (et non modification) : les séances types restent proposées après le premier enregistrement.
+  const [creating] = useState(() => (mode === "template" ? props.templateId : props.sessionId) === null);
   const [busy, startBusy] = useTransition();
   // Marqueur d'hydratation : l'éditeur ne prend la main sur la saisie qu'une fois monté (tests de bout en bout).
   const ready = useSyncExternalStore(subscribeNothing, () => true, () => false);
@@ -175,6 +181,9 @@ export function SessionEditor(props: SessionEditorProps) {
     return map;
   }, [issues]);
   const validation = useMemo(() => errorsByNode(values.content), [values.content]);
+  const intactStarter = useMemo(() => matchingStarter(values.content, sport, thresholds), [values.content, sport, thresholds]);
+  const contentShape = useMemo(() => workoutShape(values.content), [values.content]);
+  const showStarters = creating || intactStarter !== null || isDefaultWorkout(values.content, sport, thresholds);
   const globalIssues = issues.filter((issue) => !issue.nodeId);
 
   const notify = useCallback((message: string) => {
@@ -351,12 +360,33 @@ export function SessionEditor(props: SessionEditorProps) {
   const update = (patch: Partial<EditorValues>) => setValues((current) => ({ ...current, ...patch }));
   const updateContent = (change: (workout: Workout) => Workout) => setValues((current) => ({ ...current, content: change(current.content) }));
 
+  /** Séance type : remplit le déroulé ; titre et objectif suivent tant qu’on ne les a pas choisis. */
+  const applyStarter = (starter: Starter) => {
+    const current = valuesRef.current;
+    const currentSport = sessionSportOf(current.content);
+    const previous = matchingStarter(current.content, currentSport, thresholds);
+    const touched = !previous && !isDefaultWorkout(current.content, currentSport, thresholds);
+    const content = buildStarter(starter, thresholds);
+    const titleFree = !current.title.trim() || current.title === SPORT_LABELS[currentSport] || STARTER_TITLES.has(current.title);
+    const objectiveFree = !current.objective || (previous !== null && current.objective === previous.objective);
+    setValues({
+      ...current,
+      content,
+      title: titleFree ? starter.title : current.title,
+      objective: objectiveFree ? starter.objective : current.objective,
+    });
+    setUndo(touched ? { starter, previous: current, shape: workoutShape(content) } : null);
+  };
+
   const changeSport = (next: SessionSport) => {
     if (next === sport) return;
     const current = valuesRef.current;
     let content = current.content;
     let removed = 0;
-    if (isDefaultWorkout(content, sport, thresholds)) {
+    // Séance type encore intacte : rien n’a été réglé, on repart du départ de la nouvelle discipline.
+    const fromStarter = matchingStarter(content, sport, thresholds);
+    setUndo(null);
+    if (fromStarter || isDefaultWorkout(content, sport, thresholds)) {
       // Rien n’a encore été réglé : la séance de départ de la nouvelle discipline, avec ses cibles.
       content = defaultWorkout(next, thresholds);
     } else if (next === "brick") {
@@ -377,8 +407,10 @@ export function SessionEditor(props: SessionEditorProps) {
       }
     }
     // Le titre proposé suit la discipline tant qu’on ne l’a pas remplacé par le sien.
-    const title = !current.title.trim() || current.title === SPORT_LABELS[sport] ? SPORT_LABELS[next] : current.title;
-    setValues({ ...current, content, title });
+    const titleFree = !current.title.trim() || current.title === SPORT_LABELS[sport] || current.title === fromStarter?.title;
+    const title = titleFree ? SPORT_LABELS[next] : current.title;
+    const objective = fromStarter && current.objective === fromStarter.objective ? "" : current.objective;
+    setValues({ ...current, content, title, objective });
     if (removed > 0) {
       setNotice(`${removed} cible${removed > 1 ? "s" : ""} retirée${removed > 1 ? "s" : ""} : impossible${removed > 1 ? "s" : ""} en ${SPORT_LABELS[next].toLowerCase()}.`);
     }
@@ -654,6 +686,21 @@ export function SessionEditor(props: SessionEditorProps) {
             </div>
 
             <SportPicker value={sport} onChange={changeSport} />
+
+            {showStarters ? (
+              <StarterPicker
+                sport={sport}
+                thresholds={thresholds}
+                active={intactStarter?.id ?? null}
+                replaced={undo && undo.shape === contentShape ? undo.starter : null}
+                onPick={applyStarter}
+                onUndo={() => {
+                  if (!undo) return;
+                  setValues(undo.previous);
+                  setUndo(null);
+                }}
+              />
+            ) : null}
 
             <div className="grid gap-4 sm:grid-cols-3">
               {mode === "session" ? (

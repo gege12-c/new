@@ -56,3 +56,33 @@ test("créer une séance de vélo sur téléphone, sans incohérence", async ({ 
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   expect(overflow).toBeLessThanOrEqual(1);
 });
+
+test("partir d'une séance type en un geste, puis revenir en arrière", async ({ browser }) => {
+  const page = await signedIn(browser, "athlete", { ...devices["Pixel 7"] });
+  const day = addDays(isoDay(0), 10);
+  await page.goto(`/athlete/sessions/new?date=${day}&sport=bike`);
+  await expect(page.locator("[data-editor-ready]")).toBeVisible();
+  const title = page.locator("#session-title");
+  const starters = page.getByRole("group", { name: "Partir d’une séance type" });
+
+  await starters.getByRole("button", { name: /^Sweet spot/ }).click();
+  await expect(title).toHaveValue("Sweet spot 3 × 12 min");
+  await expect(page.locator("#session-objective")).toHaveValue("tempo");
+  await expect(starters.getByRole("button", { name: /^Sweet spot/ })).toHaveAttribute("aria-pressed", "true");
+  // 88–94 % de la FTP (250 W), converti pour l'athlète.
+  await expect(page.getByText("≈ 220–235 W")).toBeVisible();
+
+  // Un réglage, puis une autre séance type : le déroulé travaillé se récupère d'un geste.
+  const duration = page.getByLabel("Durée (minutes, ou minutes virgule secondes)").first();
+  await duration.fill("20");
+  await duration.press("Enter");
+  await expect(starters.getByRole("button", { name: /^Sweet spot/ })).toHaveAttribute("aria-pressed", "false");
+  await starters.getByRole("button", { name: /^PMA/ }).click();
+  await expect(title).toHaveValue("PMA 5 × 4 min");
+  const replaced = starters.getByRole("status");
+  await expect(replaced).toContainText("Déroulé remplacé par « PMA 5 × 4 min ».");
+  await replaced.getByRole("button", { name: "Annuler" }).click();
+  await expect(title).toHaveValue("Sweet spot 3 × 12 min");
+  await expect(duration).toHaveValue("20:00");
+  await expect(replaced).toHaveCount(0);
+});
