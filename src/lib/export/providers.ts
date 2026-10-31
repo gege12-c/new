@@ -46,7 +46,7 @@ const REALIZED_VIA_STRAVA_OR_FIT: Capability = {
   detail: "Par Strava (si l'appareil y envoie ses activités) ou en important le fichier FIT de l'activité dans TriCoach.",
 };
 
-/** Relais intervals.icu : partenaire officiel de Suunto, Garmin et COROS (voir docs/WATCHES.md). */
+/** Relais intervals.icu : partenaire officiel de Suunto, Garmin et COROS, et envoi vers les compteurs Wahoo (voir docs/WATCHES.md). */
 const VIA_INTERVALS = {
   planned: "Par intervals.icu (relais officiel et gratuit), une fois relié dans le profil : chaque séance publiée part seule vers la montre.",
   auto: "Par intervals.icu, une fois relié dans le profil : les séances publiées des 14 prochains jours sont déposées dans son calendrier, qui les transmet à la montre la semaine qui précède ; mises à jour ou retirées quand elles changent.",
@@ -55,6 +55,7 @@ const INTERVALS_SOURCES = {
   suunto: { label: "intervals.icu : envoi des séances vers les montres Suunto", url: "https://forum.intervals.icu/t/upload-workouts-to-suunto-watches/9560" },
   garmin: { label: "intervals.icu : envoi des séances vers Garmin Connect", url: "https://forum.intervals.icu/t/upload-planned-workouts-to-garmin-connect/1521" },
   coros: { label: "intervals.icu : envoi des séances vers COROS", url: "https://forum.intervals.icu/t/coros-support-added/37006" },
+  wahoo: { label: "intervals.icu : envoi des séances prévues vers Wahoo", url: "https://forum.intervals.icu/t/upload-planned-workouts-to-wahoo/65949" },
   api: { label: "intervals.icu : accès à l'API (clé personnelle)", url: "https://forum.intervals.icu/t/api-access-to-intervals-icu/609" },
 };
 
@@ -62,9 +63,11 @@ export const ZWIFT: ConnectorInfo & { id: "zwift"; format: "zwo" } = {
   id: "zwift",
   name: "Zwift",
   format: "zwo",
-  sports: ["bike", "run"],
+  // Vélo seulement (home trainer) : le format sait décrire la course sur tapis, mais Zwift ne sert
+  // ici qu'au vélo ; la course part sur la montre (décision du 31 octobre 2026, docs/EXPORTS.md).
+  sports: ["bike"],
   capabilities: {
-    planned: { status: "manual", detail: "Fichier .zwo (vélo et course) à importer dans Zwift, sur ordinateur." },
+    planned: { status: "manual", detail: "Fichier .zwo de la séance de vélo, à importer dans Zwift sur ordinateur, pour rouler sur home trainer." },
     realized: REALIZED_VIA_STRAVA_OR_FIT,
     auto: { status: "unsupported", detail: "Zwift n'offre pas d'API publique pour envoyer des séances." },
     download: { status: "available", detail: "Fichier .zwo, contrôlé avant téléchargement." },
@@ -74,7 +77,6 @@ export const ZWIFT: ConnectorInfo & { id: "zwift"; format: "zwo" } = {
     "Mac : Finder > Documents > Zwift > Workouts, puis le dossier à votre numéro Zwift (des chiffres) ; collez-y le fichier.",
     "PC : clic droit sur l'icône Z de Zwift dans la zone de notification > Open Logs Folder, puis Zwift > Workouts et le dossier à votre numéro Zwift ; collez-y le fichier.",
     "Redémarrez Zwift : la séance est disponible dans vos séances personnalisées, sur tous vos appareils (fichiers de moins de 64 Ko).",
-    "Course à pied : les allures sont exprimées par rapport à l'allure 10 km de votre profil Zwift ; vérifiez qu'elle est à jour.",
   ],
   prerequisites: [],
   sources: [{ label: "Zwift : séances personnalisées (import .zwo)", url: "https://support.zwift.com/en_us/custom-workouts-ryGOTVEPs" }],
@@ -121,29 +123,30 @@ export const WAHOO: ConnectorInfo & { id: "wahoo"; format: null } = {
   sports: [],
   capabilities: {
     planned: {
-      status: "not_configured",
-      detail: "Les séances planifiées arrivent sur les compteurs ELEMNT par l'API Cloud de Wahoo (plans), ouverte sur demande et après approbation.",
+      status: "available",
+      detail:
+        "Par intervals.icu (relais gratuit), une fois relié dans le profil : cochez chez lui l'envoi des séances vers Wahoo, et celles des 7 prochains jours arrivent sur le compteur ELEMNT.",
     },
     realized: REALIZED_VIA_STRAVA_OR_FIT,
-    auto: { status: "not_configured", detail: "Possible avec l'API Cloud de Wahoo une fois l'accès accordé." },
+    auto: {
+      status: "available",
+      detail: "Par intervals.icu, une fois relié dans le profil et Wahoo relié chez lui : les séances des 7 prochains jours partent sur le compteur, mises à jour quand elles changent.",
+    },
     download: {
       status: "unsupported",
-      detail: "Wahoo ne documente pas d'import manuel de fichier de séance : utilisez la fiche à recopier, ou le fichier .zwo dans Zwift sur home trainer.",
+      detail: "Wahoo ne documente pas d'import manuel de fichier de séance : passez par intervals.icu, ou par le fichier .zwo dans Zwift sur home trainer.",
     },
   },
   procedure: [
-    "Sans l'API, Wahoo n'accepte les séances planifiées que de ses partenaires agréés (liste sur le support Wahoo).",
-    "Sur home trainer Wahoo (KICKR…) : utilisez l'export Zwift.",
-    "Sur route : suivez la séance depuis TriCoach sur votre téléphone, ou recopiez-la à partir de la fiche texte.",
+    "Dans TriCoach, Profil sportif, « Séances sur la montre » : reliez intervals.icu (une fois).",
+    "Sur intervals.icu, Settings, encadré Wahoo : connectez votre compte Wahoo et cochez l'envoi des séances (« Upload workouts »).",
+    "Les séances des 7 prochains jours arrivent sur le compteur ELEMNT à sa synchronisation avec l'application Wahoo ELEMNT.",
+    "Sur home trainer Wahoo (KICKR…), l'export Zwift fonctionne aussi.",
   ],
   prerequisites: [
-    "Demande d'accès à l'API Cloud de Wahoo (application de production distincte de la sandbox, portées plans_write), puis approbation par Wahoo.",
-    "Une fois l'accès obtenu : connexion OAuth du compte Wahoo de l'athlète et envoi des séances sous forme de plans.",
+    "Envoi direct, sans intervals.icu : accès à l'API Cloud de Wahoo (application de production, portée plans_write), sur demande et après approbation par Wahoo.",
   ],
-  sources: [
-    { label: "Wahoo : API Cloud (développeurs)", url: "https://developers.wahooligan.com/cloud" },
-    { label: "Wahoo : applications partenaires", url: "https://support.wahoofitness.com/hc/en-us/articles/23022859474962" },
-  ],
+  sources: [INTERVALS_SOURCES.wahoo, { label: "Wahoo : API Cloud (développeurs)", url: "https://developers.wahooligan.com/cloud" }],
 };
 
 export const SUUNTO: ConnectorInfo & { id: "suunto"; format: null } = {

@@ -2,7 +2,7 @@
  * Connecteurs d'export : une interface commune (contrôle de compatibilité, conversion, relecture)
  * et un connecteur par fournisseur de fichiers. Capacités et procédures : ./providers.ts.
  */
-import type { Segment } from "@/lib/workout/schema";
+import type { Segment, SegmentSport } from "@/lib/workout/schema";
 import { buildFitWorkout, validateFitWorkout } from "./fit-workout";
 import { GARMIN, ZWIFT, type ConnectorInfo } from "./providers";
 import { hasBlocking, safeFileName, type CompatibilityIssue, type CompatibilityReport, type ExportContext, type ExportFormat, type ExportResult, type FileProviderId, type ValidationResult } from "./types";
@@ -42,6 +42,21 @@ export const FILE_CONNECTORS: Record<FileProviderId, FileConnector> = {
   },
 };
 
+const FOR_SPORT: Record<SegmentSport, string> = {
+  bike: "le vélo",
+  run: "la course à pied",
+  swim: "la natation",
+  strength: "le renforcement",
+  other: "les autres sports",
+};
+
+/** « Zwift : export proposé pour le vélo seulement. » */
+export function sportsOnlyMessage(info: ConnectorInfo): string {
+  const list = info.sports.map((sport) => FOR_SPORT[sport]);
+  const text = list.length > 1 ? `${list.slice(0, -1).join(", ")} et ${list.at(-1)}` : list[0];
+  return `${info.name} : export proposé pour ${text} seulement.`;
+}
+
 export function isFileProvider(value: string | null | undefined): value is FileProviderId {
   return value === "zwift" || value === "garmin";
 }
@@ -52,7 +67,7 @@ export function exportSegment(provider: FileProviderId, segment: Segment, ctx: E
   if (!connector.info.sports.includes(segment.sport)) {
     return {
       ok: false,
-      issues: [{ severity: "blocking", message: `${connector.info.name} ne prend pas en charge cette discipline.` }],
+      issues: [{ severity: "blocking", message: sportsOnlyMessage(connector.info) }],
     };
   }
   let built: ReturnType<FileConnector["build"]>;

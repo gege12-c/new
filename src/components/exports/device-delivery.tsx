@@ -91,7 +91,7 @@ export function NoWatchLinked({ viewer }: { viewer: "athlete" | "coach" }) {
   return viewer === "athlete" ? (
     <div className="mt-2 space-y-2">
       <p className="text-[13px] leading-snug text-ink-soft">
-        Reliez votre montre (Suunto, Garmin ou COROS) une fois, par intervals.icu : vos séances publiées y partiront ensuite seules.
+        Reliez votre montre une fois, par intervals.icu : vos séances publiées y partiront ensuite seules.
       </p>
       <a href="/athlete/profile#montre-auto" className={buttonClasses("secondary", "sm")}>
         <Link2 aria-hidden />

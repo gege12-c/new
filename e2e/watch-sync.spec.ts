@@ -90,7 +90,7 @@ test("relier sa montre par intervals.icu : la séance publiée part, l'activité
   const page = await signedIn(browser, "athlete");
   await page.goto("/athlete/profile#montre-auto");
   const panel = page.locator("#montre-auto");
-  await expect(panel.getByRole("heading", { name: "Suunto, Garmin, COROS, par intervals.icu" })).toBeVisible();
+  await expect(panel.getByRole("heading", { name: "Suunto, Garmin, COROS, Wahoo, par intervals.icu" })).toBeVisible();
   await expect(panel.getByText("Non relié", { exact: true })).toBeVisible();
   // Suunto en direct attend l'accès partenaire : rien à relier pour l'instant.
   await expect(panel.getByText("Bientôt", { exact: true })).toBeVisible();

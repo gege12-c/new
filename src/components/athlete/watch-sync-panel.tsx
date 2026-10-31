@@ -86,7 +86,7 @@ function ActivitiesState({ activities, timeZone }: { activities: NonNullable<Dev
 }
 
 /**
- * Séances sur la montre : par intervals.icu (relais officiel vers Suunto, Garmin et COROS), ou
+ * Séances sur la montre : par intervals.icu (relais officiel vers Suunto, Garmin et COROS, et vers Wahoo), ou
  * directement chez Suunto dès que l'accès partenaire de TriCoach est ouvert.
  */
 export async function WatchSyncPanel({
@@ -121,7 +121,7 @@ export async function WatchSyncPanel({
           <section aria-labelledby="intervals-title" className="space-y-3">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <h3 id="intervals-title" className="text-[15px] font-semibold">
-                Suunto, Garmin, COROS, par intervals.icu
+                Suunto, Garmin, COROS, Wahoo, par intervals.icu
               </h3>
               <span className={accounts.intervals?.status === "active" ? "text-[12.5px] font-semibold text-success" : "text-[12.5px] text-muted"}>
                 {accounts.intervals ? (accounts.intervals.status === "active" ? "Relié" : "Clé à renouveler") : intervalsReady ? "Non relié" : "Non configuré"}
@@ -140,7 +140,7 @@ export async function WatchSyncPanel({
                   <Notice tone="warning">intervals.icu refuse la clé enregistrée (changée ou supprimée) : collez votre nouvelle clé pour que vos séances repartent.</Notice>
                 ) : (
                   <p className="text-[13.5px] text-ink-soft">
-                    intervals.icu, partenaire officiel de Suunto, Garmin et COROS, transmet à votre montre les séances que TriCoach dépose dans son calendrier, et
+                    intervals.icu, partenaire officiel de Suunto, Garmin et COROS, transmet à votre montre (ou à votre compteur Wahoo) les séances que TriCoach dépose dans son calendrier, et
                     renvoie à TriCoach les activités faites avec la montre. Gratuit, à faire une fois :
                   </p>
                 )}
@@ -152,7 +152,7 @@ export async function WatchSyncPanel({
                     </a>
                     .
                   </li>
-                  <li>Dans ses réglages (Settings), reliez votre montre (Suunto, Garmin ou COROS) et cochez « Upload planned workouts ».</li>
+                  <li>Dans ses réglages (Settings), reliez votre montre ou votre compteur (Suunto, Garmin, COROS ou Wahoo) et cochez l’envoi des séances prévues (« Upload planned workouts », « Upload workouts » pour Wahoo).</li>
                   <li>Toujours dans Settings, en bas, « Developer Settings » : copiez la clé API et collez-la ci-dessous.</li>
                 </ol>
                 <IntervalsKeyForm again={Boolean(accounts.intervals)} />
@@ -201,10 +201,10 @@ export async function WatchSyncPanel({
           </section>
 
           <ul className="space-y-1 border-t border-line pt-3 text-[12.5px] leading-snug text-muted">
-            <li>La montre reçoit les séances à sa synchronisation avec l’application de la marque (Suunto, Garmin Connect, COROS) ; ouvrez-la si besoin.</li>
+            <li>La montre reçoit les séances à sa synchronisation avec l’application de la marque (Suunto, Garmin Connect, COROS, Wahoo ELEMNT) ; ouvrez-la si besoin.</li>
             <li>
-              Suunto : au lancement du sport, choisissez la séance parmi les guides SuuntoPlus. Garmin et COROS : la séance du jour est dans le calendrier d’entraînement de la
-              montre (le menu varie selon le modèle).
+              Suunto : au lancement du sport, choisissez la séance parmi les guides SuuntoPlus. Garmin, COROS et Wahoo : la séance du jour est dans le calendrier ou les séances
+              planifiées de l’appareil (le menu varie selon le modèle).
             </li>
             <li>
               TriCoach n’envoie que vos séances publiées, cibles comprises. Une même activité reçue par Strava et par intervals.icu n’est comptée qu’une fois.

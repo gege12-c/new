@@ -15,7 +15,7 @@ const day = isoDay(2);
 const title = `Enchaînement export ${Date.now()}`;
 let sessionId = "";
 
-/** Vélo en % FTP (Zwift et Garmin), puis course en allure absolue : sans allure seuil, Zwift ne peut pas la suivre. */
+/** Vélo en % FTP (Zwift et Garmin), puis course en allure absolue (Garmin seulement : Zwift ne sert qu'au vélo). */
 const brickContent = {
   schemaVersion: 1,
   segments: [
@@ -64,6 +64,16 @@ test.beforeAll(async () => {
   sessionId = (await response.json())[0].id;
 });
 
+/** « Autres façons d'exporter » : repliée quand la montre reçoit déjà les séances, ouverte sinon. */
+async function openOtherExports(page: Page) {
+  const others = page.locator("[data-other-exports]");
+  // La fiche arrive en flux : un clic reçu avant la fin peut tomber sur un élément remplacé ensuite.
+  await expect(async () => {
+    if ((await others.count()) && !(await others.evaluate((details) => (details as HTMLDetailsElement).open))) await others.locator(":scope > summary").click();
+    await expect(page.locator('[data-export-provider="garmin"]')).toBeVisible({ timeout: 1000 });
+  }).toPass({ timeout: 15_000 });
+}
+
 async function downloadFrom(page: Page, provider: "zwift" | "garmin", button: string) {
   const row = page.locator(`[data-export-provider="${provider}"]`);
   const [download] = await Promise.all([page.waitForEvent("download"), row.getByRole("button", { name: new RegExp(button) }).click()]);
@@ -76,12 +86,15 @@ test("l'athlète télécharge un .zwo et un FIT valides de la même séance", as
   await page.goto(`/athlete/calendar?view=week&date=${day}&session=${sessionId}`);
   await expect(page.getByRole("heading", { name: "Exporter vers mes appareils" })).toBeVisible();
 
+  await openOtherExports(page);
+
   const zwift = page.locator('[data-export-provider="zwift"]');
-  // Contrôle de compatibilité affiché avant tout téléchargement.
-  await expect(zwift.locator("[data-compatibility]")).toContainText("Course à pied : export impossible");
-  await expect(zwift.getByRole("button", { name: /partie course à pied/ })).toBeDisabled();
-  await zwift.locator("[data-compatibility] summary").click();
-  await expect(zwift).toContainText("enregistrez l'allure seuil");
+  // Contrôle de compatibilité affiché avant tout téléchargement ; Zwift ne propose que le vélo.
+  await expect(zwift.locator("[data-compatibility]")).toContainText("Compatible");
+  await expect(zwift.getByRole("button", { name: /partie vélo/ })).toBeEnabled();
+  await expect(zwift.getByRole("button", { name: /course à pied/ })).toHaveCount(0);
+  // La montre, elle, reçoit toutes les disciplines : Garmin propose les deux parties.
+  await expect(page.locator('[data-export-provider="garmin"]').getByRole("button", { name: /partie course à pied/ })).toBeEnabled();
 
   const zwo = await downloadFrom(page, "zwift", "partie vélo");
   expect(zwo.name).toMatch(/^Enchainement-export-\d+-1-bike\.zwo$/);
@@ -105,6 +118,7 @@ test("l'athlète télécharge un .zwo et un FIT valides de la même séance", as
 test("l'athlète recopie la séance dans l'appli Suunto, étape par étape", async ({ browser }) => {
   const page = await signedIn(browser, "athlete");
   await page.goto(`/athlete/calendar?view=week&date=${day}&session=${sessionId}`);
+  await openOtherExports(page);
   const suunto = page.locator('[data-export-provider="suunto"]');
   await suunto.getByText("Recopier dans l’appli Suunto (6 étapes)").click();
   const steps = suunto.locator("[data-suunto-steps]");
@@ -145,5 +159,5 @@ test("l'API d'export vérifie la session, la demande et les droits", async ({ br
   expect((await page.request.get(`/api/exports/00000000-0000-4000-8000-000000000000?provider=garmin`)).status()).toBe(404);
   const blocked = await page.request.get(`/api/exports/${sessionId}?provider=zwift&segment=1`);
   expect(blocked.status()).toBe(422);
-  expect((await blocked.json()).error).toMatch(/allure seuil/);
+  expect((await blocked.json()).error).toBe("Zwift : export proposé pour le vélo seulement.");
 });

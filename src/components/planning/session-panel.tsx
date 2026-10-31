@@ -243,6 +243,7 @@ export async function SessionPanel({
             suunto={suuntoPlan(parsedContent.data, { title: detail.title, thresholds: thresholdsOnDate, description: detail.description })}
             dateLabel={formatFullDate(detail.scheduled_date)}
             multiSegment={parsedContent.data.segments.length > 1}
+            sports={parsedContent.data.segments.map((segment) => segment.sport)}
             timeZone={timeZone}
             suuntoDirect={suuntoDirect}
             watchAuto={

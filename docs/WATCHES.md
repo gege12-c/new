@@ -6,7 +6,7 @@ Deux voies, chacune reliée par l'athlète dans son profil sportif (rubrique « 
 
 | Voie | Montres | État | Fenêtre |
 | --- | --- | --- | --- |
-| Par intervals.icu | Suunto, Garmin, COROS | disponible | séances publiées d'aujourd'hui à J+13, déposées dans le calendrier intervals.icu ; intervals.icu transmet la semaine à venir à la montre |
+| Par intervals.icu | Suunto, Garmin, COROS, compteurs Wahoo | disponible | séances publiées d'aujourd'hui à J+13, déposées dans le calendrier intervals.icu ; intervals.icu transmet la semaine à venir à la montre |
 | Suunto en direct | Suunto | prête, en attente de l'accès partenaire de Suunto | séances publiées d'aujourd'hui à J+6, envoyées comme guides SuuntoPlus |
 
 Une seule voie par montre : une Suunto reliée à la fois à intervals.icu et à Suunto en direct recevrait chaque séance deux fois.
@@ -20,7 +20,7 @@ TriCoach reste l'endroit où tout se fait : l'athlète n'utilise pas intervals.i
 ## Mise en route (athlète, une fois)
 
 1. Créer un compte gratuit sur intervals.icu.
-2. Dans ses réglages (Settings), relier sa montre : Suunto, Garmin ou COROS, et cocher l'envoi des séances prévues (« Upload planned workouts »).
+2. Dans ses réglages (Settings), relier sa montre : Suunto, Garmin ou COROS, et cocher l'envoi des séances prévues (« Upload planned workouts ») ; pour un compteur Wahoo ELEMNT, relier Wahoo et cocher « Upload workouts » (les 7 prochains jours).
 3. Toujours dans Settings, en bas, « Developer Settings » : copier la clé API, puis la coller dans TriCoach, Profil sportif, « Séances sur la montre ». TriCoach la vérifie auprès d'intervals.icu, puis la garde chiffrée sur le serveur (AES-256-GCM, comme les jetons Strava) ; elle n'est plus jamais affichée.
 
 Délier intervals.icu retire de son calendrier les séances à venir déposées par TriCoach et efface la clé. Une clé changée ou supprimée chez intervals.icu est détectée au passage suivant : l'athlète est prévenu (notification « reconnexion ») et colle sa nouvelle clé.
@@ -78,4 +78,5 @@ TriCoach construit lui-même le guide SuuntoPlus (format « sequence » de l'API
 - [intervals.icu : envoi vers les montres Suunto](https://forum.intervals.icu/t/upload-workouts-to-suunto-watches/9560)
 - [intervals.icu : envoi vers Garmin Connect](https://forum.intervals.icu/t/upload-planned-workouts-to-garmin-connect/1521)
 - [intervals.icu : COROS](https://forum.intervals.icu/t/coros-support-added/37006)
+- [intervals.icu : envoi des séances prévues vers Wahoo (2 mai 2024)](https://forum.intervals.icu/t/upload-planned-workouts-to-wahoo/65949)
 - [Suunto : programme API (APIZone)](https://apizone.suunto.com/)

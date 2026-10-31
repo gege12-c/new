@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Check, ClipboardCopy, Download, Info, RotateCcw, XCircle } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, ClipboardCopy, Download, Info, RotateCcw, XCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import type { ExportHistoryEntry } from "@/lib/data/exports";
 import { GARMIN, SUUNTO, WAHOO, ZWIFT, type ConnectorInfo } from "@/lib/export/providers";
 import type { SuuntoPlan } from "@/lib/export/suunto-steps";
 import type { CompatibilityIssue, CompatibilityReport, FileProviderId } from "@/lib/export/types";
-import { SPORT_LABELS } from "@/lib/workout/schema";
+import { SPORT_LABELS, type SegmentSport } from "@/lib/workout/schema";
 import { cn } from "@/lib/utils";
 import { DELIVERY_TITLES, DeviceDeliveryList, NoWatchLinked, type WatchAuto } from "./device-delivery";
 import { SuuntoSteps } from "./suunto-steps";
@@ -124,10 +124,10 @@ function Compatibility({
   );
 }
 
-function Procedure({ info }: { info: ConnectorInfo }) {
+function Procedure({ info, title }: { info: ConnectorInfo; title?: string }) {
   return (
     <details className="mt-2">
-      <summary className="cursor-pointer text-[13px] font-medium text-ink-soft hover:text-ink">Comment l’importer dans {info.name}</summary>
+      <summary className="cursor-pointer text-[13px] font-medium text-ink-soft hover:text-ink">{title ?? `Comment l’importer dans ${info.name}`}</summary>
       <ol className="mt-2 list-decimal space-y-1 pl-5 text-[13px] leading-snug text-ink-soft">
         {info.procedure.map((step) => (
           <li key={step}>{step}</li>
@@ -164,6 +164,7 @@ export function ExportSection({
   suunto,
   dateLabel,
   multiSegment,
+  sports,
   timeZone,
   watchAuto,
   suuntoDirect,
@@ -178,6 +179,8 @@ export function ExportSection({
   /** Date de la séance, en toutes lettres (à reporter dans Suunto). */
   dateLabel: string;
   multiSegment: boolean;
+  /** Disciplines des parties de la séance : Zwift et Wahoo ne sont proposés que pour le vélo. */
+  sports: SegmentSport[];
   timeZone: string;
   /** Envoi automatique sur la montre (intervals.icu, Suunto en direct) ; null s'il n'est pas configuré. */
   watchAuto: WatchAuto | null;
@@ -231,159 +234,175 @@ export function ExportSection({
     }
   }
 
-  const providers = (["zwift", "garmin"] as const).map((id) => ({ id, info: FILE_PROVIDERS[id], reports: reports.filter((r) => r.provider === id) }));
+  const hasBike = sports.includes("bike");
   const stamp = (iso: string) =>
     new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone }).format(new Date(iso));
+
+  /** Fichier à télécharger (Zwift, Garmin) : contrôle, boutons par partie, résultat, procédure. */
+  function fileRow(id: FileProviderId) {
+    const info = FILE_PROVIDERS[id];
+    const list = reports.filter((r) => r.provider === id);
+    if (!list.length) return null;
+    return (
+      <li key={id} className="p-3" data-export-provider={id}>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-[14px] font-semibold text-ink">
+              {info.name} <span className="font-normal text-muted">· {FILE_LABEL[id]}</span>
+            </p>
+            <p className="mt-0.5 text-[13px] leading-snug text-muted">{info.capabilities.planned.detail}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {list.map((report) => {
+              const state = downloads[keyOf(report)];
+              const label = multiSegment ? SPORT_LABELS[report.sport] : `Télécharger le ${id === "zwift" ? ".zwo" : "FIT"}`;
+              return (
+                <Button
+                  key={keyOf(report)}
+                  size="sm"
+                  variant={report.ok ? "secondary" : "ghost"}
+                  disabled={!report.ok || state?.status === "loading"}
+                  onClick={() => download(report)}
+                  aria-label={`${info.name} : ${multiSegment ? `télécharger la partie ${SPORT_LABELS[report.sport].toLowerCase()}` : label}`}
+                >
+                  <Download aria-hidden />
+                  {state?.status === "loading" ? "Préparation…" : label}
+                </Button>
+              );
+            })}
+          </div>
+        </div>
+        <Compatibility reports={list} />
+        {list.map((report) => {
+          const state = downloads[keyOf(report)];
+          if (!state || state.status === "loading") return null;
+          const part = multiSegment ? ` (${SPORT_LABELS[report.sport].toLowerCase()})` : "";
+          if (state.status === "error") {
+            return (
+              <Notice key={keyOf(report)} tone="error" className="mt-2">
+                <p>
+                  {info.name}
+                  {part} : {state.message}
+                </p>
+                <Button size="sm" variant="secondary" className="mt-2" onClick={() => download(report)}>
+                  <RotateCcw aria-hidden />
+                  Réessayer
+                </Button>
+              </Notice>
+            );
+          }
+          const note = historyNote(state.history);
+          return (
+            <Notice key={keyOf(report)} tone="success" className="mt-2">
+              <p>
+                Fichier téléchargé{part} : <span className="font-semibold">{state.fileName}</span>. Suivez la procédure d’import ci-dessous.
+              </p>
+              {note ? <p className="mt-1 text-[12.5px] text-ink-soft">{note}</p> : null}
+            </Notice>
+          );
+        })}
+        {list.some((r) => r.ok) ? <Procedure info={info} /> : null}
+      </li>
+    );
+  }
+
+  const others = (
+    <ul className="mt-2 divide-y divide-line rounded-[12px] border border-line">
+      {fileRow("garmin")}
+      <li className="p-3" data-export-provider="suunto">
+        <p className="text-[14px] font-semibold text-ink">
+          {SUUNTO.name} <span className="font-normal text-muted">· à recopier dans l’application Suunto</span>
+        </p>
+        <p className="mt-0.5 text-[13px] leading-snug text-muted">
+          {suuntoDirect || watchAuto
+            ? "Sans envoi automatique : la séance écrite comme le créateur d’entraînements de l’application, étape par étape."
+            : SUUNTO.capabilities.planned.detail}
+        </p>
+        <details className="mt-2" onToggle={(event) => event.currentTarget.open && setSuuntoShown(true)}>
+          <summary className="cursor-pointer text-[13px] font-medium text-ink-soft hover:text-ink">
+            {`Recopier dans l’appli Suunto (${suunto.segments.reduce((n, s) => n + s.stepCount, 0)} étapes)`}
+          </summary>
+          <ol className="mt-2 list-decimal space-y-1 pl-5 text-[13px] leading-snug text-ink-soft">
+            {SUUNTO.procedure.map((step) => (
+              <li key={step}>{step}</li>
+            ))}
+          </ol>
+          {suuntoShown ? <SuuntoSteps plan={suunto} dateLabel={dateLabel} /> : null}
+        </details>
+      </li>
+      {fileRow("zwift")}
+      {hasBike ? (
+        <li className="p-3" data-export-provider="wahoo">
+          <p className="text-[14px] font-semibold text-ink">
+            {WAHOO.name} <span className="font-normal text-muted">· compteur ELEMNT, par intervals.icu</span>
+          </p>
+          <p className="mt-0.5 text-[13px] leading-snug text-muted">{WAHOO.capabilities.planned.detail}</p>
+          <Procedure info={WAHOO} title="Comment la recevoir sur le compteur Wahoo" />
+        </li>
+      ) : null}
+      <li className="p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-[13px] leading-snug text-ink-soft">Fiche texte de la séance, à recopier dans une application sans import de fichier.</p>
+          <Button size="sm" variant="ghost" onClick={copySheet}>
+            {copied === "ok" ? <Check aria-hidden /> : <ClipboardCopy aria-hidden />}
+            {copied === "ok" ? "Fiche copiée" : "Copier la fiche"}
+          </Button>
+        </div>
+        {copied === "error" ? <p className="mt-1 text-[12.5px] text-danger">Copie refusée par le navigateur : sélectionnez le texte ci-dessous.</p> : null}
+        <details className="mt-1" open={copied === "error" || undefined} onToggle={(event) => setSheetOpen(event.currentTarget.open)}>
+          <summary className="cursor-pointer text-[13px] font-medium text-ink-soft hover:text-ink">Afficher la fiche</summary>
+          {sheetOpen || copied === "error" ? (
+            <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap rounded-[10px] bg-surface-2 p-2.5 font-sans text-[12.5px] leading-relaxed text-ink-soft">{sheet}</pre>
+          ) : null}
+        </details>
+      </li>
+    </ul>
+  );
+  // Envoi automatique en place : les autres voies restent à portée, repliées.
+  const autoActive = Boolean(watchAuto?.deliveries?.length);
+  const otherNames = ["Garmin par câble", "appli Suunto", ...(hasBike ? ["Zwift", "Wahoo"] : []), "fiche texte"];
 
   return (
     <section aria-labelledby="export-title">
       <h3 id="export-title" className="heading text-[16px]">
         Exporter vers mes appareils
       </h3>
-      <ul className="mt-2 divide-y divide-line rounded-[12px] border border-line">
-        {watchAuto ? (
-          <li className="p-3" data-export-provider="watch">
-            <p className="text-[14px] font-semibold text-ink">
-              Sur la montre <span className="font-normal text-muted">· envoi automatique (Suunto, Garmin, COROS)</span>
-            </p>
-            {watchAuto.deliveries === null ? (
-              <p className="mt-1 text-[13px] text-muted">L’envoi sur la montre sera disponible après la mise à jour de la base de données du site.</p>
-            ) : watchAuto.deliveries.length === 0 ? (
-              <NoWatchLinked viewer={watchAuto.viewer} />
-            ) : (
-              watchAuto.deliveries.map((delivery) => (
-                <div key={delivery.provider} className="mt-2">
-                  {watchAuto.deliveries!.length > 1 ? <p className="text-[12.5px] font-semibold text-ink-soft">{DELIVERY_TITLES[delivery.provider]}</p> : null}
-                  <DeviceDeliveryList delivery={delivery} auto={watchAuto} timeZone={timeZone} />
-                  {watchAuto.reports[delivery.provider]?.length ? (
-                    <Compatibility reports={watchAuto.reports[delivery.provider]!} verdicts={watchVerdict} label={watchAuto.deliveries!.length > 1 ? DELIVERY_TITLES[delivery.provider] : undefined} />
-                  ) : null}
-                </div>
-              ))
-            )}
-          </li>
-        ) : null}
-        {providers.map(({ id, info, reports: list }) => (
-          <li key={id} className="p-3" data-export-provider={id}>
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className="text-[14px] font-semibold text-ink">
-                  {info.name} <span className="font-normal text-muted">· {FILE_LABEL[id]}</span>
-                </p>
-                <p className="mt-0.5 text-[13px] leading-snug text-muted">{info.capabilities.planned.detail}</p>
+      {watchAuto ? (
+        <div className="mt-2 rounded-[12px] border border-line p-3" data-export-provider="watch">
+          <p className="text-[14px] font-semibold text-ink">
+            Sur la montre <span className="font-normal text-muted">· envoi automatique (Suunto, Garmin, COROS{hasBike ? ", Wahoo" : ""})</span>
+          </p>
+          {watchAuto.deliveries === null ? (
+            <p className="mt-1 text-[13px] text-muted">L’envoi sur la montre sera disponible après la mise à jour de la base de données du site.</p>
+          ) : watchAuto.deliveries.length === 0 ? (
+            <NoWatchLinked viewer={watchAuto.viewer} />
+          ) : (
+            watchAuto.deliveries.map((delivery) => (
+              <div key={delivery.provider} className="mt-2">
+                {watchAuto.deliveries!.length > 1 ? <p className="text-[12.5px] font-semibold text-ink-soft">{DELIVERY_TITLES[delivery.provider]}</p> : null}
+                <DeviceDeliveryList delivery={delivery} auto={watchAuto} timeZone={timeZone} />
+                {watchAuto.reports[delivery.provider]?.length ? (
+                  <Compatibility reports={watchAuto.reports[delivery.provider]!} verdicts={watchVerdict} label={watchAuto.deliveries!.length > 1 ? DELIVERY_TITLES[delivery.provider] : undefined} />
+                ) : null}
               </div>
-              {list.length ? (
-                <div className="flex flex-wrap gap-2">
-                  {list.map((report) => {
-                    const state = downloads[keyOf(report)];
-                    const label = multiSegment ? SPORT_LABELS[report.sport] : `Télécharger le ${id === "zwift" ? ".zwo" : "FIT"}`;
-                    return (
-                      <Button
-                        key={keyOf(report)}
-                        size="sm"
-                        variant={report.ok ? "secondary" : "ghost"}
-                        disabled={!report.ok || state?.status === "loading"}
-                        onClick={() => download(report)}
-                        aria-label={`${info.name} : ${multiSegment ? `télécharger la partie ${SPORT_LABELS[report.sport].toLowerCase()}` : label}`}
-                      >
-                        <Download aria-hidden />
-                        {state?.status === "loading" ? "Préparation…" : label}
-                      </Button>
-                    );
-                  })}
-                </div>
-              ) : null}
-            </div>
-            {list.length ? (
-              <Compatibility reports={list} />
-            ) : (
-              <p className="mt-2 text-[13px] text-muted">{info.name} ne prend pas en charge les disciplines de cette séance.</p>
-            )}
-            {list.map((report) => {
-              const state = downloads[keyOf(report)];
-              if (!state || state.status === "loading") return null;
-              const part = multiSegment ? ` (${SPORT_LABELS[report.sport].toLowerCase()})` : "";
-              if (state.status === "error") {
-                return (
-                  <Notice key={keyOf(report)} tone="error" className="mt-2">
-                    <p>
-                      {info.name}
-                      {part} : {state.message}
-                    </p>
-                    <Button size="sm" variant="secondary" className="mt-2" onClick={() => download(report)}>
-                      <RotateCcw aria-hidden />
-                      Réessayer
-                    </Button>
-                  </Notice>
-                );
-              }
-              const note = historyNote(state.history);
-              return (
-                <Notice key={keyOf(report)} tone="success" className="mt-2">
-                  <p>
-                    Fichier téléchargé{part} : <span className="font-semibold">{state.fileName}</span>. Suivez la procédure d’import ci-dessous.
-                  </p>
-                  {note ? <p className="mt-1 text-[12.5px] text-ink-soft">{note}</p> : null}
-                </Notice>
-              );
-            })}
-            {list.some((r) => r.ok) ? <Procedure info={info} /> : null}
-          </li>
-        ))}
-        <li className="p-3" data-export-provider="wahoo">
-          <p className="text-[14px] font-semibold text-ink">
-            {WAHOO.name} <span className="font-normal text-muted">· envoi direct non configuré</span>
-          </p>
-          <p className="mt-0.5 text-[13px] leading-snug text-muted">{WAHOO.capabilities.planned.detail}</p>
-          <details className="mt-2">
-            <summary className="cursor-pointer text-[13px] font-medium text-ink-soft hover:text-ink">En attendant : méthode manuelle</summary>
-            <ol className="mt-2 list-decimal space-y-1 pl-5 text-[13px] leading-snug text-ink-soft">
-              {WAHOO.procedure.map((step) => (
-                <li key={step}>{step}</li>
-              ))}
-            </ol>
-            <p className="mt-3 text-[12px] font-semibold text-ink-soft">Pour un envoi automatique, il faudrait :</p>
-            <ul className="mt-1 list-disc space-y-1 pl-5 text-[12px] leading-snug text-muted">
-              {WAHOO.prerequisites.map((step) => (
-                <li key={step}>{step}</li>
-              ))}
-            </ul>
-          </details>
-        </li>
-        <li className="p-3" data-export-provider="suunto">
-          <p className="text-[14px] font-semibold text-ink">
-            {SUUNTO.name} <span className="font-normal text-muted">· {suuntoDirect ? "envoi direct : voir « Sur la montre »" : "envoi direct non configuré"}</span>
-          </p>
-          <p className="mt-0.5 text-[13px] leading-snug text-muted">{SUUNTO.capabilities.planned.detail}</p>
-          <details className="mt-2" onToggle={(event) => event.currentTarget.open && setSuuntoShown(true)}>
-            <summary className="cursor-pointer text-[13px] font-medium text-ink-soft hover:text-ink">
-              {`Recopier dans l’appli Suunto (${suunto.segments.reduce((n, s) => n + s.stepCount, 0)} étapes)`}
-            </summary>
-            <ol className="mt-2 list-decimal space-y-1 pl-5 text-[13px] leading-snug text-ink-soft">
-              {SUUNTO.procedure.map((step) => (
-                <li key={step}>{step}</li>
-              ))}
-            </ol>
-            {suuntoShown ? <SuuntoSteps plan={suunto} dateLabel={dateLabel} /> : null}
-          </details>
-        </li>
-        <li className="p-3">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-[13px] leading-snug text-ink-soft">Fiche texte de la séance, à recopier dans une application sans import de fichier.</p>
-            <Button size="sm" variant="ghost" onClick={copySheet}>
-              {copied === "ok" ? <Check aria-hidden /> : <ClipboardCopy aria-hidden />}
-              {copied === "ok" ? "Fiche copiée" : "Copier la fiche"}
-            </Button>
-          </div>
-          {copied === "error" ? <p className="mt-1 text-[12.5px] text-danger">Copie refusée par le navigateur : sélectionnez le texte ci-dessous.</p> : null}
-          <details className="mt-1" open={copied === "error" || undefined} onToggle={(event) => setSheetOpen(event.currentTarget.open)}>
-            <summary className="cursor-pointer text-[13px] font-medium text-ink-soft hover:text-ink">Afficher la fiche</summary>
-            {sheetOpen || copied === "error" ? (
-              <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap rounded-[10px] bg-surface-2 p-2.5 font-sans text-[12.5px] leading-relaxed text-ink-soft">{sheet}</pre>
-            ) : null}
-          </details>
-        </li>
-      </ul>
+            ))
+          )}
+        </div>
+      ) : null}
+      {watchAuto ? (
+        <details className="group/others mt-2" open={!autoActive || undefined} data-other-exports>
+          <summary className="flex cursor-pointer list-none gap-1.5 rounded-[10px] py-1.5 [&::-webkit-details-marker]:hidden">
+            <ChevronDown aria-hidden className="mt-[3px] size-4 shrink-0 -rotate-90 text-muted transition-transform group-open/others:rotate-0" />
+            <span className="min-w-0">
+              <span className="block text-[13.5px] font-semibold text-ink">Autres façons d’exporter</span>
+              <span className="block text-[12.5px] leading-snug text-muted">{otherNames.join(", ")}</span>
+            </span>
+          </summary>
+          {others}
+        </details>
+      ) : (
+        others
+      )}
 
       {history === null ? (
         <p className="mt-2 text-[12.5px] text-muted">L’historique des exports sera disponible après la mise à jour de la base de données du site.</p>

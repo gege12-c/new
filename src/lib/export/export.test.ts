@@ -98,11 +98,17 @@ describe("une même séance produit un .zwo et un FIT valides", () => {
 });
 
 describe("ZwiftExporter", () => {
-  it("refuse la natation", () => {
-    const result = exportSegment("zwift", single(swimCss), ctx("Natation"));
-    expect(result.ok).toBe(false);
-    expect(result.issues[0]).toMatchObject({ severity: "blocking" });
+  it("vélo seulement : natation et course refusées avec un message clair", () => {
+    const swim = exportSegment("zwift", single(swimCss), ctx("Natation"));
+    expect(swim.ok).toBe(false);
+    expect(swim.issues[0]).toMatchObject({ severity: "blocking", message: "Zwift : export proposé pour le vélo seulement." });
+    const run = exportSegment("zwift", segments(brick)[1], ctx("Enchaînement"));
+    expect(run.ok).toBe(false);
+    expect(run.issues[0].message).toBe("Zwift : export proposé pour le vélo seulement.");
   });
+
+  // Le générateur .zwo sait toujours écrire la course sur tapis (format documenté), même si
+  // l'application ne la propose plus : ces tests gardent la conversion juste si elle revient.
 
   it("course : allures en fraction de l'allure de référence, transition retirée", () => {
     const run = segments(brick)[1];
@@ -141,15 +147,13 @@ describe("ZwiftExporter", () => {
     const run = segment("run", [
       { kind: "step", id: "a", type: "active", length: { unit: "time", seconds: 600 }, targets: [{ metric: "heart_rate", unit: "zone", min: 2, max: 2 }] },
     ]);
-    const result = exportSegment("zwift", run, ctx("FC"));
-    expect(result.ok).toBe(false);
+    const result = buildZwo(run, ctx("FC"));
     expect(result.issues.find((i) => i.severity === "blocking")?.message).toMatch(/ajoutez une cible d'allure/);
   });
 
   it("allure absolue sans allure seuil : export bloqué avec la marche à suivre", () => {
     const run = segments(brick)[1];
-    const blocked = exportSegment("zwift", run, ctx("Enchaînement", { bike: { ftpW: 250 } }));
-    expect(blocked.ok).toBe(false);
+    const blocked = buildZwo(run, ctx("Enchaînement", { bike: { ftpW: 250 } }));
     expect(blocked.issues.find((i) => i.severity === "blocking")?.message).toMatch(/enregistrez l'allure seuil/);
     // Garmin, lui, accepte l'allure absolue telle quelle.
     expect(exportSegment("garmin", run, ctx("Enchaînement", { bike: { ftpW: 250 } })).ok).toBe(true);
@@ -301,11 +305,10 @@ describe("GarminConnector (FIT de séance)", () => {
 });
 
 describe("rapports de compatibilité", () => {
-  it("un enchaînement donne un fichier par discipline et par fournisseur", () => {
+  it("un enchaînement donne un fichier par discipline et par fournisseur (Zwift : le vélo seulement)", () => {
     const reports = compatibilityReports(segments(brick), ctx("Enchaînement"));
     expect(reports.map((r) => [r.provider, r.sport, r.ok, r.fileName])).toEqual([
       ["zwift", "bike", true, "Enchainement-1-bike.zwo"],
-      ["zwift", "run", true, "Enchainement-2-run.zwo"],
       ["garmin", "bike", true, "Enchainement-1-bike.fit"],
       ["garmin", "run", true, "Enchainement-2-run.fit"],
     ]);
