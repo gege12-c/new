@@ -37,7 +37,7 @@ const SECTIONS: Section[] = [
   { key: "session_feedback", read: ({ supabase, userId }) => supabase.from("session_completions").select("*").eq("athlete_id", userId).order("created_at") },
   {
     key: "imported_activities",
-    read: ({ supabase, userId }) => supabase.from("activities").select("*").eq("athlete_id", userId).eq("source", "fit_upload").order("start_time"),
+    read: ({ supabase, userId }) => supabase.from("activities").select("*").eq("athlete_id", userId).in("source", ["fit_upload", "intervals"]).order("start_time"),
   },
   { key: "activity_matches", read: ({ supabase, userId }) => supabase.from("session_activity_matches").select("*").eq("athlete_id", userId) },
   { key: "exports", read: ({ supabase, userId }) => supabase.from("workout_exports").select("*").eq("athlete_id", userId).order("created_at") },

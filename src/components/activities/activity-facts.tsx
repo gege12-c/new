@@ -26,10 +26,29 @@ export function ViewOnStrava({ externalId, className }: { externalId: string; cl
   );
 }
 
+const SOURCE_LABELS: Record<CalendarActivity["source"], string> = { strava: "Strava", fit_upload: "Fichier FIT", intervals: "Montre, via intervals.icu" };
+export const SOURCE_SHORT: Record<CalendarActivity["source"], string> = { strava: "Strava", fit_upload: "fichier FIT", intervals: "montre" };
+
+/** Lien vers l'activité chez intervals.icu (l'athlète peut l'y corriger ou la supprimer). */
+function ViewOnIntervals({ externalId }: { externalId: string }) {
+  return (
+    <a
+      href={`https://intervals.icu/activities/${encodeURIComponent(externalId)}`}
+      target="_blank"
+      rel="noreferrer"
+      className="inline-flex items-center gap-1 text-[13px] font-semibold text-ink underline underline-offset-4 hover:decoration-2"
+    >
+      Voir sur intervals.icu
+      <ExternalLink className="size-3.5" aria-hidden />
+      <span className="sr-only">(nouvel onglet)</span>
+    </a>
+  );
+}
+
 export function SourceBadge({ activity }: { activity: Pick<CalendarActivity, "source"> }) {
   return (
     <span className="rounded-[6px] bg-surface-3 px-1.5 py-[2px] text-[11.5px] font-semibold text-ink-soft">
-      {activity.source === "strava" ? "Strava" : "Fichier FIT"}
+      {SOURCE_LABELS[activity.source]}
     </span>
   );
 }
@@ -85,6 +104,12 @@ export function ActivityFacts({ activity, timeZone, children }: { activity: Cale
               Effacée de TriCoach le {dayFormat(activity.expires_at, timeZone)}
             </span>
           ) : null}
+        </div>
+      ) : null}
+      {activity.source === "intervals" ? (
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-2.5">
+          <ViewOnIntervals externalId={activity.external_id} />
+          <span className="text-[12px] text-muted">Reçue de votre montre par intervals.icu : pour la corriger ou la retirer, faites-le là-bas.</span>
         </div>
       ) : null}
       {children ? <div className="mt-3 flex flex-wrap gap-2 border-t border-line pt-3">{children}</div> : null}

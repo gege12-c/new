@@ -1,5 +1,5 @@
 /**
- * Format normalisé d'une activité réalisée, quelle que soit sa source (Strava, fichier FIT).
+ * Format normalisé d'une activité réalisée, quelle que soit sa source (Strava, fichier FIT, intervals.icu).
  * Les bornes reprennent les contraintes de la table `activities` : une valeur aberrante est
  * écartée (null) plutôt que de bloquer l'enregistrement de toute l'activité.
  */
@@ -7,7 +7,10 @@ import { z } from "zod";
 
 export const ACTIVITY_SPORTS = ["swim", "bike", "run", "strength", "other"] as const;
 export type ActivitySport = (typeof ACTIVITY_SPORTS)[number];
-export type ActivitySource = "strava" | "fit_upload";
+export type ActivitySource = "strava" | "fit_upload" | "intervals";
+
+/** Sources durables (fichier, montre) : comptées dans les statistiques, contrairement au cache Strava. */
+export const DURABLE_SOURCES = ["fit_upload", "intervals"] as const;
 
 export interface ActivityFields {
   external_id: string;

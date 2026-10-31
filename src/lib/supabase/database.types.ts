@@ -14,6 +14,7 @@ export type Database = {
           created_at: string;
           device_name: string | null;
           distance_m: number | null;
+          duplicate_of: string | null;
           elapsed_s: number | null;
           elevation_gain_m: number | null;
           expires_at: string | null;
@@ -48,6 +49,7 @@ export type Database = {
           created_at?: string;
           device_name?: string | null;
           distance_m?: number | null;
+          duplicate_of?: string | null;
           elapsed_s?: number | null;
           elevation_gain_m?: number | null;
           expires_at?: string | null;
@@ -81,6 +83,7 @@ export type Database = {
           created_at?: string;
           device_name?: string | null;
           distance_m?: number | null;
+          duplicate_of?: string | null;
           elapsed_s?: number | null;
           elevation_gain_m?: number | null;
           expires_at?: string | null;
@@ -117,6 +120,13 @@ export type Database = {
             columns: ["connection_id"];
             isOneToOne: false;
             referencedRelation: "external_connections";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "activities_duplicate_of_fkey";
+            columns: ["duplicate_of"];
+            isOneToOne: false;
+            referencedRelation: "activities";
             referencedColumns: ["id"];
           },
         ];
@@ -485,6 +495,8 @@ export type Database = {
       };
       external_connections: {
         Row: {
+          activities_skipped: number;
+          activities_synced_at: string | null;
           athlete_id: string;
           connected_at: string;
           external_athlete_id: string;
@@ -500,6 +512,8 @@ export type Database = {
         };
         ComputedFields: never;
         Insert: {
+          activities_skipped?: number;
+          activities_synced_at?: string | null;
           athlete_id: string;
           connected_at?: string;
           external_athlete_id: string;
@@ -514,6 +528,8 @@ export type Database = {
           updated_at?: string;
         };
         Update: {
+          activities_skipped?: number;
+          activities_synced_at?: string | null;
           athlete_id?: string;
           connected_at?: string;
           external_athlete_id?: string;
@@ -1570,6 +1586,7 @@ export type Database = {
         Args: { p_base: Json; p_payload: Json; p_session: string };
         Returns: Json;
       };
+      schema_version: { Args: Record<PropertyKey, never>; Returns: string };
       set_coach_permissions: {
         Args: { p_can_edit_plan: boolean; p_can_view_activities: boolean; p_link_id: string };
         Returns: undefined;

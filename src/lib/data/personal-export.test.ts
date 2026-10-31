@@ -13,6 +13,7 @@ function fakeSession(tables: Record<string, Table>): Session {
       const builder = {
         select: () => builder,
         eq: () => builder,
+        in: () => builder,
         or: () => builder,
         order: () => builder,
         maybeSingle: () => {

@@ -25,17 +25,24 @@ export interface DeviceAccount {
   /** Séances déposées, et séances refusées (raison dans la séance). */
   sent: number;
   failed: number;
+  /** intervals.icu : activités reçues de la montre, dernière réception, et activités non transmises (venues de Strava). */
+  activities?: { count: number; syncedAt: string | null; fromStrava: number };
 }
 
 /** Comptes de montre de l'athlète connecté ; « schema_pending » tant que la base n'est pas à jour. */
 export async function getDeviceAccounts(supabase: ServerSupabase, userId: string): Promise<Record<DeviceProvider, DeviceAccount | null> | "schema_pending"> {
-  const [connections, workouts] = await Promise.all([
-    supabase.from("external_connections").select("provider, status, external_athlete_id, connected_at, last_sync_at, last_error").in("provider", ["intervals", "suunto"]),
+  const [connections, workouts, received] = await Promise.all([
+    supabase
+      .from("external_connections")
+      .select("provider, status, external_athlete_id, connected_at, last_sync_at, last_error, activities_synced_at, activities_skipped")
+      .in("provider", ["intervals", "suunto"]),
     supabase.from("device_workouts").select("provider, status").eq("athlete_id", userId),
+    supabase.from("activities").select("id", { count: "exact", head: true }).eq("athlete_id", userId).eq("source", "intervals").is("duplicate_of", null),
   ]);
-  if (isMissingSchema(connections.error) || isMissingSchema(workouts.error)) return "schema_pending";
+  if (isMissingSchema(connections.error) || isMissingSchema(workouts.error) || isMissingSchema(received.error)) return "schema_pending";
   if (connections.error) throw connections.error;
   if (workouts.error) throw workouts.error;
+  if (received.error) throw received.error;
   const account = (provider: DeviceProvider): DeviceAccount | null => {
     const row = (connections.data ?? []).find((c) => c.provider === provider);
     if (!row) return null;
@@ -48,6 +55,9 @@ export async function getDeviceAccounts(supabase: ServerSupabase, userId: string
       lastError: (row.last_error as DeviceLastError) ?? null,
       sent: rows.filter((r) => r.status === "sent").length,
       failed: rows.filter((r) => r.status === "failed").length,
+      ...(provider === "intervals"
+        ? { activities: { count: received.count ?? 0, syncedAt: row.activities_synced_at, fromStrava: row.activities_skipped ?? 0 } }
+        : {}),
     };
   };
   return { intervals: account("intervals"), suunto: account("suunto") };

@@ -13,7 +13,7 @@ Next.js 16 (TypeScript) + Supabase (PostgreSQL, Auth, RLS, Realtime), déployé 
 | Base | Supabase `supabase-rose-candle`, référence `ugqtfkuisaqjdnwxvogm`, Zurich |
 | État en direct | https://new-bay-one-76.vercel.app/api/health |
 
-Chaque push sur `main` redéploie l'application. Les fonctions Vercel tournent à Francfort (`vercel.json`), au plus près de la base. La page `/api/health` indique si l'URL et la clé Supabase du déploiement sont valides (`"supabase": "ok"`) et si la confirmation d'email est exigée (`"emailConfirmation"`) ; elle n'affiche que des informations déjà publiques.
+Chaque push sur `main` redéploie l'application. Les fonctions Vercel tournent à Francfort (`vercel.json`), au plus près de la base. La page `/api/health` indique si l'URL et la clé Supabase du déploiement sont valides (`"supabase": "ok"`), si la confirmation d'email est exigée (`"emailConfirmation"`), si la base a toutes les migrations du déploiement (`"database": "current"`, sinon `"update_pending"` : voir « Mettre à jour la base de production ») et quelles variables serveur sont présentes (`"features"` : oui ou non, jamais leur valeur).
 
 ### 1. Projet Vercel (fait)
 
@@ -81,7 +81,7 @@ Règles de Strava appliquées : les activités Strava ne sont visibles que de l'
 
 ### Contrôle automatique de la production
 
-Après chaque déploiement de `main` réussi, le workflow GitHub « Production » lance `node scripts/production-smoke.mjs` contre le site en ligne : santé et Supabase (`/api/health`), version déployée, page de connexion, en-têtes de sécurité, HTTPS imposé, manifeste, icônes et service worker, refus des visiteurs anonymes. Aucun compte ni secret n'est utilisé ; il se lance aussi à la main (Actions > Production > Run workflow).
+Après chaque déploiement de `main` réussi, le workflow GitHub « Production » lance `node scripts/production-smoke.mjs` contre le site en ligne : santé et Supabase (`/api/health`), version déployée, page de connexion, en-têtes de sécurité, HTTPS imposé, manifeste, icônes et service worker, refus des visiteurs anonymes ; il signale aussi, sans échouer, une base à mettre à jour et les variables serveur manquantes. Aucun compte ni secret n'est utilisé ; il se lance aussi à la main (Actions > Production > Run workflow).
 
 ### Mettre à jour la base de production
 

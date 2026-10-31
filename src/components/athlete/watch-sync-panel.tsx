@@ -53,7 +53,34 @@ function AccountState({ account, where, timeZone }: { account: DeviceAccount; wh
         </p>
       </div>
       {account.lastError && account.lastError !== "reauth_required" ? <Notice tone="warning">{ERRORS[account.lastError]}</Notice> : null}
+      {account.activities ? <ActivitiesState activities={account.activities} timeZone={timeZone} /> : null}
     </>
+  );
+}
+
+/** Retour des activités faites avec la montre, par intervals.icu. */
+function ActivitiesState({ activities, timeZone }: { activities: NonNullable<DeviceAccount["activities"]>; timeZone: string }) {
+  return (
+    <div className="space-y-2 text-[13.5px] text-ink-soft">
+      <p>
+        {activities.syncedAt ? (
+          <>
+            Activités faites : <span className="figure font-semibold text-ink">{activities.count}</span> reçue{activities.count > 1 ? "s" : ""} de votre montre par
+            intervals.icu (dernière réception le {when(activities.syncedAt, timeZone)}). Elles sont rattachées à vos séances et comptent dans votre progression.
+          </>
+        ) : (
+          "Activités faites : première réception en cours (les 90 derniers jours)."
+        )}
+      </p>
+      {activities.fromStrava ? (
+        <Notice tone="warning">
+          {activities.fromStrava > 1
+            ? `${activities.fromStrava} activités récentes viennent de Strava chez intervals.icu, qui ne les transmet pas.`
+            : "Une activité récente vient de Strava chez intervals.icu, qui ne la transmet pas."}{" "}
+          Pour les recevoir ici, reliez votre montre directement à intervals.icu (Settings), ou connectez Strava à TriCoach.
+        </Notice>
+      ) : null}
+    </div>
   );
 }
 
@@ -112,8 +139,8 @@ export async function WatchSyncPanel({
                   <Notice tone="warning">intervals.icu refuse la clé enregistrée (changée ou supprimée) : collez votre nouvelle clé pour que vos séances repartent.</Notice>
                 ) : (
                   <p className="text-[13.5px] text-ink-soft">
-                    intervals.icu, partenaire officiel de Suunto, Garmin et COROS, transmet à votre montre les séances que TriCoach dépose dans son calendrier. Gratuit, à
-                    faire une fois :
+                    intervals.icu, partenaire officiel de Suunto, Garmin et COROS, transmet à votre montre les séances que TriCoach dépose dans son calendrier, et
+                    renvoie à TriCoach les activités faites avec la montre. Gratuit, à faire une fois :
                   </p>
                 )}
                 <ol className="list-decimal space-y-1 pl-5 text-[13.5px] text-ink-soft">
@@ -178,7 +205,9 @@ export async function WatchSyncPanel({
               Suunto : au lancement du sport, choisissez la séance parmi les guides SuuntoPlus. Garmin et COROS : la séance du jour est dans le calendrier d’entraînement de la
               montre (le menu varie selon le modèle).
             </li>
-            <li>TriCoach n’envoie que vos séances publiées, cibles comprises ; vos activités reviennent par Strava, comme avant.</li>
+            <li>
+              TriCoach n’envoie que vos séances publiées, cibles comprises. Une même activité reçue par Strava et par intervals.icu n’est comptée qu’une fois.
+            </li>
           </ul>
         </div>
       )}

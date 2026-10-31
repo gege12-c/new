@@ -6,6 +6,10 @@
  *
  * Synchronisation idempotente : chaque séance est déposée sous son identifiant externe (création ou
  * mise à jour), seulement quand elle a changé ; celles qui ne sont plus prévues sont retirées.
+ *
+ * Retour : les activités faites avec la montre, qu'intervals.icu reçoit de Suunto, Garmin ou COROS,
+ * reviennent dans TriCoach (source « intervals ») ; celles qu'il tient de Strava ne sont pas
+ * transmises par son API. Une activité retirée chez intervals.icu l'est aussi ici (période relue).
  */
 import "server-only";
 import { createHash } from "node:crypto";
@@ -27,6 +31,7 @@ import { currentThresholds, toAthleteThresholds, type ThresholdRow } from "@/lib
 import { localDate } from "@/lib/utils";
 import { parseWorkout } from "@/lib/workout/schema";
 import { IntervalsApi, IntervalsError, type IntervalsEvent } from "./api";
+import { INTERVALS_HISTORY_DAYS, INTERVALS_RECENT_DAYS, normalizeIntervalsActivity, sameActivity } from "./activities";
 import { buildIntervalsEvents, intervalsExternalId, INTERVALS_FORMAT_VERSION, INTERVALS_WINDOW_DAYS, type IntervalsBuild } from "./workout";
 
 export interface IntervalsDeps {
@@ -257,6 +262,8 @@ export interface IntervalsSyncReport {
   sent: number;
   deleted: number;
   failed: number;
+  /** Activités reçues (nouvelles ou modifiées) et retirées (supprimées chez intervals.icu). */
+  activities?: { saved: number; removed: number; fromStrava: number };
 }
 
 /** Dépose les séances nouvelles ou modifiées, retire celles qui ne sont plus prévues. */
@@ -361,8 +368,72 @@ export async function syncIntervals(deps: IntervalsDeps, connection: DeviceConne
   }
   if (stale.length) await deps.admin.from("device_workouts").delete().in("id", stale.map((r) => r.id));
 
+  report.activities = await pullActivities(deps, connection, today);
+
   await deps.admin.from("external_connections").update({ last_sync_at: deps.now().toISOString(), last_error: null, last_error_at: null }).eq("id", connection.id);
   return report;
+}
+
+const ACTIVITY_SELECT =
+  "id, external_id, sport, sport_detail, name, start_time, local_date, local_start_time, timezone, elapsed_s, moving_s, distance_m, elevation_gain_m, avg_hr, max_hr, avg_power, weighted_power, max_power, avg_cadence, avg_speed_mps, trainer, manual, device_name";
+
+/**
+ * Activités faites : 90 jours à la première réception, puis les 14 derniers jours à chaque passage.
+ * Seules les activités nouvelles ou modifiées sont écrites (chaque écriture relance le rapprochement).
+ */
+async function pullActivities(deps: IntervalsDeps, connection: DeviceConnection, today: string) {
+  const { data: state } = await deps.admin
+    .from("external_connections")
+    .select("activities_synced_at")
+    .eq("id", connection.id)
+    .maybeSingle();
+  const { data: profile } = await deps.admin.from("profiles").select("timezone").eq("id", connection.athlete_id).maybeSingle();
+  const timeZone = profile?.timezone ?? "Europe/Paris";
+  const oldest = addDays(today, -(state?.activities_synced_at ? INTERVALS_RECENT_DAYS : INTERVALS_HISTORY_DAYS));
+  const newest = addDays(today, 1);
+
+  const listed = await withKey(deps, connection, (key) => deps.api.activities(key, oldest, newest));
+  let fromStrava = 0;
+  const upstream = new Map<string, ReturnType<typeof normalizeIntervalsActivity> & { kind: "activity" }>();
+  for (const raw of listed) {
+    const outcome = normalizeIntervalsActivity(raw, timeZone);
+    if (outcome.kind === "strava") fromStrava += 1;
+    if (outcome.kind === "activity" && outcome.fields.local_date >= oldest && outcome.fields.local_date <= newest) upstream.set(outcome.fields.external_id, outcome);
+  }
+
+  const { data: stored, error } = await deps.admin
+    .from("activities")
+    .select(ACTIVITY_SELECT)
+    .eq("athlete_id", connection.athlete_id)
+    .eq("source", "intervals")
+    .gte("local_date", oldest)
+    .lte("local_date", newest);
+  if (error) throw new Error(`Activités reçues illisibles : ${error.message}`);
+  const storedByExternal = new Map((stored ?? []).map((row) => [row.external_id, row]));
+
+  const changed = [...upstream.values()]
+    .filter(({ fields }) => {
+      const row = storedByExternal.get(fields.external_id);
+      return !row || !sameActivity(row as unknown as Record<string, unknown>, fields);
+    })
+    .map(({ fields }) => ({ ...fields, athlete_id: connection.athlete_id, source: "intervals" as const, fetched_at: deps.now().toISOString() }));
+  for (let i = 0; i < changed.length; i += 50) {
+    const { error: saveError } = await deps.admin.from("activities").upsert(changed.slice(i, i + 50), { onConflict: "athlete_id,source,external_id" });
+    if (saveError) throw new Error(`Activités non enregistrées : ${saveError.message}`);
+  }
+  const gone = (stored ?? []).filter((row) => !upstream.has(row.external_id)).map((row) => row.id);
+  if (gone.length) {
+    const { error: removeError } = await deps.admin.from("activities").delete().in("id", gone);
+    if (removeError) throw new Error(`Activités retirées non effacées : ${removeError.message}`);
+  }
+  await deps.admin
+    .from("external_connections")
+    .update({ activities_synced_at: deps.now().toISOString(), activities_skipped: fromStrava })
+    .eq("id", connection.id);
+  if (changed.length || gone.length) {
+    await log(deps, { level: "info", event: "intervals_activities", message: `${changed.length} reçue(s), ${gone.length} retirée(s)`, athleteId: connection.athlete_id });
+  }
+  return { saved: changed.length, removed: gone.length, fromStrava };
 }
 
 /** Exécute les dépôts dus (un seul à la fois par compte), dans le temps imparti. */

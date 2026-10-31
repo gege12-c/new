@@ -37,6 +37,17 @@ TriCoach écrit chaque séance dans le format texte de l'éditeur d'intervals.ic
 
 Dans chaque fiche de séance, rubrique « Exporter vers mes appareils », « Sur la montre » : où en est l'envoi (déposée le…, mise à jour en cours, partira le…, non envoyée et pourquoi) et le contrôle de ce que la montre suivra.
 
+## Retour des activités faites
+
+Le même lien sert dans l'autre sens : les activités qu'intervals.icu reçoit de la montre (Suunto, Garmin, COROS) reviennent dans TriCoach, sans import de fichier. API officielle : liste des activités d'une période (`GET /api/v1/athlete/0/activities?oldest=…&newest=…`, résumés : durées, distance, dénivelé, fréquence cardiaque, puissance, cadence, vitesse).
+
+- Première réception : les 90 derniers jours (de quoi nourrir la courbe de condition) ; ensuite, les 14 derniers jours à chaque passage. Une activité modifiée chez intervals.icu l'est aussi ici ; une activité supprimée chez intervals.icu dans ces 14 jours l'est aussi ici (au-delà, elle reste).
+- Quand : à chaque envoi de séances, à l'ouverture de l'accueil ou du calendrier (au plus toutes les 10 minutes), par la tâche quotidienne et par « Envoyer maintenant ». Ce qui arrive s'affiche en direct.
+- Rattachées aux séances prévues comme les autres activités, visibles des coachs que l'athlète autorise à voir ses activités, comptées dans la progression et la courbe de condition (ce sont les données de l'athlète, pas celles de Strava).
+- Celles qu'intervals.icu reçoit de Strava ne sont jamais transmises par son API (règles de Strava) : TriCoach les compte et le dit dans le profil, sans rien deviner. Il suffit de relier la montre directement à intervals.icu.
+- Une même séance faite arrivée par plusieurs chemins (Strava, intervals.icu, fichier FIT) n'est comptée qu'une fois : même discipline, départ à 5 minutes près, durée à 20 % près. L'original est l'activité de la montre ou du fichier ; la copie Strava reste en doublon caché, et une décision prise sur elle (rattachement, séance écartée) passe à l'original.
+- Pour corriger ou retirer une activité reçue : chez intervals.icu (lien « Voir sur intervals.icu » dans l'activité).
+
 ## Suunto en direct (dès l'accès partenaire)
 
 TriCoach construit lui-même le guide SuuntoPlus (format « sequence » de l'API Guides de Suunto) : par étape, la cible et sa valeur en direct, le compte à rebours, la fréquence cardiaque et une consigne ; un tour au début de chaque étape ; une étape « Fin » avec le temps total. Archive zip (manifest.json, guide.json, icône 300 × 300) contrôlée avant chaque envoi. À l'activation : variables `SUUNTO_CLIENT_ID`, `SUUNTO_CLIENT_SECRET`, `SUUNTO_SUBSCRIPTION_KEY` et `SUUNTO_APP_NAME` (nom exact de l'application chez Suunto) dans Vercel, adresse de retour `https://<site>/api/suunto/callback` déclarée chez Suunto ; facultatif : `SUUNTO_ACTIVITIES` (« run:1,bike:2 », modes sportifs Suunto proposant le guide).
@@ -46,7 +57,7 @@ TriCoach construit lui-même le guide SuuntoPlus (format « sequence » de l'API
 - Base : table `device_workouts` (une ligne par séance et par discipline envoyée : identifiant chez le fournisseur, version et empreinte envoyées, état, raison d'un échec), lisible par l'athlète et ses coachs, écrite par le serveur seul ([SCHEMA.md](SCHEMA.md)).
 - Chaque changement d'une séance publiée ou des seuils met un envoi en file (déclencheurs de la base), pour chaque compte relié actif ; l'envoi part aussitôt après l'action du coach, et la tâche quotidienne fait avancer la fenêtre d'un jour.
 - Un envoi est un rapprochement idempotent : identifiant externe `tricoach-<séance>-<partie>`, renvoi seulement si la séance ou les seuils ont changé, retrait de ce qui n'est plus prévu. Un seul envoi à la fois par compte (bail en base) ; quota du fournisseur : envoi reporté sans compter d'échec.
-- Code : `src/lib/intervals/` (client, conversion, envois), `src/lib/suunto/` (client OAuth et guides, conversion, archive, envois), `src/lib/devices/` (file commune).
+- Code : `src/lib/intervals/` (client, conversion des séances, activités reçues, envois), `src/lib/suunto/` (client OAuth et guides, conversion, archive, envois), `src/lib/devices/` (file commune) ; `POST /api/devices/refresh` (relecture à l'ouverture d'une page).
 
 ## Limites
 
@@ -59,6 +70,7 @@ TriCoach construit lui-même le guide SuuntoPlus (format « sequence » de l'API
 - [intervals.icu : dépôt des séances prévues par l'API (lot, identifiant externe, retrait)](https://forum.intervals.icu/t/uploading-planned-workouts-to-intervals-icu/63624)
 - [intervals.icu : format texte des séances](https://forum.intervals.icu/t/workout-builder-syntax-quick-guide/123701)
 - [intervals.icu : conditions d'utilisation de l'API](https://forum.intervals.icu/t/intervals-icu-api-terms-and-conditions/114087)
+- [intervals.icu : recueil d'intégration de l'API (activités d'une période, fichiers, données de forme)](https://forum.intervals.icu/t/intervals-icu-api-integration-cookbook/80090)
 - [intervals.icu : envoi vers les montres Suunto](https://forum.intervals.icu/t/upload-workouts-to-suunto-watches/9560)
 - [intervals.icu : envoi vers Garmin Connect](https://forum.intervals.icu/t/upload-planned-workouts-to-garmin-connect/1521)
 - [intervals.icu : COROS](https://forum.intervals.icu/t/coros-support-added/37006)

@@ -1,7 +1,8 @@
 /**
  * Faux intervals.icu, pour les tests uniquement : clé API personnelle (authentification « Basic »,
  * utilisateur API_KEY), profil de l'athlète, dépôt en lot des séances prévues par identifiant externe
- * (création ou mise à jour), retrait en lot, quota (429). Données entièrement fictives.
+ * (création ou mise à jour), retrait en lot, activités faites d'une période (celles reçues de Strava
+ * réduites à une note, comme le fait intervals.icu), quota (429). Données entièrement fictives.
  */
 import { createServer, type IncomingMessage, type Server } from "node:http";
 
@@ -28,7 +29,17 @@ export class FakeIntervals {
   rateLimitNext = 0;
   /** Séances refusées (422) à cause de leur contenu, par identifiant externe. */
   readonly reject = new Set<string>();
+  /** Activités faites, par athlète (format des résumés d'intervals.icu). */
+  readonly activities = new Map<string, Record<string, unknown>[]>();
   private counter = 1000;
+
+  addActivity(athlete: string, activity: Record<string, unknown>) {
+    this.activities.set(athlete, [...(this.activities.get(athlete) ?? []), activity]);
+  }
+
+  removeActivity(athlete: string, id: string) {
+    this.activities.set(athlete, (this.activities.get(athlete) ?? []).filter((a) => a.id !== id));
+  }
 
   addKey(key: string, athlete: string) {
     this.keys.set(key, athlete);
@@ -58,6 +69,23 @@ export class FakeIntervals {
     const body = typeof init?.body === "string" && init.body ? JSON.parse(init.body) : null;
 
     if (url.pathname === "/api/v1/athlete/0" && method === "GET") return this.json(200, { id: athlete, name: "Athlète de test" });
+
+    if (url.pathname === "/api/v1/athlete/0/activities" && method === "GET") {
+      const oldest = url.searchParams.get("oldest");
+      const newest = url.searchParams.get("newest");
+      if (!oldest || !newest) return this.json(400, { error: "oldest and newest are required" });
+      const inRange = (this.activities.get(athlete) ?? []).filter((a) => {
+        const day = String(a.start_date_local ?? "").slice(0, 10);
+        return day >= oldest && day <= newest;
+      });
+      // Comme intervals.icu : une activité reçue de Strava n'est pas transmise, seulement signalée.
+      return this.json(
+        200,
+        inRange.map((a) =>
+          a.source === "STRAVA" ? { id: a.id, start_date_local: a.start_date_local, type: a.type, source: "STRAVA", _note: "STRAVA activities are not available via the API" } : a,
+        ),
+      );
+    }
 
     if (url.pathname === "/api/v1/athlete/0/events/bulk" && method === "POST" && url.searchParams.get("upsert") === "true") {
       if (!Array.isArray(body)) return this.json(400, { error: "Expected an array" });
@@ -108,6 +136,7 @@ export class FakeIntervals {
         if (url.pathname.startsWith("/__control/")) {
           const payload = body ? JSON.parse(body) : {};
           if (url.pathname === "/__control/key") this.addKey(payload.key, payload.athlete);
+          if (url.pathname === "/__control/activity") this.addActivity(payload.athlete, payload.activity);
           const events = payload.athlete ? this.eventsOf(payload.athlete) : [];
           res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ ok: true, events }));
           return;

@@ -1,8 +1,9 @@
 /**
  * Séances sur la montre par intervals.icu, de bout en bout, contre un faux intervals.icu (données
  * fictives) : l'athlète colle sa clé dans son profil (refusée, puis acceptée), une séance publiée
- * part dans son calendrier intervals.icu et la fiche de la séance le dit, puis la déliaison retire
- * les séances déposées. L'envoi direct vers Suunto, lui, attend l'accès partenaire.
+ * part dans son calendrier intervals.icu et la fiche de la séance le dit ; l'activité faite avec la
+ * montre revient, rattachée à la séance de la veille ; puis la déliaison retire les séances
+ * déposées. L'envoi direct vers Suunto, lui, attend l'accès partenaire.
  */
 import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
@@ -23,7 +24,7 @@ async function control(name: string, payload: unknown) {
   return (await response.json()) as { events: { name: string; external_id: string; description: string; type: string }[] };
 }
 
-async function publishSession(date: string, title: string) {
+async function publishSession(date: string, title: string, plannedSeconds?: number) {
   const { athlete } = accounts();
   const serviceKey = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
   const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/planned_sessions`, {
@@ -35,6 +36,7 @@ async function publishSession(date: string, title: string) {
       sport: "bike",
       title,
       state: "published",
+      ...(plannedSeconds ? { planned_duration_s: plannedSeconds } : {}),
       content: {
         schemaVersion: 1,
         segments: [
@@ -54,11 +56,30 @@ async function publishSession(date: string, title: string) {
   return (await response.json())[0].id as string;
 }
 
-test("relier sa montre par intervals.icu : la séance publiée part, la fiche le dit, la déliaison la retire", async ({ browser }) => {
+test("relier sa montre par intervals.icu : la séance publiée part, l'activité revient, la déliaison retire les séances", async ({ browser }) => {
   test.skip(!process.env.SUPABASE_SECRET_KEY && !process.env.SUPABASE_SERVICE_ROLE_KEY, "Clé de service absente.");
   const date = addDays(isoDay(0), 2);
   const title = `Sweet spot ${Date.now()}`;
   const sessionId = await publishSession(date, title);
+  // Hier : une séance faite avec la montre, qu'intervals.icu a reçue de Suunto.
+  const yesterday = addDays(isoDay(0), -1);
+  const pastId = await publishSession(yesterday, `Endurance ${Date.now()}`, 1800);
+  await control("activity", {
+    athlete: intervalsAthlete,
+    activity: {
+      id: `i${Date.now()}`,
+      start_date_local: `${yesterday}T07:00:00`,
+      type: "Ride",
+      name: "Sortie avec la montre",
+      source: "SUUNTO",
+      file_type: "fit",
+      moving_time: 1790,
+      elapsed_time: 1800,
+      distance: 15_000,
+      average_heartrate: 141,
+      icu_average_watts: 201,
+    },
+  });
 
   const page = await signedIn(browser, "athlete");
   await page.goto("/athlete/profile#montre-auto");
@@ -93,11 +114,17 @@ test("relier sa montre par intervals.icu : la séance publiée part, la fiche le
   await expect(watch.getByText(/Déposée dans votre calendrier intervals\.icu/)).toBeVisible();
   await expect(watch.getByText(/séance complète, sans perte/i)).toBeVisible();
 
+  // L'activité faite avec la montre est revenue, rattachée à la séance d'hier.
+  await page.goto(`/athlete/calendar?view=day&date=${yesterday}&session=${pastId}`);
+  await expect(page.getByText("Montre, via intervals.icu").first()).toBeVisible();
+  await expect(page.getByRole("link", { name: /Voir sur intervals\.icu/ }).first()).toBeVisible();
+
   // Déliaison : les séances à venir quittent le calendrier intervals.icu, la clé est effacée.
   await page.goto("/athlete/profile#montre-auto");
   await panel.getByRole("button", { name: "Délier intervals.icu" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Délier" }).click();
-  await expect(panel.getByText(/intervals\.icu est délié/)).toBeVisible();
+  // La page se met à jour : le compte relié laisse place au formulaire de clé.
+  await expect(panel.getByText("Non relié", { exact: true })).toBeVisible();
   expect((await control("list", { athlete: intervalsAthlete })).events).toEqual([]);
   await page.reload();
   await expect(panel.getByText("Non relié", { exact: true })).toBeVisible();

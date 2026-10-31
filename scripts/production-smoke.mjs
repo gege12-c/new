@@ -43,6 +43,21 @@ check(health.status === 200 && report?.ok === true && report?.supabase === "ok",
 if (expectedCommit) check(report?.commit === expectedCommit.slice(0, 7), "version déployée", `${report?.commit ?? "inconnue"}, attendue ${expectedCommit.slice(0, 7)}`);
 check(report?.auth?.signup === "enabled", "inscriptions ouvertes");
 
+// Ce qui dépend de l'exploitant (mise à jour de la base, variables du serveur) : signalé, sans échec.
+function notice(ok, label, detail = "") {
+  console.log(`${ok ? "ok  " : "À FAIRE"} ${label}${detail ? ` : ${detail}` : ""}`);
+  if (!ok && process.env.GITHUB_ACTIONS) console.log(`::warning title=Production::${label}${detail ? ` : ${detail}` : ""}`);
+}
+notice(report?.database === "current", "base de données à jour", `${report?.database ?? "inconnu"} (attendue : ${report?.expectedSchema ?? "?"}, supabase/production/pending.sql)`);
+for (const [feature, label] of [
+  ["serverKey", "clé secrète Supabase (SUPABASE_SECRET_KEY)"],
+  ["encryption", "clé de chiffrement des comptes reliés (TOKEN_ENCRYPTION_KEY)"],
+  ["cron", "secret de la tâche quotidienne (CRON_SECRET)"],
+  ["strava", "application Strava (STRAVA_CLIENT_ID, STRAVA_CLIENT_SECRET)"],
+]) {
+  notice(report?.features?.[feature] === true, label, report?.features ? "" : "non indiqué par cette version");
+}
+
 const login = await get("/login");
 const html = await login.text();
 check(login.status === 200 && html.includes("Connexion"), "page de connexion");

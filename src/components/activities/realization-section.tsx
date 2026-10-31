@@ -10,7 +10,7 @@ import { formatDayMonth } from "@/lib/planning/dates";
 import { STATUS_LABELS, type SessionStatus } from "@/lib/planning/status";
 import { formatDistance, formatDurationShort, formatTimeOfDay } from "@/lib/workout/format";
 import { cn } from "@/lib/utils";
-import { ActivityFacts } from "./activity-facts";
+import { ActivityFacts, SOURCE_SHORT } from "./activity-facts";
 import { AttachButton, CompletionForm, DetachButton, ProposalButtons } from "./realization-actions";
 
 type SessionLike = Pick<CalendarSession, "id" | "sport" | "state" | "scheduled_date" | "planned_duration_s" | "planned_distance_m">;
@@ -118,7 +118,7 @@ function CandidateRow({ sessionId, activity }: { sessionId: string; activity: Ca
           {formatDayMonth(activity.local_date)}
           {activity.local_start_time ? `, ${formatTimeOfDay(activity.local_start_time)}` : ""}
           {duration ? `, ${formatDurationShort(duration)}` : ""}
-          {activity.source === "strava" ? ", Strava" : ", fichier FIT"}
+          {`, ${SOURCE_SHORT[activity.source]}`}
           {activity.attachedElsewhere ? ", rattachée à une autre séance" : ""}
         </span>
       </span>

@@ -1,6 +1,7 @@
 /**
  * Lectures des activités réalisées, sous les droits de l’utilisateur : la RLS ne montre les
  * activités Strava qu’à l’athlète lui-même (et jusqu’à leur expiration), jamais à ses coachs.
+ * Les doublons (même séance faite, arrivée par une autre source) ne sont jamais montrés.
  */
 import "server-only";
 import { addDays } from "@/lib/planning/dates";
@@ -45,6 +46,7 @@ export async function getRealizedInRange(supabase: ServerSupabase, athlete: stri
       .from("activities")
       .select(`${ACTIVITY_COLUMNS}, athlete_id, links:session_activity_matches(session_id, status)`)
       .in("athlete_id", ids)
+      .is("duplicate_of", null)
       .gte("local_date", from)
       .lte("local_date", to)
       .order("start_time", { ascending: true }),
@@ -122,6 +124,7 @@ export async function getSessionRealization(
       .from("activities")
       .select(`${ACTIVITY_COLUMNS}, links:session_activity_matches(session_id, status)`)
       .eq("athlete_id", session.athlete_id)
+      .is("duplicate_of", null)
       .gte("local_date", addDays(session.scheduled_date, -1))
       .lte("local_date", addDays(session.scheduled_date, 1))
       .order("start_time", { ascending: true }),

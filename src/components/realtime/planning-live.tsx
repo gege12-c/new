@@ -33,6 +33,30 @@ export function PlanningLive({
   const router = useRouter();
   const [state, setState] = useState<LiveState>("connecting");
 
+  // Activités faites avec la montre : relues chez intervals.icu à l'ouverture (au plus toutes les
+  // 10 minutes par athlète et par onglet) ; ce qui arrive est signalé par le canal ci-dessous.
+  useEffect(() => {
+    const key = `tc:devices-refresh:${athleteId}`;
+    const ask = () => {
+      if (document.visibilityState !== "visible") return;
+      try {
+        const last = Number(sessionStorage.getItem(key) ?? 0);
+        if (Date.now() - last < 10 * 60_000) return;
+        sessionStorage.setItem(key, String(Date.now()));
+      } catch {
+        // Stockage indisponible (navigation privée) : une demande par affichage, le serveur limite.
+      }
+      void fetch("/api/devices/refresh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(self ? {} : { athleteId }),
+      }).catch(() => undefined);
+    };
+    ask();
+    document.addEventListener("visibilitychange", ask);
+    return () => document.removeEventListener("visibilitychange", ask);
+  }, [athleteId, self]);
+
   useEffect(() => {
     const supabase = createClient();
     const channels: RealtimeChannel[] = [];

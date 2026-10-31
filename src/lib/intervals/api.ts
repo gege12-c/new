@@ -5,7 +5,9 @@
  * planned workouts to Intervals.icu ») : authentification « Basic » (utilisateur API_KEY, mot de
  * passe la clé), athlète 0 = celui de la clé ; création ou mise à jour en lot des séances prévues
  * par identifiant externe (POST /events/bulk?upsert=true), retrait en lot (PUT /events/bulk-delete,
- * les évènements absents sont ignorés). Quotas : 429 avec Retry-After.
+ * les évènements absents sont ignorés) ; activités faites d'une période (GET /activities?oldest&newest :
+ * résumés, sans les activités reçues de Strava, qu'intervals.icu ne transmet pas). Quotas : 429 avec
+ * Retry-After.
  */
 import { z } from "zod";
 
@@ -103,6 +105,18 @@ export class IntervalsApi {
     const rows = z.array(EventSchema).safeParse(body);
     if (!rows.success) throw new IntervalsError("invalid_response", "Réponse du dépôt des séances illisible.");
     return new Map(rows.data.filter((e) => e.external_id).map((e) => [e.external_id!, e.id]));
+  }
+
+  /** Activités faites entre deux dates locales (incluses), telles qu'intervals.icu les résume. */
+  async activities(key: string, oldest: string, newest: string): Promise<unknown[]> {
+    const body = await this.call(
+      key,
+      `/athlete/0/activities?oldest=${encodeURIComponent(oldest)}&newest=${encodeURIComponent(newest)}`,
+      {},
+      "Lecture des activités",
+    );
+    if (!Array.isArray(body)) throw new IntervalsError("invalid_response", "Liste d'activités d'intervals.icu illisible.");
+    return body;
   }
 
   /** Retire des séances déposées par TriCoach ; celles qui n'existent plus sont ignorées. */

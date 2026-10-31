@@ -13,6 +13,7 @@ import {
   type FitnessPoint,
   type LoadActivity,
 } from "@/lib/stats/fitness";
+import { DURABLE_SOURCES } from "@/lib/activities/schema";
 import { isMissingSchema } from "@/lib/supabase/schema";
 import type { ServerSupabase } from "@/lib/supabase/server";
 import { currentThresholds, toAthleteThresholds } from "@/lib/thresholds";
@@ -41,14 +42,14 @@ export async function getFitnessData(supabase: ServerSupabase, athleteId: string
   const [sessions, thresholdRows, activities, completions, matches] = await Promise.all([
     getSessionsInRange(supabase, athleteId, start, horizon),
     getThresholds(supabase, athleteId),
-    supabase.from("activities").select(ACTIVITY_COLUMNS).eq("athlete_id", athleteId).eq("source", "fit_upload").gte("local_date", start).lte("local_date", today).limit(3000),
+    supabase.from("activities").select(ACTIVITY_COLUMNS).eq("athlete_id", athleteId).in("source", [...DURABLE_SOURCES]).is("duplicate_of", null).gte("local_date", start).lte("local_date", today).limit(3000),
     supabase.from("session_completions").select("session_id, status, rpe").eq("athlete_id", athleteId).limit(3000),
     supabase
       .from("session_activity_matches")
       .select("session_id, activity_id, activity:activities!inner(source)")
       .eq("athlete_id", athleteId)
       .in("status", ["auto", "confirmed"])
-      .eq("activity.source", "fit_upload")
+      .in("activity.source", [...DURABLE_SOURCES])
       .limit(3000),
   ]);
   for (const result of [activities, completions, matches]) {

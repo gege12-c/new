@@ -2,6 +2,7 @@
 import "server-only";
 import { addDays } from "@/lib/planning/dates";
 import { adherence, fitRecords, intensityDistribution, lastWeeks, thresholdSeries, weeklyVolumes, type Adherence, type IntensityDistribution, type RecordEntry, type StatActivity, type ThresholdSeries, type WeekVolume } from "@/lib/stats/stats";
+import { DURABLE_SOURCES } from "@/lib/activities/schema";
 import { isMissingSchema } from "@/lib/supabase/schema";
 import type { ServerSupabase } from "@/lib/supabase/server";
 import { currentThresholds, toAthleteThresholds } from "@/lib/thresholds";
@@ -42,8 +43,8 @@ export async function getStatsData(supabase: ServerSupabase, athleteId: string, 
   const [sessions, thresholdRows, recent, all, fitness] = await Promise.all([
     getSessionsInRange(supabase, athleteId, from, to),
     getThresholds(supabase, athleteId),
-    supabase.from("activities").select(ACTIVITY_COLUMNS).eq("athlete_id", athleteId).eq("source", "fit_upload").gte("local_date", from).lte("local_date", to),
-    supabase.from("activities").select(ACTIVITY_COLUMNS).eq("athlete_id", athleteId).eq("source", "fit_upload").order("local_date", { ascending: false }).limit(2000),
+    supabase.from("activities").select(ACTIVITY_COLUMNS).eq("athlete_id", athleteId).in("source", [...DURABLE_SOURCES]).is("duplicate_of", null).gte("local_date", from).lte("local_date", to),
+    supabase.from("activities").select(ACTIVITY_COLUMNS).eq("athlete_id", athleteId).in("source", [...DURABLE_SOURCES]).is("duplicate_of", null).order("local_date", { ascending: false }).limit(2000),
     getFitnessData(supabase, athleteId, today),
   ]);
   const activitiesAvailable = !recent.error;
@@ -66,7 +67,7 @@ export async function getStatsData(supabase: ServerSupabase, athleteId: string, 
             .select("session_id, activity:activities!inner(source)")
             .in("session_id", pastIds)
             .in("status", ["auto", "confirmed"])
-            .eq("activity.source", "fit_upload"),
+            .in("activity.source", [...DURABLE_SOURCES]),
         ])
       : [{ data: [], error: null }, { data: [], error: null }];
     if (completions.error && !isMissingSchema(completions.error)) throw completions.error;

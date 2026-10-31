@@ -234,6 +234,23 @@ Migration `20261030000000_device_workouts.sql`. Fonctionnement et limites : [WAT
 
 Sécurité : `device_workouts` lisible par l'athlète et ses coachs actifs (`has_athlete_access`), écrite par le serveur seul ; les fonctions ne sont accessibles qu'au serveur (`service_role`).
 
+### Activités reçues d'intervals.icu et doublons
+
+Migration `20261031000000_intervals_activities.sql`.
+
+| Table ou colonne | Rôle | Points clés |
+| --- | --- | --- |
+| `activities.source` | `strava`, `fit_upload` ou `intervals` (activités de la montre reçues par intervals.icu) | `intervals` : durable comme un fichier (ni connexion ni expiration), écrite par le serveur seul (aucune politique d'ajout ni de suppression pour l'API), lisible comme un fichier importé (l'athlète, et ses coachs autorisés à voir ses activités) |
+| `activities.duplicate_of` | même séance faite, arrivée par une autre source : l'original | jamais rapprochée, comptée ni affichée ; original effacé : le doublon le remplace (`on delete set null`, puis nouvelle résolution) |
+| `external_connections.activities_synced_at`, `activities_skipped` | dernière réception des activités, et activités qu'intervals.icu n'a pas transmises (reçues de Strava) | la première réception remonte à 90 jours, les suivantes à 14 |
+
+| Fonction | Usage |
+| --- | --- |
+| `private.same_workout(a, b)` | même athlète, sources différentes, même discipline, départ à 5 minutes près (heure locale comprise), durée à 20 % près |
+| `private.resolve_activity_duplicates(activité)` | désigne l'original du groupe (fichier ou montre avant Strava, puis le premier arrivé), marque les doublons, reporte sur l'original un rattachement confirmé et les séances écartées, puis recalcule les rapprochements ; appelée par le déclencheur `activities_dedupe`, qui passe avant `activities_rematch` |
+| `private.rematch_window` | ignore désormais les doublons |
+| `schema_version()` | dernière migration inscrite dans l'historique Supabase, lisible sans compte : le contrôle de production (`/api/health`) dit si la base attend sa mise à jour |
+
 ## Journal d'audit
 
 Chaque création, modification et suppression sur les profils sportifs, relations, invitations, seuils, compétitions et séances est enregistrée avec son auteur. Pour une modification, seules les colonnes changées sont conservées (ancienne et nouvelle valeur). Le contenu structuré d'une séance est noté « modifié » sans être recopié, car l'enregistrement automatique le réécrit souvent.
