@@ -42,6 +42,7 @@ import type { AthleteThresholds } from "@/lib/workout/zones";
 import { cn } from "@/lib/utils";
 import { WorkoutPreview } from "./preview";
 import { StructureEditor } from "./structure-editor";
+import { TextWorkoutButton } from "./text-workout";
 
 export interface SessionEditorProps {
   mode: "session" | "template";
@@ -703,7 +704,9 @@ export function SessionEditor(props: SessionEditorProps) {
                   >
                     Ajouter un segment
                   </button>
-                ) : null}
+                ) : (
+                  <TextWorkoutButton sport={sport} onApply={(workout) => updateContent(() => workout)} />
+                )}
               </div>
               {validation.general.length ? (
                 <Notice tone="error" className="mb-3">

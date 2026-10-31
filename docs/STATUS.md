@@ -2,7 +2,7 @@
 
 Dernière mise à jour : 31 octobre 2026, nuit. Phases 1 à 5 livrées ; depuis le 30 octobre : séances envoyées seules sur la montre par intervals.icu (Suunto, Garmin, COROS), envoi direct à Suunto prêt en attendant l'accès partenaire, retrait de Gourmatch de la base partagée. Détail ci-dessous ; ce qui vous reste à faire est en fin de page.
 
-## Nuit du 30 au 31 octobre : montre, activités de la montre, jours indisponibles, forme du jour, agenda du téléphone, plans, saison
+## Nuit du 30 au 31 octobre : montre, activités de la montre, jours indisponibles, forme du jour, agenda du téléphone, plans, saison, séance en texte
 
 Demandé le 30 octobre : « je veux juste que les séances préparées sur TriCoach soient exportables en guide sur ma montre », puis « fais ça pour Garmin et COROS également ». Une séance publiée part seule sur la montre de l'athlète, par intervals.icu, partenaire officiel de Suunto, Garmin et COROS ; l'envoi direct à Suunto est prêt pour le jour où Suunto ouvre son accès. Fonctionnement, conversion et limites : [WATCHES.md](WATCHES.md).
 
@@ -34,6 +34,8 @@ Livré :
 
 - **Publier les brouillons d'un coup** : après un plan appliqué en brouillon, le calendrier du coach propose « Publier N brouillons » pour la période affichée (confirmation ; les brouillons personnels de l'athlète ne sont pas touchés).
 - **Vue saison** (onglet « Saison » de la fiche athlète, et « Vue saison » du calendrier de l'athlète) : 8 semaines passées et 26 à venir, une ligne par semaine : volume publié par discipline (barre empilée), réalisé d'après les fichiers et la montre, brouillons, compétitions et jours indisponibles ; un clic ouvre la semaine dans le calendrier.
+
+- **Déroulé écrit en texte** (la syntaxe de l'éditeur d'intervals.icu, très utilisée par les coachs) : dans l'éditeur, « Écrire en texte », avec aperçu de ce qui est compris, problèmes ligne par ligne et un exemple par discipline ; « Remplacer le déroulé » le transforme en séance structurée, modifiable ensuite comme les autres. Règles : [WORKOUT_FORMAT.md](WORKOUT_FORMAT.md). 5 tests unitaires, parcours `e2e/text-workout.spec.ts`.
 
 Vérification des plans : 4 tests de base (`tests/db/training-plans.test.ts` : enregistrement sans les séances annulées et au bon jour, application en brouillon puis publiée, refus d'un jour autre que lundi, d'une période vide, d'un athlète inaccessible, d'un coach qui ne planifie pas, bibliothèque privée) ; parcours `e2e/plans.spec.ts` (une semaine enregistrée en plan, retrouvée dans la bibliothèque, appliquée quatre semaines plus tard en brouillon, publiée d'un coup et vue par l'athlète) ; parcours `e2e/season.spec.ts` ; audit d'accessibilité étendu à la vue saison et au panneau des notes.
 

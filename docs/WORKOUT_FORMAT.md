@@ -90,6 +90,21 @@ Une cible RPE est placée dans les zones pour le profil, les avertissements et l
 - Une cible ajoutée, ou changée d'unité, reçoit une intensité adaptée au type d'étape (une récupération n'hérite pas de l'intensité d'un bloc de travail), en valeurs absolues déduites des seuils de l'athlète s'il les a, sinon plausibles et à ajuster. Changer le type d'une étape fait suivre ses cibles restées à leur valeur de départ.
 - Profil sans seuil : une étape en W, bpm, km/h ou allure dont le seuil manque n'a pas de zone ; sa hauteur est seulement comparée aux autres étapes de la séance (barre grise), et le pointillé du seuil disparaît.
 
+## Écrire le déroulé en texte
+
+Dans l'éditeur, « Écrire en texte » (séance d'une seule discipline) accepte le déroulé écrit à la manière de l'éditeur d'intervals.icu, avec un aperçu de ce qui est compris et les problèmes ligne par ligne ; rien n'est appliqué sans « Remplacer le déroulé » (`src/lib/workout/text.ts`).
+
+| Écrit | Compris |
+| --- | --- |
+| `- 15m 55-70%` | une étape de 15 min, 55 à 70 % de la FTP (vélo) ou de l'allure seuil (course, natation) |
+| `4x Seuil` puis des lignes `- …` | une répétition (intitulé « Seuil ») jusqu'à la ligne vide |
+| une ligne sans tiret | intitulé des étapes qui suivent, jusqu'à la ligne vide |
+| `1h30m`, `15min`, `1m30s`, `45s` ; `2km`, `400mtr` (`400m` en natation) | durée ; distance (`m` seul = minutes, sauf en natation) |
+| `220w`, `Z2`, `Z2 HR`, `Z3 Pace`, `150bpm`, `90% LTHR`, `80% HR`, `4:30/km`, `4:20-4:30/km`, `1:40/100m`, `90rpm`, `175spm`, `RPE 6` | cibles ; `Z2` seul = zone de puissance à vélo, de FC ailleurs |
+| le reste de la ligne | intitulé de l'étape ; le type (échauffement, récupération, repos, éducatifs, retour au calme, transition) se déduit des mots, « travail » sinon |
+
+Rien n'est deviné : une étape sans durée ni distance est signalée, une cible impossible pour la discipline est refusée par le format, avec son message.
+
 ## Calculs : exact, estimé ou inconnu
 
 Rien n'est inventé : chaque durée ou distance est **exacte** (prescrite), **estimée** (déduite d'une hypothèse documentée) ou **inconnue**.
