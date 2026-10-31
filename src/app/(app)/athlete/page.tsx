@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { MiniProfile } from "@/components/calendar/session-chip";
 import { StatusGlyph } from "@/components/calendar/status-glyph";
 import { PageContainer } from "@/components/layout/page";
+import { GettingStarted, type StartStep } from "@/components/athlete/getting-started";
 import { WellnessCard } from "@/components/athlete/wellness-card";
 import { InstallCard } from "@/components/pwa/install-app";
 import { PlanningLive } from "@/components/realtime/planning-live";
@@ -16,6 +17,7 @@ import { getProfile, requireSession } from "@/lib/auth/dal";
 import { getEvents, getMyCoaches, getThresholds } from "@/lib/data/athlete";
 import { unattachedActivities, withRealization } from "@/lib/activities/realization";
 import { getRealizedInRange } from "@/lib/data/activities";
+import { getDeviceAccounts } from "@/lib/data/devices";
 import { getSessionsInRange, type CalendarSession } from "@/lib/data/planning";
 import { getWellness } from "@/lib/data/wellness";
 import { calendarHref } from "@/lib/planning/calendar-query";
@@ -23,6 +25,8 @@ import { addDays, dateRange, daysBetween, formatDayMonthLong, formatFullDate, fo
 import { sessionStatus, STATUS_LABELS } from "@/lib/planning/status";
 import { plannedVolume } from "@/lib/planning/volume";
 import { THRESHOLD_DEFS, currentThresholds, formatThresholdValue, toAthleteThresholds } from "@/lib/thresholds";
+import { isIntervalsReady } from "@/lib/intervals/config";
+import { isSuuntoReady } from "@/lib/suunto/config";
 import { todayIn } from "@/lib/time";
 import { computeTotals } from "@/lib/workout/compute";
 import { formatDistance, formatDurationShort, formatTimeOfDay } from "@/lib/workout/format";
@@ -100,7 +104,7 @@ async function AthleteHome({ searchParams }: Pick<PageProps<"/athlete">, "search
   const monday = startOfWeek(today);
   const weekAgo = addDays(today, -7);
   const from = weekAgo < monday ? weekAgo : monday;
-  const [planned, realized, events, coaches, thresholdRows, connection, wellness] = await Promise.all([
+  const [planned, realized, events, coaches, thresholdRows, connection, wellness, devices] = await Promise.all([
     getSessionsInRange(supabase, userId, from, addDays(monday, 13)),
     getRealizedInRange(supabase, userId, from, addDays(monday, 13)),
     getEvents(supabase, userId),
@@ -108,6 +112,8 @@ async function AthleteHome({ searchParams }: Pick<PageProps<"/athlete">, "search
     getThresholds(supabase, userId),
     supabase.from("external_connections").select("status").eq("provider", "strava").maybeSingle(),
     getWellness(supabase, userId, today, today),
+    // L'état des montres ne doit jamais empêcher l'accueil de s'afficher.
+    getDeviceAccounts(supabase, userId).catch(() => "schema_pending" as const),
   ]);
   const all = withRealization(planned, realized);
   const sessions = all.filter((s) => s.scheduled_date >= monday);
@@ -117,9 +123,21 @@ async function AthleteHome({ searchParams }: Pick<PageProps<"/athlete">, "search
   const withoutFeedback = recent.filter((s) => s.scheduled_date < today && sessionStatus(s, today) === "unreconciled");
   const loose = unattachedActivities(realized).filter((a) => a.local_date >= weekAgo && a.local_date <= today);
   const reauth = connection.data?.status === "reauth_required";
+  const watchAccounts = devices === "schema_pending" ? null : devices;
+  // Compte de montre refusé (clé changée, autorisation retirée) : les séances ne partent plus.
+  const watchRefused = watchAccounts ? (["intervals", "suunto"] as const).find((p) => watchAccounts[p]?.status === "reauth_required") : undefined;
   // Base pas encore à jour (migration en attente) : rien à traiter, plutôt que des invitations impossibles.
   const todo = (realized.unavailable ? [] : [
     reauth ? { key: "reauth", tone: "warning" as const, text: "Strava demande une reconnexion : vos activités n’arrivent plus.", action: "Reconnecter", href: "/athlete/profile#connexions" } : null,
+    watchRefused
+      ? {
+          key: "watch",
+          tone: "warning" as const,
+          text: watchRefused === "intervals" ? "intervals.icu refuse votre clé : vos séances ne partent plus sur la montre." : "Suunto demande une reconnexion : vos séances ne partent plus sur la montre.",
+          action: watchRefused === "intervals" ? "Renouveler" : "Reconnecter",
+          href: "/athlete/profile#montre-auto",
+        }
+      : null,
     toValidate.length
       ? {
           key: "validate",
@@ -161,6 +179,37 @@ async function AthleteHome({ searchParams }: Pick<PageProps<"/athlete">, "search
   const nextEvent = events.find((e) => e.event_date >= today);
   const current = currentThresholds(thresholdRows, today);
   const keys = ["bike.ftp_w", "run.threshold_pace_s_per_km", "swim.css_s_per_100m"];
+  const watchOffered = isIntervalsReady() || isSuuntoReady();
+  const start: StartStep[] = [
+    {
+      key: "seuils",
+      done: keys.some((key) => current.has(key)),
+      title: "Renseigner vos seuils",
+      text: "FTP, allure seuil, CSS : les cibles et les durées des séances se calculent à votre niveau.",
+      action: "Renseigner",
+      href: "/athlete/profile#seuils",
+    },
+    ...(watchOffered && watchAccounts
+      ? [
+          {
+            key: "montre",
+            done: Boolean(watchAccounts.intervals || watchAccounts.suunto),
+            title: "Relier votre montre",
+            text: "Une fois, par intervals.icu (gratuit) : vos séances partent seules sur la montre, vos activités reviennent ici.",
+            action: "Relier",
+            href: "/athlete/profile#montre-auto",
+          },
+        ]
+      : []),
+    {
+      key: "seance",
+      done: all.length > 0 || coaches.length > 0,
+      title: "Planifier une première séance",
+      text: "Choisissez une séance type (footing, seuil, sweet spot…), puis ajustez-la.",
+      action: "Créer",
+      href: `/athlete/sessions/new?date=${today}`,
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -174,6 +223,8 @@ async function AthleteHome({ searchParams }: Pick<PageProps<"/athlete">, "search
 
       {params.joined === "1" ? <Notice tone="success">Invitation acceptée : votre coach peut désormais suivre et planifier votre entraînement.</Notice> : null}
 
+      <GettingStarted steps={start} />
+
       <InstallCard />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(300px,1fr)]">
@@ -184,6 +235,12 @@ async function AthleteHome({ searchParams }: Pick<PageProps<"/athlete">, "search
             <div className="rounded-[18px] border border-line bg-surface p-6">
               <p className="display text-[30px]">Repos</p>
               <p className="mt-2 text-[15px] text-muted">Aucune séance prévue aujourd’hui. Profitez-en pour récupérer.</p>
+              <Link
+                href={`/athlete/sessions/new?date=${today}`}
+                className="mt-3 inline-flex text-[14px] font-semibold text-ink underline decoration-line-strong underline-offset-4 hover:decoration-ink"
+              >
+                Ajouter une séance
+              </Link>
             </div>
           )}
 
@@ -299,7 +356,7 @@ async function AthleteHome({ searchParams }: Pick<PageProps<"/athlete">, "search
               </div>
             ) : (
               <EmptyState title="Pas de compétition prévue">
-                <Link href="/athlete/profile" className="font-semibold text-ink underline decoration-line-strong underline-offset-4">
+                <Link href="/athlete/profile#competitions" className="font-semibold text-ink underline decoration-line-strong underline-offset-4">
                   Ajouter une compétition
                 </Link>
               </EmptyState>
@@ -309,7 +366,7 @@ async function AthleteHome({ searchParams }: Pick<PageProps<"/athlete">, "search
           <Panel
             title="Mes seuils"
             actions={
-              <Link href="/athlete/profile" className="text-[13px] font-semibold text-ink-soft underline decoration-line-strong underline-offset-4 hover:text-ink">
+              <Link href="/athlete/profile#seuils" className="text-[13px] font-semibold text-ink-soft underline decoration-line-strong underline-offset-4 hover:text-ink">
                 Mettre à jour
               </Link>
             }

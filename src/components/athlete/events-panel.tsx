@@ -56,7 +56,7 @@ export function EventsPanel({
   );
 
   return (
-    <Panel title="Compétitions" description="Les courses visées structurent la saison et la planification.">
+    <Panel id="competitions" title="Compétitions" description="Les courses visées structurent la saison et la planification.">
       {upcoming.length === 0 ? (
         <EmptyState title="Aucune compétition à venir">Ajoutez l’objectif de la saison pour que le plan s’organise autour.</EmptyState>
       ) : (

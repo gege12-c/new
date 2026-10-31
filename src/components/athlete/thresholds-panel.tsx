@@ -28,6 +28,7 @@ export function ThresholdsPanel({
 
   return (
     <Panel
+      id="seuils"
       title="Seuils"
       description="Ils servent à convertir les cibles relatives (% FTP, zones, % allure seuil) en valeurs réelles."
     >
