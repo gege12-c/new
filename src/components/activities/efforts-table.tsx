@@ -37,15 +37,14 @@ export function EffortsTable({ comparison, id }: { comparison: EffortComparison;
         </p>
       </div>
       <div className="overflow-x-auto border-t border-line">
-        <table className="w-full min-w-[420px] text-left text-[13px]">
+        <table className="w-full min-w-[320px] text-left text-[13px]">
           <thead>
             <tr className="text-[11.5px] text-muted">
               <th scope="col" className="px-3 py-1.5 font-medium">
                 <span className="sr-only">Étape</span>
               </th>
               <th scope="col" className="py-1.5 pr-2 font-medium">Prévu</th>
-              <th scope="col" className="py-1.5 pr-2 font-medium">Réalisé</th>
-              <th scope="col" className="py-1.5 pr-3 font-medium">Cible</th>
+              <th scope="col" className="py-1.5 pr-3 font-medium">Réalisé et cible</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
@@ -66,18 +65,18 @@ export function EffortsTable({ comparison, id }: { comparison: EffortComparison;
                       <span className="text-muted">non prévu</span>
                     )}
                   </td>
-                  <td className="figure py-1.5 pr-2 text-ink-soft">
+                  <td className="figure py-1.5 pr-3 text-ink-soft">
                     {row.actual ? (
                       <>
                         {formatDuration(row.actual.durationS)}
                         {row.actual.value ? <span className="font-semibold text-ink">, {row.actual.value}</span> : null}
+                        {row.verdict !== "unknown" ? <span className={cn("block font-sans text-[12px] font-semibold", verdict.className)}>{verdict.text}</span> : null}
                         {row.actual.partial ? <span className="block font-sans text-[11.5px] text-warning">écourté : l’activité s’arrête avant</span> : null}
                       </>
                     ) : (
                       <span className="text-muted">non fait</span>
                     )}
                   </td>
-                  <td className={cn("py-1.5 pr-3 font-semibold", verdict.className)}>{verdict.text}</td>
                 </tr>
               );
             })}
