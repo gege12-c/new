@@ -1,8 +1,8 @@
 # Avancement
 
-Dernière mise à jour : 31 octobre 2026, nuit. Phases 1 à 5 livrées ; nuit du 30 au 31 octobre : séances envoyées seules sur la montre (Suunto, Garmin, COROS) et activités et mesures du matin rapportées, par intervals.icu ; courbes et intervalles de chaque activité, meilleures puissances ; une séance faite comptée une fois quelle que soit sa source ; jours indisponibles ; forme du jour ; agenda du téléphone ; plans d'entraînement ; vue saison ; séance écrite en texte ; contrôle de production plus parlant. Ce qui vous reste à faire est en fin de page (15 minutes).
+Dernière mise à jour : 31 octobre 2026, nuit. Phases 1 à 5 livrées ; nuit du 30 au 31 octobre : séances envoyées seules sur la montre (Suunto, Garmin, COROS) et activités et mesures du matin rapportées, par intervals.icu ; courbes et intervalles de chaque activité, efforts prévus et réalisés, meilleures puissances, zones et seuils tirés d'un test, semaine de tous les athlètes ; une séance faite comptée une fois quelle que soit sa source ; jours indisponibles ; forme du jour ; agenda du téléphone ; plans d'entraînement ; vue saison ; séance écrite en texte ; contrôle de production plus parlant. Ce qui vous reste à faire est en fin de page (15 minutes).
 
-## Nuit du 30 au 31 octobre : montre, activités de la montre, courbes, jours indisponibles, forme du jour, agenda du téléphone, plans, saison, séance en texte
+## Nuit du 30 au 31 octobre : montre, activités de la montre, courbes, semaine des athlètes, jours indisponibles, forme du jour, agenda du téléphone, plans, saison, séance en texte
 
 Demandé le 30 octobre : « je veux juste que les séances préparées sur TriCoach soient exportables en guide sur ma montre », puis « fais ça pour Garmin et COROS également ». Une séance publiée part seule sur la montre de l'athlète, par intervals.icu, partenaire officiel de Suunto, Garmin et COROS ; l'envoi direct à Suunto est prêt pour le jour où Suunto ouvre son accès. Fonctionnement, conversion et limites : [WATCHES.md](WATCHES.md).
 
@@ -32,6 +32,7 @@ Livré :
 
 - **Plans d'entraînement** (comme les plans d'intervals.icu) : dans le calendrier d'un athlète, « Enregistrer en plan » transforme 1 à 16 semaines (à partir de la semaine affichée) en plan réutilisable ; la bibliothèque les liste (semaines en miniature, couleur par discipline) et « Appliquer à un athlète » les recopie à partir du lundi choisi, en brouillon à vérifier ou publiées d'emblée ; suppression sans toucher aux séances déjà planifiées.
 
+- **Semaine de mes athlètes** (vue d'ensemble du coach, comme la page des athlètes d'intervals.icu) : depuis le tableau de bord, une ligne par athlète et une colonne par jour : chaque séance avec son état (faite, en partie, manquée, à rapprocher, à faire ; brouillon en pointillé), les activités faites hors programme, les jours indisponibles, et pour la semaine les heures prévues et faites (sans Strava), les séances manquées et les brouillons ; semaine précédente ou suivante ; un clic ouvre la séance dans le calendrier de l'athlète. 1 test unitaire, parcours `e2e/team-week.spec.ts`, audit d'accessibilité.
 - **Publier les brouillons d'un coup** : après un plan appliqué en brouillon, le calendrier du coach propose « Publier N brouillons » pour la période affichée (confirmation ; les brouillons personnels de l'athlète ne sont pas touchés).
 - **Vue saison** (onglet « Saison » de la fiche athlète, et « Vue saison » du calendrier de l'athlète) : 8 semaines passées et 26 à venir, une ligne par semaine : volume publié par discipline (barre empilée), réalisé d'après les fichiers et la montre, brouillons, compétitions et jours indisponibles ; un clic ouvre la semaine dans le calendrier.
 

@@ -97,6 +97,7 @@ for (const colorScheme of ["light", "dark"] as const) {
       `/coach/athletes/${athlete.id}/season`,
       `/coach/athletes/${athlete.id}?note=new`,
       `/coach/athletes/${athlete.id}/profile`,
+      "/coach/week",
       "/coach/library",
       "/notifications",
       "/settings",

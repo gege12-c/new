@@ -101,9 +101,16 @@ async function CoachContent() {
             : "Invitez vos athlètes : ils acceptent depuis leur compte, et vous planifiez leurs séances."
         }
         actions={
-          <ButtonLink href="#inviter" variant="secondary">
-            Inviter un athlète
-          </ButtonLink>
+          <div className="flex flex-wrap gap-2">
+            {links.length ? (
+              <ButtonLink href="/coach/week" variant="secondary">
+                Semaine de mes athlètes
+              </ButtonLink>
+            ) : null}
+            <ButtonLink href="#inviter" variant="secondary">
+              Inviter un athlète
+            </ButtonLink>
+          </div>
         }
       />
 
