@@ -7,8 +7,10 @@ import {
   fitnessSeries,
   historyStart,
   MAX_HISTORY_DAYS,
+  medianRestingHr,
   PROJECTION_DAYS,
   PUBLISHED_PLAN,
+  RESTING_HR_DAYS,
   simulate,
   weeklyRamp,
   type FitnessCompletion,
@@ -22,7 +24,7 @@ import { DURABLE_SOURCES } from "@/lib/activities/schema";
 import { StoredMetricsSchema } from "@/lib/activities/streams";
 import { isMissingSchema } from "@/lib/supabase/schema";
 import type { ServerSupabase } from "@/lib/supabase/server";
-import { currentThresholds, toAthleteThresholds } from "@/lib/thresholds";
+import { thresholdsAsOf, toAthleteThresholds } from "@/lib/thresholds";
 import { getEvents, getThresholds } from "./athlete";
 import { getSessionsInRange } from "./planning";
 
@@ -55,14 +57,14 @@ export interface FitnessData {
   historyDays: number | null;
 }
 
-const ACTIVITY_COLUMNS = "id, name, sport, local_date, moving_s, elapsed_s, avg_power, weighted_power, avg_hr, avg_speed_mps";
+const ACTIVITY_COLUMNS = "id, name, sport, local_date, start_time, moving_s, elapsed_s, avg_power, weighted_power, avg_hr, avg_speed_mps";
 
 const daysBetween = (from: string, to: string) => Math.round((Date.parse(`${to}T12:00:00Z`) - Date.parse(`${from}T12:00:00Z`)) / 86_400_000);
 
 export async function getFitnessData(supabase: ServerSupabase, athleteId: string, today: string): Promise<FitnessData> {
   const start = historyStart(today);
   const limit = addDays(today, PROJECTION_DAYS);
-  const [sessions, thresholdRows, events, activities, completions, matches, curves] = await Promise.all([
+  const [sessions, thresholdRows, events, activities, completions, matches, curves, wellness] = await Promise.all([
     getSessionsInRange(supabase, athleteId, start, limit),
     getThresholds(supabase, athleteId),
     getEvents(supabase, athleteId),
@@ -82,7 +84,18 @@ export async function getFitnessData(supabase: ServerSupabase, athleteId: string
       .eq("activity.athlete_id", athleteId)
       .gte("activity.local_date", start)
       .limit(5000),
+    // FC de repos des derniers jours : la charge d'après la FC se calcule alors sur la réserve cardiaque.
+    supabase
+      .from("wellness_entries")
+      .select("resting_hr")
+      .eq("athlete_id", athleteId)
+      .gte("entry_date", addDays(today, -RESTING_HR_DAYS))
+      .lte("entry_date", today)
+      .not("resting_hr", "is", null)
+      .limit(RESTING_HR_DAYS + 1),
   ]);
+  if (wellness.error && !isMissingSchema(wellness.error)) throw wellness.error;
+  const measuredRestingHr = medianRestingHr(wellness.error ? [] : (wellness.data ?? []).map((row) => row.resting_hr));
   // Base sans les courbes ou sans leurs mesures : les moyennes servent, comme avant.
   if (curves.error && !isMissingSchema(curves.error) && String(curves.error.code) !== "42703") throw curves.error;
   const metrics = new Map(
@@ -109,7 +122,16 @@ export async function getFitnessData(supabase: ServerSupabase, athleteId: string
     completions: new Map(
       realizedAvailable ? (completions.data ?? []).map((c) => [c.session_id as string, { session_id: c.session_id, status: c.status, rpe: c.rpe } as FitnessCompletion]) : [],
     ),
-    thresholdsOn: (date) => toAthleteThresholds(currentThresholds(thresholdRows, date)),
+    thresholdsOn: (date) => {
+      // Seuils saisis après une activité : leur première valeur sert d'estimation (dit dans l'écran).
+      const thresholds = toAthleteThresholds(thresholdsAsOf(thresholdRows, date).current);
+      if (!thresholds.general?.restingHrBpm && measuredRestingHr) thresholds.general = { ...thresholds.general, restingHrBpm: measuredRestingHr };
+      return thresholds;
+    },
+    estimatedOn: (date, keys) => {
+      const { backdated } = thresholdsAsOf(thresholdRows, date);
+      return keys.some((key) => backdated.has(key));
+    },
   });
 
   // Horizon : la dernière séance prévue (brouillons compris) ou la prochaine course, une semaine au moins, six mois au plus.

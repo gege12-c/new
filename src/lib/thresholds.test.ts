@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { currentThresholds, formatThresholdValue, parsePace, parseThresholdValue, thresholdDef, toAthleteThresholds } from "./thresholds";
+import { currentThresholds, formatThresholdValue, parsePace, parseThresholdValue, thresholdDef, thresholdsAsOf, toAthleteThresholds } from "./thresholds";
 import { safeNextPath } from "./utils";
 
 describe("seuils", () => {
@@ -39,6 +39,27 @@ describe("seuils", () => {
     expect(thresholds.bike?.ftpW).toBe(265);
     expect(thresholds.swim?.cssSPer100m).toBe(98);
     expect(thresholds.run?.thresholdPaceSPerKm).toBeUndefined();
+  });
+
+  it("pour le passé, un seuil saisi plus tard sert avec sa première valeur, marquée", () => {
+    const rows = [
+      { sport: "bike", metric: "ftp_w", value: 250, effective_from: "2026-01-10" },
+      { sport: "bike", metric: "ftp_w", value: 265, effective_from: "2026-06-01" },
+      { sport: "swim", metric: "css_s_per_100m", value: 98, effective_from: "2026-03-01" },
+      { sport: "swim", metric: "css_s_per_100m", value: 95, effective_from: "2026-09-01" },
+    ];
+    const early = thresholdsAsOf(rows, "2026-02-01");
+    expect(early.current.get("bike.ftp_w")?.value).toBe(250);
+    expect(early.current.get("swim.css_s_per_100m")?.value).toBe(98);
+    expect([...early.backdated]).toEqual(["swim.css_s_per_100m"]);
+    const before = thresholdsAsOf(rows, "2025-12-01");
+    expect(before.current.get("bike.ftp_w")?.value).toBe(250);
+    expect([...before.backdated].sort()).toEqual(["bike.ftp_w", "swim.css_s_per_100m"]);
+    const later = thresholdsAsOf(rows, "2026-10-01");
+    expect(later.current.get("swim.css_s_per_100m")?.value).toBe(95);
+    expect(later.backdated.size).toBe(0);
+    // Rien de saisi : rien d'inventé.
+    expect(thresholdsAsOf([], "2026-10-01").current.size).toBe(0);
   });
 
   it("formate les valeurs avec leur unité", () => {

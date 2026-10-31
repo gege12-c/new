@@ -13,17 +13,27 @@
  * Les cibles sont écrites en valeurs absolues quand les seuils de TriCoach le permettent, pour que la
  * montre reçoive exactement les valeurs de TriCoach. Ce que le format ne porte pas (durée libre,
  * répétitions de renforcement, vitesse, cadence de course, RPE) est dit : rien n'est perdu en silence.
+ *
+ * intervals.icu ne trace qu'un type de cible par séance. Une course (ou une sortie vélo) qui mêle FC et
+ * allure (ou puissance) est donc transmise tout en allure (ou en puissance) : chaque étape en FC est
+ * convertie par équivalence des zones théoriques (lib/workout/equivalence.ts) et sa FC visée reste
+ * écrite dans les consignes. Dans ces séances, les étapes d'au moins 2 minutes en allure ou en
+ * puissance y reçoivent aussi la FC correspondante, à titre indicatif.
  */
 import type { CompatibilityIssue } from "@/lib/export/types";
 import { watchText } from "@/lib/watch/text";
-import { resolveTarget, type MissingThreshold } from "@/lib/workout/compute";
+import { resolveTarget, stepQuantities, type MissingThreshold } from "@/lib/workout/compute";
+import { effortMetricFor, heartRateEquivalent, heartRateRange, hrPercentOfThreshold, hrTargetAsEffort, type EffortMetric, type HeartRateEquivalent } from "@/lib/workout/equivalence";
 import { describeTarget, formatClock } from "@/lib/workout/format";
 import { EQUIPMENT_LABELS, SPORT_LABELS, STEP_TYPE_LABELS, type SegmentSport, type Step, type Target, type Workout, type WorkoutNode } from "@/lib/workout/schema";
 import { lthrFor, type AthleteThresholds } from "@/lib/workout/zones";
 import type { IntervalsEvent } from "./api";
 
 /** Version de la conversion : la changer redépose toutes les séances (nouvelle empreinte). */
-export const INTERVALS_FORMAT_VERSION = 1;
+export const INTERVALS_FORMAT_VERSION = 2;
+
+/** Durée en dessous de laquelle la FC n'a pas le temps de suivre l'effort : pas de FC indicative. */
+const HR_HINT_MIN_SECONDS = 120;
 
 /** Fenêtre de dépôt : aujourd'hui et les 13 jours suivants (intervals.icu envoie la semaine à venir aux montres). */
 export const INTERVALS_WINDOW_DAYS = 14;
@@ -98,9 +108,39 @@ interface Converter {
   blocking: string | null;
   /** Types de cibles transmis (puissance, FC, allure) : intervals.icu n'en trace qu'un dans son graphique. */
   metrics: Set<string>;
+  /** Partie qui mêle FC et allure (course) ou FC et puissance (vélo) : la FC est convertie vers cette mesure. */
+  effort: EffortMetric | null;
+  /** Étapes dont la FC a été convertie. */
+  converted: number;
 }
 
 const METRIC_WORDS: Record<string, string> = { power: "puissance", heart_rate: "fréquence cardiaque", pace: "allure" };
+
+const zoneText = (zones: { min: number; max: number }) => (zones.min === zones.max ? `Z${zones.min}` : `Z${zones.min}–Z${zones.max}`);
+const rangeText = (min: number, max: number) => (Math.round(min) === Math.round(max) ? `≈ ${Math.round(min)}` : `${Math.round(min)}–${Math.round(max)}`);
+const percentText = (p: { min: number; max: number }) => `${rangeText(p.min, p.max)} % FC seuil`;
+const hrValues = (hr: HeartRateEquivalent) => (hr.bpm ? `${rangeText(hr.bpm.min, hr.bpm.max)} bpm` : percentText(hr.percent));
+
+/** FC visée par le coach, écrite en consigne : « FC visée Z1 (90–151 bpm) ». */
+function targetHrText(c: Converter, target: Target): string {
+  const pct = hrPercentOfThreshold(target, c.sport, c.thresholds);
+  const range = pct ? heartRateRange(pct, c.sport, c.thresholds) : null;
+  const resolved = resolveTarget(target, c.sport, c.thresholds);
+  const bpm = resolved.ok && resolved.target.metric === "heart_rate" ? `${resolved.target.min}–${resolved.target.max} bpm` : null;
+  if (!range) return `FC visée ${describeTarget(target, c.sport)}`;
+  const zones = target.unit === "zone" ? { min: target.min, max: target.max } : range.zones;
+  return `FC visée ${zoneText(zones)} (${bpm ?? (target.unit === "zone" ? percentText(range.percent) : describeTarget(target, c.sport))})`;
+}
+
+/** Une partie mêle-t-elle la FC et la mesure d'effort de sa discipline ? Celle-ci est alors la seule transmise. */
+function mixedEffort(sport: SegmentSport, nodes: WorkoutNode[]): EffortMetric | null {
+  const effort = effortMetricFor(sport);
+  if (!effort) return null;
+  const metrics = new Set<string>();
+  const visit = (list: WorkoutNode[]) => list.forEach((node) => (node.kind === "step" ? node.targets.forEach((t) => metrics.add(t.metric)) : visit(node.steps)));
+  visit(nodes);
+  return metrics.has(effort) && metrics.has("heart_rate") ? effort : null;
+}
 
 function noteOnce(c: Converter, key: string, issue: CompatibilityIssue) {
   if (c.once.has(key)) return;
@@ -225,7 +265,10 @@ function stepLine(c: Converter, step: Step): string | null {
 
   const parts: string[] = [];
   let cadence: string | null = null;
-  for (const target of step.targets) {
+  // Partie convertie : la cible d'allure ou de puissance de l'étape passe avant sa cible de FC.
+  const targets = c.effort ? [...step.targets].sort((a, b) => Number(b.metric === c.effort) - Number(a.metric === c.effort)) : step.targets;
+  const longEnough = (stepQuantities(step, c.sport, c.thresholds).duration.value ?? 0) >= HR_HINT_MIN_SECONDS;
+  for (const target of targets) {
     const wording = describeTarget(target, c.sport);
     if (target.metric === "rpe") {
       extra.push(`effort ressenti ${wording}`);
@@ -242,14 +285,29 @@ function stepLine(c: Converter, step: Step): string | null {
       continue;
     }
     if (parts.length) {
-      extra.push(wording);
+      extra.push(c.effort && target.metric === "heart_rate" ? targetHrText(c, target) : wording);
       c.issues.push({ severity: "loss", where: at, message: `${wording} : une seule cible par étape chez intervals.icu, la seconde est reprise dans la description.` });
       continue;
+    }
+    if (c.effort && target.metric === "heart_rate") {
+      // FC d'une partie qui mêle les mesures : transmise en allure (ou en puissance), la FC visée en consigne.
+      const converted = hrTargetAsEffort(target, c.sport, c.thresholds);
+      const text = converted ? primaryTarget(c, converted, at) : null;
+      if (text) {
+        parts.push(text);
+        c.metrics.add(c.effort);
+        c.converted += 1;
+        extra.push(targetHrText(c, target));
+        continue;
+      }
     }
     const text = primaryTarget(c, target, at);
     if (text) {
       parts.push(text);
       if (METRIC_WORDS[target.metric]) c.metrics.add(target.metric);
+      // Partie convertie, allure ou puissance assez longue : la FC qui y correspond d'après les zones théoriques.
+      const hr = c.effort && target.metric === c.effort && longEnough ? heartRateEquivalent(target, c.sport, c.thresholds) : null;
+      if (hr) extra.push(`FC indicative ${zoneText(hr.zones)} (${hrValues(hr)})`);
     } else extra.push(wording);
   }
   if (cadence) parts.push(cadence);
@@ -314,7 +372,18 @@ function freeText(text: string): string {
 export function buildIntervalsEvents(workout: Workout, ctx: IntervalsContext): IntervalsBuild[] {
   const multi = workout.segments.length > 1;
   return workout.segments.map((segment, segmentIndex) => {
-    const c: Converter = { sport: segment.sport, thresholds: ctx.thresholds, issues: [], once: new Set(), index: 0, notes: [], blocking: null, metrics: new Set() };
+    const c: Converter = {
+      sport: segment.sport,
+      thresholds: ctx.thresholds,
+      issues: [],
+      once: new Set(),
+      index: 0,
+      notes: [],
+      blocking: null,
+      metrics: new Set(),
+      effort: mixedEffort(segment.sport, segment.steps),
+      converted: 0,
+    };
     const externalId = intervalsExternalId(ctx.sessionId, segmentIndex);
     const steps = lines(c, segment.steps);
     if (c.blocking || !steps.length) {
@@ -328,6 +397,13 @@ export function buildIntervalsEvents(workout: Workout, ctx: IntervalsContext): I
     }
     if (multi) {
       noteOnce(c, "brick", { severity: "info", message: "Enchaînement : une séance par discipline, le même jour, à lancer l'une après l'autre sur la montre." });
+    }
+    if (c.converted) {
+      const words = c.effort === "pace" ? "en allure" : "en puissance";
+      noteOnce(c, "converted", {
+        severity: "info",
+        message: `Fréquence cardiaque transmise ${words}, par équivalence des zones théoriques (zone 2 de FC → zone 2 ${c.effort === "pace" ? "d'allure" : "de puissance"}) : la montre et le graphique d'intervals.icu suivent un seul type de cible. La FC visée reste écrite dans les consignes de chaque étape.`,
+      });
     }
     if (c.metrics.size > 1) {
       const kinds = [...c.metrics].map((m) => METRIC_WORDS[m]).join(" et ");

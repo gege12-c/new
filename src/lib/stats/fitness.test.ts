@@ -5,10 +5,13 @@ import type { AthleteThresholds } from "@/lib/workout/zones";
 import {
   activityLoad,
   dailyLoads,
+  dropDuplicateRecordings,
   feedbackLoad,
   fitnessSeries,
   formOnRaceMorning,
   formZone,
+  heartIntensity,
+  medianRestingHr,
   plannedLoad,
   PUBLISHED_PLAN,
   simulate,
@@ -86,6 +89,86 @@ describe("charge d'entraînement", () => {
     expect(feedbackLoad(3600, 7.5)).toBeGreaterThan(90);
     expect(feedbackLoad(3600, 7.5)).toBeLessThan(105);
     expect(feedbackLoad(3600, 3)).toBeLessThan(45);
+  });
+
+  it("FC de repos connue : réserve cardiaque, une marche à FC basse pèse peu ; au seuil, toujours 100", () => {
+    const walk = activity({ sport: "other", avg_hr: 90 });
+    expect(activityLoad(walk, { run: { lthrBpm: 180 } })?.load).toBeCloseTo(25);
+    // (90 − 46) / (180 − 46) = 0,33 : 11 points par heure au lieu de 25.
+    expect(activityLoad(walk, { run: { lthrBpm: 180 }, general: { restingHrBpm: 46 } })?.load).toBeCloseTo(10.8, 1);
+    expect(activityLoad(activity({ sport: "run", avg_hr: 180 }), { run: { lthrBpm: 180 }, general: { restingHrBpm: 46 } })?.load).toBeCloseTo(100);
+    expect(heartIntensity(150, 180)).toBeCloseTo(0.833, 3);
+    // Repos trop proche du seuil (saisie douteuse) : le rapport simple.
+    expect(heartIntensity(150, 180, 170)).toBeCloseTo(0.833, 3);
+  });
+
+  it("FC de repos de référence : médiane des jours renseignés, trois au moins", () => {
+    expect(medianRestingHr([64, 46, 45, null, 49])).toBe(47.5);
+    expect(medianRestingHr([46, 45, 49])).toBe(46);
+    expect(medianRestingHr([46, null, 49])).toBeNull();
+  });
+});
+
+describe("même séance enregistrée par deux appareils", () => {
+  const ride = (id: string, start: string, seconds: number, extra: Partial<LoadActivity> = {}) =>
+    activity({ id, local_date: start.slice(0, 10), start_time: start, moving_s: seconds, elapsed_s: seconds, ...extra });
+
+  it("la montre (FC) et le compteur (puissance) : seul le compteur compte", () => {
+    const watch = ride("watch", "2026-09-26T07:56:49Z", 14147, { avg_hr: 140, hr_rms: 143 });
+    const edge = ride("edge", "2026-09-26T07:57:27Z", 14123, { avg_power: 149, weighted_power: 175, avg_hr: 166 });
+    const { kept, duplicates } = dropDuplicateRecordings([watch, edge]);
+    expect(kept.map((a) => a.id)).toEqual(["edge"]);
+    expect(duplicates.map((d) => [d.dropped.id, d.kept.id])).toEqual([["watch", "edge"]]);
+  });
+
+  it("des séances qui se suivent, ou de disciplines différentes, comptent toutes", () => {
+    const warm = ride("warm", "2026-10-03T13:32:49Z", 77, { avg_power: 69 });
+    const main = ride("main", "2026-10-03T13:34:40Z", 5132, { weighted_power: 156 });
+    const run = ride("run", "2026-10-03T13:40:00Z", 1800, { sport: "run", avg_speed_mps: 3 });
+    // Un chevauchement bref (moins de la moitié de la plus courte) n'est pas un doublon.
+    const late = ride("late", "2026-10-03T14:50:00Z", 1800, { weighted_power: 150 });
+    expect(dropDuplicateRecordings([warm, main, run, late]).kept).toHaveLength(4);
+    // Sans heure de départ : rien n'est supposé.
+    expect(dropDuplicateRecordings([activity({ id: "x" }), activity({ id: "y" })]).kept).toHaveLength(2);
+  });
+
+  it("charge du jour comptée une fois ; la séance rattachée au doublon n'est pas recomptée par son retour", () => {
+    const session: FitnessSession = { id: "long", scheduled_date: "2026-09-26", state: "published", content: workout(14400, 65) };
+    const { actual, coverage, items } = dailyLoads({
+      today: "2026-10-01",
+      sessions: [session],
+      activities: [
+        ride("watch", "2026-09-26T07:56:49Z", 14147, { avg_hr: 140 }),
+        ride("edge", "2026-09-26T07:57:27Z", 14123, { weighted_power: 175 }),
+      ],
+      matches: new Map([["watch", "long"]]),
+      completions: new Map([["long", { session_id: "long", status: "done", rpe: 6 }]]),
+      thresholdsOn: () => ({ bike: { ftpW: 270, lthrBpm: 170 } }),
+    });
+    expect(items.map((i) => [i.kind, i.id])).toEqual([["activity", "edge"]]);
+    expect(actual.get("2026-09-26")).toBeCloseTo(tss(14123, 175 / 270));
+    expect(coverage).toMatchObject({ fit: 1, duplicates: 1, feedback: 0 });
+  });
+});
+
+describe("seuils saisis après les activités", () => {
+  it("l'activité compte, et l'estimation est dite", () => {
+    const { coverage, items } = dailyLoads({
+      today: "2026-10-31",
+      sessions: [],
+      activities: [
+        activity({ id: "old", local_date: "2026-08-16", weighted_power: 210 }),
+        activity({ id: "new", local_date: "2026-10-27", weighted_power: 199 }),
+        activity({ id: "swim", sport: "swim", local_date: "2026-10-27", avg_speed_mps: 0.8 }),
+      ],
+      matches: new Map(),
+      completions: new Map(),
+      thresholdsOn: () => thresholds,
+      // FTP saisie le 19 octobre, CSS saisie le 30 : la sortie d'août et la nage du 27 sont des estimations.
+      estimatedOn: (date, keys) => (keys.includes("bike.ftp_w") && date < "2026-10-19") || (keys.includes("swim.css_s_per_100m") && date < "2026-10-30"),
+    });
+    expect(items).toHaveLength(3);
+    expect(coverage).toMatchObject({ fit: 3, backdated: 2 });
   });
 });
 

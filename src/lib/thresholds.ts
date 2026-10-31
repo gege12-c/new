@@ -64,6 +64,26 @@ export function currentThresholds(rows: ThresholdRow[], onDate: string): Map<str
   return current;
 }
 
+/**
+ * Seuils pour évaluer le passé : la valeur en vigueur à la date, et pour un seuil saisi seulement
+ * après, sa première valeur (`backdated` : une estimation, faute de mieux). C'est ce que fait
+ * Intervals.icu quand on le relie : l'historique importé est analysé avec les seuils du moment.
+ */
+export function thresholdsAsOf(rows: ThresholdRow[], onDate: string): { current: Map<string, ThresholdRow>; backdated: Set<string> } {
+  const current = currentThresholds(rows, onDate);
+  const backdated = new Set<string>();
+  for (const row of rows) {
+    const key = `${row.sport}.${row.metric}`;
+    const existing = current.get(key);
+    if (existing && !backdated.has(key)) continue;
+    if (!existing || row.effective_from < existing.effective_from) {
+      current.set(key, row);
+      backdated.add(key);
+    }
+  }
+  return { current, backdated };
+}
+
 /** Convertit les seuils en vigueur vers la structure utilisée par les calculs de séance. */
 export function toAthleteThresholds(current: Map<string, ThresholdRow>): AthleteThresholds {
   const value = (key: string) => (current.has(key) ? Number(current.get(key)!.value) : undefined);

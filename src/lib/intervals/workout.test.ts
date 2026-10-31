@@ -160,25 +160,93 @@ describe("séance TriCoach → séance prévue d'intervals.icu", () => {
     expect(text).toContain("Étape 1, Sprints 10s : Sprints 10s, Enchaîner 3 fois");
   });
 
-  it("cibles de types différents (FC puis allure) : transmises telles quelles, et le graphique gris d'intervals.icu expliqué", () => {
-    const run = (warmup: { metric: "heart_rate" | "pace"; unit: "zone" }) =>
-      build({
-        schemaVersion: 1,
-        segments: [
-          {
-            id: "s",
-            sport: "run",
-            steps: [
-              { kind: "step", id: "w", type: "warmup", length: { unit: "time", seconds: 900 }, targets: [{ ...warmup, min: 1, max: 1 }] },
-              { kind: "step", id: "a", type: "active", length: { unit: "time", seconds: 20 }, targets: [{ metric: "pace", unit: "sec_per_km", min: 283, max: 305 }] },
-            ],
-          },
-        ],
-      })[0];
-    const mixed = run({ metric: "heart_rate", unit: "zone" });
-    expect(stepsOf(mixed.event!.description)).toEqual(["- Échauffement 15m Z1 HR", "- Travail 20s 4:43/km-5:05/km Pace"]);
-    expect(mixed.issues.find((i) => i.message.startsWith("Cibles de types différents"))?.message).toContain("fréquence cardiaque et allure");
-    expect(run({ metric: "pace", unit: "zone" }).issues.some((i) => i.message.startsWith("Cibles de types différents"))).toBe(false);
+  it("course qui mêle FC et allure : tout en allure par équivalence des zones, la FC visée et indicative en consignes", () => {
+    const run = (warmup: { metric: "heart_rate" | "pace"; unit: "zone" | "bpm"; min: number; max: number }, overrides: Partial<IntervalsContext> = {}) =>
+      build(
+        {
+          schemaVersion: 1,
+          segments: [
+            {
+              id: "s",
+              sport: "run",
+              steps: [
+                { kind: "step", id: "w", type: "warmup", length: { unit: "time", seconds: 900 }, targets: [warmup] },
+                {
+                  kind: "repeat",
+                  id: "r",
+                  count: 5,
+                  steps: [
+                    { kind: "step", id: "a", type: "active", length: { unit: "time", seconds: 20 }, targets: [{ metric: "pace", unit: "sec_per_km", min: 283, max: 305 }] },
+                    { kind: "step", id: "b", type: "recovery", length: { unit: "time", seconds: 20 }, targets: [{ metric: "pace", unit: "sec_per_km", min: 405, max: 510 }] },
+                  ],
+                },
+                { kind: "step", id: "c", type: "cooldown", length: { unit: "time", seconds: 300 }, targets: [{ metric: "pace", unit: "sec_per_km", min: 300, max: 330 }] },
+              ],
+            },
+          ],
+        },
+        overrides,
+      )[0];
+    const mixed = run({ metric: "heart_rate", unit: "zone", min: 1, max: 1 });
+    // Zone 1 de FC → zone 1 d'allure (60–77 % de la vitesse seuil, allure seuil 4:00/km).
+    expect(stepsOf(mixed.event!.description)).toEqual([
+      "- Échauffement 15m 5:12/km-6:40/km Pace",
+      "5x",
+      "- Travail 20s 4:43/km-5:05/km Pace",
+      "- Récupération 20s 6:45/km-8:30/km Pace",
+      "- Retour au calme 5m 5:00/km-5:30/km Pace",
+    ]);
+    const text = mixed.event!.description;
+    // FC seuil course 172 bpm : zone 1 = 86–144 bpm ; pas de FC indicative sur 20 s (elle n'a pas le temps de suivre).
+    expect(text).toContain("Étape 1, Échauffement : FC visée Z1 (86–144 bpm)");
+    // 5:00–5:30/km = 73–80 % de la vitesse seuil, soit 75–86 % de la FC seuil.
+    expect(text).toContain("Étape 4, Retour au calme : FC indicative Z1–Z2 (129–148 bpm)");
+    expect(text).not.toContain("Étape 2, Travail : FC");
+    expect(mixed.issues.some((i) => i.message.startsWith("Fréquence cardiaque transmise en allure"))).toBe(true);
+    expect(mixed.issues.some((i) => i.message.startsWith("Cibles de types différents"))).toBe(false);
+
+    // Tout en allure dès le départ : rien à convertir, rien d'ajouté.
+    const pace = run({ metric: "pace", unit: "zone", min: 1, max: 1 });
+    expect(pace.event!.description).not.toContain("FC ");
+    expect(pace.issues.some((i) => i.message.startsWith("Fréquence cardiaque transmise"))).toBe(false);
+
+    // FC en bpm sans FC seuil : rien n'est converti au jugé, le graphique gris est expliqué.
+    const blind = run({ metric: "heart_rate", unit: "bpm", min: 130, max: 145 }, { thresholds: { run: { thresholdPaceSPerKm: 240 }, general: { maxHrBpm: 190 } } });
+    expect(stepsOf(blind.event!.description)[0]).toBe("- Échauffement 15m 68-76% HR");
+    expect(blind.issues.find((i) => i.message.startsWith("Cibles de types différents"))?.message).toContain("fréquence cardiaque et allure");
+  });
+
+  it("vélo qui mêle FC et puissance : tout en watts, la FC en consignes", () => {
+    const [bike] = build({
+      schemaVersion: 1,
+      segments: [
+        {
+          id: "b",
+          sport: "bike",
+          steps: [
+            { kind: "step", id: "e", type: "warmup", length: { unit: "time", seconds: 1800 }, targets: [{ metric: "heart_rate", unit: "zone", min: 2, max: 2 }] },
+            { kind: "step", id: "t", type: "active", length: { unit: "time", seconds: 480 }, targets: [{ metric: "power", unit: "watts", min: 238, max: 250 }] },
+            {
+              kind: "step",
+              id: "h",
+              type: "cooldown",
+              length: { unit: "time", seconds: 600 },
+              targets: [
+                { metric: "heart_rate", unit: "percent_lthr", min: 70, max: 80 },
+                { metric: "cadence", unit: "rpm", min: 85, max: 95 },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    // FTP 250 W, FC seuil vélo 165 bpm : zone 2 de FC → zone 2 de puissance (56–75 % FTP).
+    expect(stepsOf(bike.event!.description)).toEqual(["- Échauffement 30m 140-188w", "- Travail 8m 238-250w", "- Retour au calme 10m 90-135w 85-95rpm"]);
+    const text = bike.event!.description;
+    expect(text).toContain("Étape 1, Échauffement : FC visée Z2 (134–147 bpm)");
+    expect(text).toContain("Étape 2, Travail : FC indicative Z4 (158–161 bpm)");
+    expect(text).toContain("Étape 3, Retour au calme : FC visée Z1 (116–132 bpm)");
+    expect(bike.issues.some((i) => i.message.startsWith("Fréquence cardiaque transmise en puissance"))).toBe(true);
   });
 
   it("répétitions imbriquées déroulées dans l'unique niveau de répétition", () => {

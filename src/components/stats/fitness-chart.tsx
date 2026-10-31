@@ -330,17 +330,22 @@ export function FitnessChart({ data }: { data: FitnessData }) {
         </div>
       </div>
 
-      <ul aria-label="Zones de forme" className="flex flex-wrap gap-x-4 gap-y-1.5 text-[12px]">
-        {FORM_ZONES.map((z, index) => (
-          <li key={z.key} className="flex items-center gap-1.5" title={z.hint}>
-            <span aria-hidden className="size-2.5 rounded-[3px]" style={{ background: ZONE_COLOR[z.key] }} />
-            <span className="font-semibold text-ink">{z.label}</span>
-            <span className="figure text-muted">
-              {index === 0 ? `au-dessus de ${signed(z.min)}` : index === FORM_ZONES.length - 1 ? `sous ${signed(FORM_ZONES[index - 1].min)}` : `de ${signed(z.min)} à ${signed(FORM_ZONES[index - 1].min)}`}
-            </span>
-          </li>
-        ))}
-      </ul>
+      <div className="space-y-2">
+        <p className="text-[12.5px] leading-snug text-ink-soft">
+          La forme monte avec le repos et descend quand la charge s’accumule : en haut, reposé ; tout en bas, fatigue excessive et risque de blessure.
+        </p>
+        <ul aria-label="Zones de forme" className="flex flex-wrap gap-x-4 gap-y-1.5 text-[12px]">
+          {FORM_ZONES.map((z, index) => (
+            <li key={z.key} className="flex items-center gap-1.5" title={z.hint}>
+              <span aria-hidden className="size-2.5 rounded-[3px]" style={{ background: ZONE_COLOR[z.key] }} />
+              <span className="font-semibold text-ink">{z.label}</span>
+              <span className="figure text-muted">
+                {index === 0 ? `au-dessus de ${signed(z.min)}` : index === FORM_ZONES.length - 1 ? `sous ${signed(FORM_ZONES[index - 1].min)}` : `de ${signed(z.min)} à ${signed(FORM_ZONES[index - 1].min)}`}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
 
       {/* Détail du jour pointé (aujourd'hui par défaut) */}
       <section aria-label="Détail du jour" aria-live="polite" className="rounded-[12px] border border-line p-3">

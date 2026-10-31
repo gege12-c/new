@@ -16,9 +16,21 @@ export function FitnessPanel({ data, viewer }: { data: FitnessData; viewer: "ath
   if (!data.realizedAvailable) notes.push("Fichiers FIT et retours de séance : disponibles après la mise à jour de la base de données du site ; seule la prévision est calculée.");
   if (coverage.fitWithoutMeasure) {
     notes.push(
-      `${plural(coverage.fitWithoutMeasure, "fichier FIT", "fichiers FIT")} sans mesure exploitable, non ${coverage.fitWithoutMeasure > 1 ? "comptés" : "compté"} : ${
+      `${plural(coverage.fitWithoutMeasure, "activité", "activités")} sans mesure exploitable, non ${coverage.fitWithoutMeasure > 1 ? "comptées" : "comptée"} : ${
         own ? "renseignez votre FTP, allure seuil, CSS ou FC seuil dans votre profil sportif, ou donnez votre ressenti de la séance" : "il manque un seuil de l’athlète ou son ressenti"
       }.`,
+    );
+  }
+  if (coverage.backdated) {
+    notes.push(
+      `${plural(coverage.backdated, "activité est antérieure", "activités sont antérieures")} ${own ? "à vos seuils" : "aux seuils de l’athlète"} : ${coverage.backdated > 1 ? "comptées" : "comptée"} avec leur première valeur, en estimation. ${
+        own ? "Pour plus de précision, ajoutez vos anciens seuils avec leur date dans votre profil sportif." : ""
+      }`.trim(),
+    );
+  }
+  if (coverage.duplicates) {
+    notes.push(
+      `${plural(coverage.duplicates, "séance enregistrée", "séances enregistrées")} par deux appareils à la fois (montre et compteur, par exemple) : ${coverage.duplicates > 1 ? "comptées" : "comptée"} une seule fois, avec l’enregistrement le plus complet.`,
     );
   }
   if (coverage.feedbackWithoutMeasure) {
@@ -106,11 +118,16 @@ export function FitnessPanel({ data, viewer }: { data: FitnessData; viewer: "ath
           <ul className="mt-2 list-disc space-y-1 pl-5 text-muted">
             <li>
               Charge d’une séance : heures × intensité² × 100, l’intensité étant rapportée au seuil (puissance normalisée / FTP, vitesse / vitesse au seuil, FC / FC seuil, ou ressenti :
-              RPE 7–8 ≈ seuil). Natation : au cube, comme le sTSS. Une heure au seuil vaut 100.
+              RPE 7–8 ≈ seuil). Natation : au cube, comme le sTSS. Une heure au seuil vaut 100. Avec la FC de repos (profil sportif, ou médiane des 60 derniers jours de la forme du
+              jour), la FC compte sur la réserve cardiaque : une marche à FC basse pèse peu.
             </li>
             <li>
               Avec la courbe de la montre ou du fichier, la charge est calculée seconde par seconde : puissance normalisée, allure normalisée corrigée de la pente en course (une côte compte ce
               qu’elle coûte), fréquence cardiaque où les passages intenses pèsent plus. Sinon, les moyennes de l’activité.
+            </li>
+            <li>
+              Seuils saisis après une activité : leur première valeur sert pour elle, comme le fait Intervals.icu en important un historique. Une séance enregistrée par deux
+              appareils (même discipline, enregistrements qui se recouvrent) n’est comptée qu’une fois.
             </li>
             <li>Condition : moyenne exponentielle de la charge quotidienne sur 42 jours ; fatigue : sur 7 jours ; forme = condition − fatigue.</li>
             <li>

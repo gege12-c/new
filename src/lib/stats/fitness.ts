@@ -50,6 +50,8 @@ export interface LoadActivity {
   np?: number | null;
   ngs?: number | null;
   hr_rms?: number | null;
+  /** Départ (instant UTC) : reconnaît une même séance enregistrée par deux appareils. */
+  start_time?: string | null;
 }
 
 export type LoadMethod = "power" | "pace" | "graded_pace" | "swim" | "heart_rate" | "rpe" | "plan";
@@ -89,10 +91,98 @@ export function activityLoad(activity: LoadActivity, thresholds?: AthleteThresho
   // FC quadratique moyenne de la courbe (les passages intenses pèsent plus), sinon FC moyenne.
   const heartRate = activity.hr_rms ?? activity.avg_hr;
   if (activity.sport !== "swim" && lthr && heartRate) {
-    return { load: tss(seconds, heartRate / lthr), method: "heart_rate", estimated: true };
+    return { load: tss(seconds, heartIntensity(heartRate, lthr, thresholds?.general?.restingHrBpm)), method: "heart_rate", estimated: true };
   }
   return null;
 }
+
+/**
+ * Intensité d'après la FC. FC de repos connue : réserve cardiaque, (FC − repos) / (seuil − repos),
+ * comme le TRIMP de Banister et le HRSS d'Intervals.icu, pour qu'une FC proche du repos (une marche)
+ * pèse peu. Sinon, FC / FC seuil.
+ */
+export function heartIntensity(heartRate: number, lthr: number, restingHr?: number): number {
+  if (restingHr && lthr - restingHr >= 20) return (heartRate - restingHr) / (lthr - restingHr);
+  return heartRate / lthr;
+}
+
+/** FC de repos mesurée (forme du jour, souvent transmise par la montre) : jours lus, minimum de jours renseignés. */
+export const RESTING_HR_DAYS = 60;
+const RESTING_HR_MIN_DAYS = 3;
+
+/** FC de repos de référence : médiane des jours renseignés (null avec trop peu de jours). */
+export function medianRestingHr(values: (number | null | undefined)[]): number | null {
+  const known = values.filter((v): v is number => typeof v === "number" && v > 0).sort((a, b) => a - b);
+  if (known.length < RESTING_HR_MIN_DAYS) return null;
+  const mid = Math.floor(known.length / 2);
+  return known.length % 2 ? known[mid] : (known[mid - 1] + known[mid]) / 2;
+}
+
+/** Mesures d'une activité, de la plus riche à la plus pauvre, puis sa durée : départage deux enregistrements. */
+function measureRank(activity: LoadActivity): number[] {
+  return [
+    activity.weighted_power ?? activity.np ? 1 : 0,
+    activity.avg_power ? 1 : 0,
+    activity.ngs ? 1 : 0,
+    activity.avg_speed_mps ? 1 : 0,
+    activity.hr_rms ?? activity.avg_hr ? 1 : 0,
+    activity.moving_s ?? activity.elapsed_s ?? 0,
+  ];
+}
+
+const richer = (a: LoadActivity, b: LoadActivity) => {
+  const ra = measureRank(a);
+  const rb = measureRank(b);
+  const k = ra.findIndex((v, i) => v !== rb[i]);
+  return k === -1 ? a.id < b.id : ra[k] > rb[k];
+};
+
+/**
+ * Une même séance enregistrée deux fois (la montre et le compteur du vélo, tous deux transmis) :
+ * même discipline, enregistrements qui se recouvrent sur la moitié au moins du plus court. Seul le plus
+ * riche en mesures est compté (puissance d'abord).
+ */
+export function dropDuplicateRecordings<T extends LoadActivity>(activities: T[]): { kept: T[]; duplicates: { dropped: T; kept: T }[] } {
+  const timed = activities
+    .map((activity) => {
+      const start = activity.start_time ? Date.parse(activity.start_time) : Number.NaN;
+      const seconds = activity.elapsed_s ?? activity.moving_s ?? 0;
+      return { activity, start, end: start + seconds * 1000, seconds };
+    })
+    .filter((t) => Number.isFinite(t.start) && t.seconds > 0)
+    .sort((a, b) => a.start - b.start);
+  const winner = new Map<string, T>();
+  for (let i = 0; i < timed.length; i += 1) {
+    for (let j = i + 1; j < timed.length && timed[j].start < timed[i].end; j += 1) {
+      const a = timed[i];
+      const b = timed[j];
+      if (a.activity.sport !== b.activity.sport) continue;
+      const overlap = Math.min(a.end, b.end) - b.start;
+      if (overlap < 0.5 * Math.min(a.seconds, b.seconds) * 1000) continue;
+      const [best, other] = richer(a.activity, b.activity) ? [a.activity, b.activity] : [b.activity, a.activity];
+      if (!winner.has(other.id)) winner.set(other.id, best);
+    }
+  }
+  // Le gardé d'un doublon peut lui-même être écarté par un troisième enregistrement plus riche.
+  const resolve = (activity: T): T => {
+    let current = activity;
+    for (let guard = 0; winner.has(current.id) && guard < 10; guard += 1) current = winner.get(current.id)!;
+    return current;
+  };
+  return {
+    kept: activities.filter((a) => !winner.has(a.id)),
+    duplicates: activities.filter((a) => winner.has(a.id)).map((dropped) => ({ dropped, kept: resolve(dropped) })),
+  };
+}
+
+/** Seuils sur lesquels repose chaque mesure de charge (pour dire quand ils ont été saisis après l'activité). */
+export const LOAD_THRESHOLD_KEYS: Partial<Record<LoadMethod, readonly string[]>> = {
+  power: ["bike.ftp_w"],
+  graded_pace: ["run.threshold_pace_s_per_km"],
+  pace: ["run.threshold_pace_s_per_km"],
+  swim: ["swim.css_s_per_100m"],
+  heart_rate: ["run.lthr_bpm", "bike.lthr_bpm"],
+};
 
 export interface PlannedLoad {
   load: number;
@@ -166,11 +256,17 @@ export interface FitnessInputs {
   matches: Map<string, string>;
   completions: Map<string, FitnessCompletion>;
   thresholdsOn: (date: string) => AthleteThresholds | undefined;
+  /** Vrai si l'un des seuils nommés n'était pas encore saisi à cette date (sa première valeur sert d'estimation). */
+  estimatedOn?: (date: string, keys: readonly string[]) => boolean;
 }
 
 export interface FitnessCoverage {
   /** Fichiers FIT comptés. */
   fit: number;
+  /** Activités comptées avec un seuil saisi après elles (sa première valeur). */
+  backdated: number;
+  /** Enregistrements en double d'une même séance (deux appareils), comptés une seule fois. */
+  duplicates: number;
   /** Séances comptées d'après le retour de l'athlète (sans fichier FIT). */
   feedback: number;
   /** Séances prévues comptées dans la prévision. */
@@ -191,18 +287,26 @@ export function dailyLoads(inputs: FitnessInputs): {
   /** Charges comptées et prévues, une par activité ou séance (brouillons à venir compris, marqués). */
   items: LoadItem[];
 } {
-  const { today, sessions, activities, matches, completions, thresholdsOn } = inputs;
+  const { today, sessions, matches, completions, thresholdsOn, estimatedOn } = inputs;
   const actual = new Map<string, number>();
   const planned = new Map<string, number>();
   const items: LoadItem[] = [];
   const add = (map: Map<string, number>, date: string, load: number) => map.set(date, (map.get(date) ?? 0) + load);
   const sessionTitle = (session: FitnessSession) => session.title ?? "Séance";
   const sessionSport = (session: FitnessSession) => session.sport ?? session.content.segments[0]?.sport ?? "other";
-  const coverage: FitnessCoverage = { fit: 0, feedback: 0, planned: 0, fitWithoutMeasure: 0, feedbackWithoutMeasure: 0, plannedPartly: 0 };
+  const coverage: FitnessCoverage = { fit: 0, backdated: 0, duplicates: 0, feedback: 0, planned: 0, fitWithoutMeasure: 0, feedbackWithoutMeasure: 0, plannedPartly: 0 };
   const sessionsWithFit = new Set<string>();
 
+  // Une séance enregistrée par deux appareils ne compte qu'une fois ; la séance rattachée au double
+  // reste « faite d'après un fichier » (son retour n'est pas compté en plus).
+  const { kept: activities, duplicates } = dropDuplicateRecordings(inputs.activities.filter((a) => a.local_date <= today));
+  coverage.duplicates = duplicates.length;
+  for (const { dropped } of duplicates) {
+    const sessionId = matches.get(dropped.id);
+    if (sessionId) sessionsWithFit.add(sessionId);
+  }
+
   for (const activity of activities) {
-    if (activity.local_date > today) continue;
     const sessionId = matches.get(activity.id);
     if (sessionId) sessionsWithFit.add(sessionId);
     const measured = activityLoad(activity, thresholdsOn(activity.local_date));
@@ -219,6 +323,8 @@ export function dailyLoads(inputs: FitnessInputs): {
       add(actual, activity.local_date, measured.load);
       items.push(activityItem(measured.load, measured.method));
       coverage.fit += 1;
+      const keys = LOAD_THRESHOLD_KEYS[measured.method];
+      if (keys && estimatedOn?.(activity.local_date, keys)) coverage.backdated += 1;
       continue;
     }
     // Sans mesure exploitable : le ressenti donné pour la séance rattachée, sur la durée du fichier.
