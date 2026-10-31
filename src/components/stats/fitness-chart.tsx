@@ -28,7 +28,8 @@ const PERIODS = [
 
 const METHOD_LABELS: Record<LoadMethod, string> = {
   power: "puissance",
-  pace: "allure",
+  pace: "allure moyenne",
+  graded_pace: "allure normalisée, pente comprise",
   swim: "allure de nage",
   heart_rate: "fréquence cardiaque",
   rpe: "ressenti",

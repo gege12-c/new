@@ -6,7 +6,7 @@
  */
 import { Decoder, Stream, Utils, type LapMesg, type RecordMesg, type SessionMesg } from "@garmin/fitsdk";
 import { boundedInt, shortText, type ActivitySport, type ImportedActivity } from "@/lib/activities/schema";
-import { lap, powerBests, reduceStreams, type ActivityLap, type ActivityStreams, type RawStreams } from "@/lib/activities/streams";
+import { activityMetrics, lap, powerBests, reduceStreams, type ActivityLap, type ActivityStreams, type RawStreams } from "@/lib/activities/streams";
 
 export class FitImportError extends Error {
   constructor(message: string) {
@@ -58,7 +58,7 @@ const LAP_KINDS: Record<string, ActivityLap["kind"]> = { active: "work", interva
 const LAP_LABELS: Record<string, string> = { warmup: "Échauffement", cooldown: "Retour au calme" };
 
 /** Courbes et tours d'une session (mesures de son départ à sa fin) ; null sans courbe exploitable. */
-export function sessionStreams(records: RecordMesg[], laps: LapMesg[], startMs: number, elapsedS: number | null): ActivityStreams | null {
+export function sessionStreams(records: RecordMesg[], laps: LapMesg[], startMs: number, elapsedS: number | null, sport: string): ActivityStreams | null {
   const endMs = startMs + Math.max(0, elapsedS ?? 0) * 1000;
   const raw: Required<Pick<RawStreams, "time" | "watts" | "heartrate" | "cadence" | "speed" | "altitude" | "distance">> = {
     time: [],
@@ -106,7 +106,7 @@ export function sessionStreams(records: RecordMesg[], laps: LapMesg[], startMs: 
     .sort((a, b) => a.start_s - b.start_s);
   // Un seul tour, toute la session : il n'apprend rien de plus.
   const kept = sessionLaps.length >= 2 ? sessionLaps.slice(0, 300) : [];
-  return { ...reduced, laps: kept, laps_origin: kept.length ? "device" : null, bests: powerBests(raw) };
+  return { ...reduced, laps: kept, laps_origin: kept.length ? "device" : null, bests: powerBests(raw), metrics: activityMetrics(raw, sport) };
 }
 
 function deviceName(fileId: Record<string, unknown> | undefined): string | null {
@@ -169,7 +169,7 @@ export async function parseFitFile(buffer: ArrayBuffer): Promise<ImportedActivit
       avg_speed_mps: decimal(session.enhancedAvgSpeed ?? session.avgSpeed, 0, 999, 3),
       trainer: typeof session.subSport === "string" ? TRAINER_SUB_SPORTS.has(session.subSport) : null,
       device_name: device,
-      streams: sessionStreams(records, laps, start.getTime(), finite(session.totalElapsedTime)),
+      streams: sessionStreams(records, laps, start.getTime(), finite(session.totalElapsedTime), sport),
     });
   });
   if (!items.length) throw new FitImportError("Aucune activité exploitable dans ce fichier.");

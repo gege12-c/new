@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { availableMetrics, intervalsLaps, intervalsStreams, powerBests, readStoredStreams, reduceStreams, STREAM_MAX_POINTS } from "./streams";
+import { activityMetrics, availableMetrics, intervalsLaps, intervalsStreams, minettiCost, powerBests, readStoredStreams, reduceStreams, STREAM_MAX_POINTS } from "./streams";
 
 const seconds = (n: number) => Array.from({ length: n }, (_, i) => i);
 
@@ -115,5 +115,34 @@ describe("lecture en base", () => {
     expect(readStoredStreams({ ...row, series: { time: [0, 5], watts: [200] } })).toBeNull();
     expect(readStoredStreams({ ...row, sample_s: 0 })).toBeNull();
     expect(readStoredStreams(null)).toBeNull();
+  });
+});
+
+describe("mesures normalisées", () => {
+  const hour = seconds(3600);
+
+  it("puissance normalisée : égale à la moyenne quand la puissance est constante, au-dessus en fractionné", () => {
+    expect(activityMetrics({ time: hour, watts: hour.map(() => 200) }, "bike").np).toBe(200);
+    const intervals = activityMetrics({ time: hour, watts: hour.map((t) => (Math.floor(t / 60) % 2 ? 100 : 300)) }, "bike");
+    expect(intervals.np).toBeGreaterThan(220);
+    expect(intervals.np).toBeLessThan(300);
+    // Moins de dix minutes : la moyenne suffit, rien n'est calculé.
+    expect(activityMetrics({ time: seconds(300), watts: seconds(300).map(() => 250) }, "bike")).toEqual({});
+  });
+
+  it("course : vitesse normalisée ajustée à la pente (Minetti) ; à plat, la vitesse elle-même", () => {
+    const flat = activityMetrics({ time: hour, speed: hour.map(() => 3.5), altitude: hour.map(() => 200), distance: hour.map((t) => t * 3.5) }, "run");
+    expect(flat.ngs).toBeCloseTo(3.5, 2);
+    const climb = activityMetrics({ time: hour, speed: hour.map(() => 3), altitude: hour.map((t) => 200 + t * 3 * 0.05), distance: hour.map((t) => t * 3) }, "run");
+    expect(climb.ngs).toBeCloseTo((3 * minettiCost(0.05)) / minettiCost(0), 2);
+    expect(minettiCost(0)).toBe(3.6);
+    // Arrêts exclus ; sans altitude, pas d'ajustement ; à vélo, pas d'allure de course.
+    expect(activityMetrics({ time: hour, speed: hour.map((t) => (t < 600 ? 0 : 3)) }, "run").ngs).toBeCloseTo(3, 2);
+    expect(activityMetrics({ time: hour, speed: hour.map(() => 9) }, "bike").ngs).toBeUndefined();
+  });
+
+  it("fréquence cardiaque quadratique moyenne : les passages intenses pèsent plus que dans la moyenne", () => {
+    expect(activityMetrics({ time: hour, heartrate: hour.map(() => 150) }, "run").hr_rms).toBe(150);
+    expect(activityMetrics({ time: hour, heartrate: hour.map((t) => (t % 2 ? 180 : 120)) }, "run").hr_rms).toBeCloseTo(Math.sqrt((180 ** 2 + 120 ** 2) / 2), 1);
   });
 });

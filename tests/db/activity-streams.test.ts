@@ -37,11 +37,11 @@ async function activity(source: "intervals" | "fit_upload") {
 }
 
 const insertStreams = (user: TestUser, activityId: string) =>
-  as(user, "insert into public.activity_streams (activity_id, sample_s, series, laps, laps_origin, bests) values ($1, 5, $2::jsonb, $3::jsonb, 'device', '{\"5\": 260}'::jsonb)", [
-    activityId,
-    SERIES,
-    LAPS,
-  ]);
+  as(
+    user,
+    "insert into public.activity_streams (activity_id, sample_s, series, laps, laps_origin, bests, metrics) values ($1, 5, $2::jsonb, $3::jsonb, 'device', '{\"5\": 260}'::jsonb, '{\"np\": 231, \"hr_rms\": 151.2}'::jsonb)",
+    [activityId, SERIES, LAPS],
+  );
 const visible = async (user: TestUser, activityId: string) =>
   (await as(user, "select sample_s, series->'watts' as watts from public.activity_streams where activity_id = $1", [activityId])).rows;
 
@@ -64,6 +64,7 @@ describe("courbes des activités", () => {
     await expectFailure(insertStreams(coach, id), DENIED);
     await expectFailure(insertStreams(stranger, id), DENIED);
     await insertStreams(athlete, id);
+    expect((await as(coach, "select metrics from public.activity_streams where activity_id = $1", [id])).rows[0].metrics).toEqual({ np: 231, hr_rms: 151.2 });
     await expectFailure(insertStreams(athlete, id), /duplicate key|activity_streams_pkey/);
     expect(await visible(coach, id)).toHaveLength(1);
     // Ni modification ni effacement à la main : elles suivent l'activité.
@@ -79,5 +80,9 @@ describe("courbes des activités", () => {
     await expectFailure(asSuperuser("insert into public.activity_streams (activity_id, sample_s, series) values ($1, 5, '[]'::jsonb)", [id]), /activity_streams_series_check/);
     await expectFailure(asSuperuser("insert into public.activity_streams (activity_id, sample_s, series, laps) values ($1, 5, '{}'::jsonb, '{}'::jsonb)", [id]), /activity_streams_laps_check/);
     await expectFailure(asSuperuser("insert into public.activity_streams (activity_id, sample_s, series) values ($1, 0, '{}'::jsonb)", [id]), /activity_streams_sample_s_check/);
+    await expectFailure(asSuperuser("insert into public.activity_streams (activity_id, sample_s, series, metrics) values ($1, 5, '{}'::jsonb, '[]'::jsonb)", [id]), /activity_streams_metrics_check/);
+    // Sans mesures : un objet vide.
+    await asSuperuser("insert into public.activity_streams (activity_id, sample_s, series) values ($1, 5, '{}'::jsonb)", [id]);
+    expect((await asSuperuser("select metrics from public.activity_streams where activity_id = $1", [id])).rows[0].metrics).toEqual({});
   });
 });

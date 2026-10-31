@@ -76,6 +76,19 @@ export interface ActivityLap {
 
 export type PowerBests = Partial<Record<`${PowerBestDuration}`, number>>;
 
+/**
+ * Mesures normalisées, tirées de la courbe seconde par seconde et indépendantes des seuils : la
+ * charge d'entraînement en est tirée à la lecture, avec les seuils en vigueur à la date de l'activité.
+ */
+export interface ActivityMetrics {
+  /** Puissance normalisée (W) : moyenne glissante sur 30 s, élevée à la puissance 4, moyennée, racine 4e. */
+  np?: number;
+  /** Course : vitesse normalisée ajustée à la pente (m/s), même normalisation, pente selon Minetti. */
+  ngs?: number;
+  /** Fréquence cardiaque quadratique moyenne (bpm) : les passages intenses pèsent plus que dans la moyenne. */
+  hr_rms?: number;
+}
+
 export interface ActivityStreams {
   sample_s: number;
   series: StreamSeries;
@@ -83,6 +96,7 @@ export interface ActivityStreams {
   /** « detected » : intervalles détectés par intervals.icu ; « device » : tours enregistrés par l'appareil. */
   laps_origin: "detected" | "device" | null;
   bests: PowerBests;
+  metrics?: ActivityMetrics;
 }
 
 /** Temps de chaque mesure : celui reçu s'il est cohérent (croissant), sinon une mesure par seconde. */
@@ -174,6 +188,97 @@ export function powerBests(raw: RawStreams): PowerBests {
     if (average > 0) bests[`${window}`] = average;
   }
   return bests;
+}
+
+/** Durée minimale de mesures pour une valeur normalisée : en deçà, la moyenne suffit. */
+const MIN_NORMALIZED_S = 600;
+const ROLLING_S = 30;
+
+/** Une valeur par seconde enregistrée : chaque mesure tient jusqu'à la suivante (5 s au plus) ; une pause n'est pas comptée. */
+function recordedSeconds(time: number[], values: Values, metric: StreamMetric | "distance"): (number | null)[] {
+  const duration = time[time.length - 1] + 1;
+  const out = new Array<number | null>(duration).fill(null);
+  for (let i = 0; i < time.length; i += 1) {
+    const value = values[i];
+    if (!valid(value, metric)) continue;
+    const until = i + 1 < time.length ? time[i + 1] : time[i] + 1;
+    const hold = until - time[i] <= HOLD_LIMIT_S ? Math.max(1, until - time[i]) : 1;
+    for (let k = 0; k < hold && time[i] + k < duration; k += 1) out[time[i] + k] = value;
+  }
+  return out;
+}
+
+/** Normalisation à la manière de la puissance normalisée : moyenne glissante sur 30 s, puissance 4, moyenne, racine 4e. */
+function normalized(samples: number[]): number | null {
+  if (samples.length < MIN_NORMALIZED_S) return null;
+  let window = 0;
+  let total = 0;
+  let count = 0;
+  for (let i = 0; i < samples.length; i += 1) {
+    window += samples[i];
+    if (i >= ROLLING_S) window -= samples[i - ROLLING_S];
+    if (i >= ROLLING_S - 1) {
+      total += (window / ROLLING_S) ** 4;
+      count += 1;
+    }
+  }
+  return count ? (total / count) ** 0.25 : null;
+}
+
+/** Coût énergétique de la course selon la pente i (Minetti et al., 2002), en J/kg/m ; 3,6 sur le plat. */
+export const minettiCost = (i: number) => 155.4 * i ** 5 - 30.4 * i ** 4 - 43.3 * i ** 3 + 46.3 * i ** 2 + 19.5 * i + 3.6;
+const GRADE_HALF_WINDOW_S = 15;
+const MIN_GRADE_DISTANCE_M = 20;
+const MAX_GRADE = 0.35;
+
+/**
+ * Mesures normalisées d'une activité, sur la courbe seconde par seconde (avant réduction) :
+ * puissance normalisée, vitesse normalisée ajustée à la pente (course), FC quadratique moyenne.
+ * Dix minutes de mesures au moins ; rien n'est calculé sinon.
+ */
+export function activityMetrics(raw: RawStreams, sport: string): ActivityMetrics {
+  const time = timeline(raw);
+  if (!time) return {};
+  const metrics: ActivityMetrics = {};
+  const series = (key: StreamMetric | "distance") => (raw[key] && raw[key]!.length === time.length ? recordedSeconds(time, raw[key]!, key) : null);
+
+  const watts = series("watts");
+  if (watts) {
+    const np = normalized(watts.filter((v): v is number => v !== null));
+    if (np && np > 0) metrics.np = Math.round(np);
+  }
+
+  const speed = sport === "run" ? series("speed") : null;
+  if (speed) {
+    const altitude = series("altitude");
+    const distance = series("distance");
+    const adjusted: number[] = [];
+    for (let t = 0; t < speed.length; t += 1) {
+      const v = speed[t];
+      // À l'arrêt : ni effort ni allure.
+      if (v === null || v < 0.3) continue;
+      let factor = 1;
+      if (altitude && distance) {
+        const a = Math.max(0, t - GRADE_HALF_WINDOW_S);
+        const b = Math.min(speed.length - 1, t + GRADE_HALF_WINDOW_S);
+        const [altA, altB, distA, distB] = [altitude[a], altitude[b], distance[a], distance[b]];
+        if (altA !== null && altB !== null && distA !== null && distB !== null && distB - distA >= MIN_GRADE_DISTANCE_M) {
+          const grade = Math.min(Math.max((altB - altA) / (distB - distA), -MAX_GRADE), MAX_GRADE);
+          factor = minettiCost(grade) / minettiCost(0);
+        }
+      }
+      adjusted.push(v * factor);
+    }
+    const ngs = normalized(adjusted);
+    if (ngs && ngs > 0) metrics.ngs = round(ngs, 3);
+  }
+
+  const heart = series("heartrate");
+  if (heart) {
+    const samples = heart.filter((v): v is number => v !== null);
+    if (samples.length >= MIN_NORMALIZED_S) metrics.hr_rms = round(Math.sqrt(samples.reduce((sum, v) => sum + v * v, 0) / samples.length), 1);
+  }
+  return metrics;
 }
 
 // ---------------------------------------------------------------------------
@@ -322,12 +427,19 @@ export const StoredLapSchema = z.object({
 
 export const StoredBestsSchema = z.object(Object.fromEntries(POWER_BEST_DURATIONS.map((d) => [`${d}`, z.number().int().positive().optional()]))).partial();
 
+export const StoredMetricsSchema = z.object({
+  np: z.number().int().min(1).max(3000).optional(),
+  ngs: z.number().positive().max(40).optional(),
+  hr_rms: z.number().min(20).max(260).optional(),
+});
+
 export const StoredStreamsSchema = z.object({
   sample_s: z.number().int().min(1).max(3600),
   series: StoredSeriesSchema,
   laps: z.array(StoredLapSchema).max(MAX_LAPS),
   laps_origin: z.enum(["detected", "device"]).nullable(),
   bests: StoredBestsSchema,
+  metrics: StoredMetricsSchema.optional(),
 });
 
 /** Ligne lue en base → courbes prêtes à tracer ; null si elle est illisible (rien n'est affiché). */

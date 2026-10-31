@@ -19,6 +19,7 @@ import {
   type LoadItem,
 } from "@/lib/stats/fitness";
 import { DURABLE_SOURCES } from "@/lib/activities/schema";
+import { StoredMetricsSchema } from "@/lib/activities/streams";
 import { isMissingSchema } from "@/lib/supabase/schema";
 import type { ServerSupabase } from "@/lib/supabase/server";
 import { currentThresholds, toAthleteThresholds } from "@/lib/thresholds";
@@ -61,7 +62,7 @@ const daysBetween = (from: string, to: string) => Math.round((Date.parse(`${to}T
 export async function getFitnessData(supabase: ServerSupabase, athleteId: string, today: string): Promise<FitnessData> {
   const start = historyStart(today);
   const limit = addDays(today, PROJECTION_DAYS);
-  const [sessions, thresholdRows, events, activities, completions, matches] = await Promise.all([
+  const [sessions, thresholdRows, events, activities, completions, matches, curves] = await Promise.all([
     getSessionsInRange(supabase, athleteId, start, limit),
     getThresholds(supabase, athleteId),
     getEvents(supabase, athleteId),
@@ -74,7 +75,22 @@ export async function getFitnessData(supabase: ServerSupabase, athleteId: string
       .in("status", ["auto", "confirmed"])
       .in("activity.source", [...DURABLE_SOURCES])
       .limit(5000),
+    // Mesures normalisées des courbes lues (montre, fichiers FIT) : charges plus fidèles que les moyennes.
+    supabase
+      .from("activity_streams")
+      .select("activity_id, metrics, activity:activities!inner(athlete_id, local_date)")
+      .eq("activity.athlete_id", athleteId)
+      .gte("activity.local_date", start)
+      .limit(5000),
   ]);
+  // Base sans les courbes ou sans leurs mesures : les moyennes servent, comme avant.
+  if (curves.error && !isMissingSchema(curves.error) && String(curves.error.code) !== "42703") throw curves.error;
+  const metrics = new Map(
+    (curves.error ? [] : (curves.data ?? [])).map((row) => {
+      const parsed = StoredMetricsSchema.safeParse(row.metrics);
+      return [row.activity_id, parsed.success ? parsed.data : {}] as const;
+    }),
+  );
   for (const result of [activities, completions, matches]) {
     if (result.error && !isMissingSchema(result.error)) throw result.error;
   }
@@ -83,7 +99,12 @@ export async function getFitnessData(supabase: ServerSupabase, athleteId: string
   const { actual, coverage, items } = dailyLoads({
     today,
     sessions,
-    activities: realizedAvailable ? ((activities.data ?? []) as LoadActivity[]) : [],
+    activities: realizedAvailable
+      ? ((activities.data ?? []) as LoadActivity[]).map((a) => {
+          const m = metrics.get(a.id);
+          return m ? { ...a, np: m.np ?? null, ngs: m.ngs ?? null, hr_rms: m.hr_rms ?? null } : a;
+        })
+      : [],
     matches: new Map(realizedAvailable ? (matches.data ?? []).map((m) => [m.activity_id as string, m.session_id as string]) : []),
     completions: new Map(
       realizedAvailable ? (completions.data ?? []).map((c) => [c.session_id as string, { session_id: c.session_id, status: c.status, rpe: c.rpe } as FitnessCompletion]) : [],

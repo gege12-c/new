@@ -35,7 +35,7 @@ describe.skipIf(!url || !serviceKey)("activités faites, reçues d'intervals.icu
   const streamCalls = () => fake.calls.filter((call) => call.includes("/streams.json")).length;
   const curves = async () =>
     new Map(
-      ((await admin.from("activity_streams").select("activity_id, sample_s, series, laps, laps_origin, bests").in("activity_id", (await received()).map((a) => a.id))).data ?? []).map((row) => [
+      ((await admin.from("activity_streams").select("activity_id, sample_s, series, laps, laps_origin, bests, metrics").in("activity_id", (await received()).map((a) => a.id))).data ?? []).map((row) => [
         row.activity_id,
         row,
       ]),
@@ -121,6 +121,9 @@ describe.skipIf(!url || !serviceKey)("activités faites, reçues d'intervals.icu
     expect(ride100.laps).toEqual([expect.objectContaining({ start_s: 600, duration_s: 480, avg_power: 260, avg_hr: 158, kind: "work", label: "Seuil" })]);
     expect(ride100.laps_origin).toBe("detected");
     expect(ride100.bests).toEqual({ "5": 260, "60": 260, "300": 260, "1200": 212, "3600": 191 });
+    // Mesures normalisées, pour la courbe de condition : puissance normalisée au-dessus de la moyenne (191 W).
+    expect(ride100.metrics).toMatchObject({ hr_rms: 150 });
+    expect((ride100.metrics as { np: number }).np).toBeGreaterThan(191);
     // Activité sans courbe chez intervals.icu : notée vide, pour ne pas être relue.
     const footing = (await received()).find((a) => a.external_id === "i101")!;
     expect(stored.get(footing.id)).toMatchObject({ series: {}, laps: [], laps_origin: null });

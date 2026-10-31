@@ -98,8 +98,12 @@ export function FitnessPanel({ data, viewer }: { data: FitnessData; viewer: "ath
           <summary className="cursor-pointer font-semibold text-ink-soft hover:text-ink">Comment c’est calculé</summary>
           <ul className="mt-2 list-disc space-y-1 pl-5 text-muted">
             <li>
-              Charge d’une séance : heures × intensité² × 100, l’intensité étant rapportée au seuil (puissance normalisée / FTP, vitesse / vitesse au seuil, FC moyenne / FC seuil, ou
-              ressenti : RPE 7–8 ≈ seuil). Natation : au cube, comme le sTSS. Une heure au seuil vaut 100.
+              Charge d’une séance : heures × intensité² × 100, l’intensité étant rapportée au seuil (puissance normalisée / FTP, vitesse / vitesse au seuil, FC / FC seuil, ou ressenti :
+              RPE 7–8 ≈ seuil). Natation : au cube, comme le sTSS. Une heure au seuil vaut 100.
+            </li>
+            <li>
+              Avec la courbe de la montre ou du fichier, la charge est calculée seconde par seconde : puissance normalisée, allure normalisée corrigée de la pente en course (une côte compte ce
+              qu’elle coûte), fréquence cardiaque où les passages intenses pèsent plus. Sinon, les moyennes de l’activité.
             </li>
             <li>Condition : moyenne exponentielle de la charge quotidienne sur 42 jours ; fatigue : sur 7 jours ; forme = condition − fatigue.</li>
             <li>

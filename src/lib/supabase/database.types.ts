@@ -138,6 +138,7 @@ export type Database = {
           created_at: string;
           laps: NonNullable<Json>;
           laps_origin: string | null;
+          metrics: NonNullable<Json>;
           sample_s: number;
           series: NonNullable<Json>;
         };
@@ -148,6 +149,7 @@ export type Database = {
           created_at?: string;
           laps?: NonNullable<Json>;
           laps_origin?: string | null;
+          metrics?: NonNullable<Json>;
           sample_s: number;
           series: NonNullable<Json>;
         };
@@ -157,6 +159,7 @@ export type Database = {
           created_at?: string;
           laps?: NonNullable<Json>;
           laps_origin?: string | null;
+          metrics?: NonNullable<Json>;
           sample_s?: number;
           series?: NonNullable<Json>;
         };

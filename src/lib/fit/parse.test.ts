@@ -70,6 +70,10 @@ describe("import FIT", () => {
     ]);
     expect(streams.laps_origin).toBe("device");
     expect(streams.bests).toMatchObject({ "5": 300, "60": 300, "300": 300 });
+    // Puissance normalisée au-dessus de la moyenne (fractionné), FC quadratique égale à la FC constante.
+    expect(streams.metrics?.np).toBeGreaterThan(Math.round((300 * 300 + 901 * 180) / 1201));
+    expect(streams.metrics?.hr_rms).toBe(140);
+    expect(streams.metrics?.ngs).toBeUndefined();
     expect(ImportBatchSchema.safeParse([activity]).success).toBe(true);
     // Le résumé seul, sans mesure au fil de la séance : pas de courbe.
     const bare = buildActivityFit({ start: new Date("2026-10-22T06:00:00Z"), sessions: [{ sport: "running", durationS: 600 }] });

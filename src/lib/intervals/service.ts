@@ -31,7 +31,7 @@ import { currentThresholds, toAthleteThresholds, type ThresholdRow } from "@/lib
 import { localDate } from "@/lib/utils";
 import { parseWorkout } from "@/lib/workout/schema";
 import { IntervalsApi, IntervalsError, type IntervalsEvent } from "./api";
-import { INTERVALS_STREAM_TYPES, intervalsLaps, intervalsStreams, powerBests, reduceStreams } from "@/lib/activities/streams";
+import { activityMetrics, INTERVALS_STREAM_TYPES, intervalsLaps, intervalsStreams, powerBests, reduceStreams } from "@/lib/activities/streams";
 import { INTERVALS_HISTORY_DAYS, INTERVALS_RECENT_DAYS, normalizeIntervalsActivity, sameActivity } from "./activities";
 import { missingMeasures, morningMeasures, WELLNESS_RECENT_DAYS } from "./wellness";
 import { buildIntervalsEvents, intervalsExternalId, INTERVALS_FORMAT_VERSION, INTERVALS_WINDOW_DAYS, type IntervalsBuild } from "./workout";
@@ -490,7 +490,7 @@ const STREAMS_BUDGET_MS = 20_000;
 async function pullStreams(deps: IntervalsDeps, connection: DeviceConnection, today: string): Promise<number> {
   const { data: rows, error } = await deps.admin
     .from("activities")
-    .select("id, external_id, stored:activity_streams(activity_id)")
+    .select("id, external_id, sport, stored:activity_streams(activity_id)")
     .eq("athlete_id", connection.athlete_id)
     .eq("source", "intervals")
     .gte("local_date", addDays(today, -INTERVALS_HISTORY_DAYS))
@@ -533,6 +533,7 @@ async function pullStreams(deps: IntervalsDeps, connection: DeviceConnection, to
         laps: laps as unknown as NonNullable<Json>,
         laps_origin: laps.length ? "detected" : null,
         bests: powerBests(raw) as unknown as NonNullable<Json>,
+        metrics: activityMetrics(raw, activity.sport) as unknown as NonNullable<Json>,
       },
       { onConflict: "activity_id" },
     );

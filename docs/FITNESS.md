@@ -19,14 +19,23 @@ Le calcul part de zéro 120 jours avant la fenêtre affichée (13 semaines pass�
 
 | Source | Intensité | Qualité |
 | --- | --- | --- |
-| Fichier FIT, vélo | puissance normalisée / FTP (à défaut, puissance moyenne / FTP) | exacte (estimée sans puissance normalisée) |
-| Fichier FIT, course | vitesse moyenne / vitesse au seuil (allure seuil) | estimée (vitesse moyenne, pas de NGP) |
-| Fichier FIT, natation | vitesse moyenne / CSS | estimée |
-| Fichier FIT, autres cas | FC moyenne / FC seuil (vélo ou course) | estimée (approximation du hrTSS) |
+| Activité (montre ou fichier FIT), vélo | puissance normalisée / FTP : celle de la source, sinon celle tirée de la courbe ; à défaut, puissance moyenne / FTP | exacte (estimée sans puissance normalisée) |
+| Activité, course, avec sa courbe | vitesse normalisée ajustée à la pente / vitesse au seuil | mesurée seconde par seconde |
+| Activité, course, sans courbe | vitesse moyenne / vitesse au seuil (allure seuil) | estimée |
+| Activité, natation | vitesse moyenne / CSS | estimée |
+| Activité, autres cas | FC quadratique moyenne de la courbe (à défaut, FC moyenne) / FC seuil (vélo ou course) | estimée (approximation du hrTSS) |
 | Fichier FIT sans mesure exploitable | ressenti (RPE) donné pour la séance rattachée, sur la durée du fichier | estimée ; sinon non comptée |
 | Retour de séance « faite » sans fichier FIT | ressenti (RPE) sur la durée prévue ; sans ressenti, la charge prévue de la séance | estimée |
 | Retour « en partie » | non comptée : la part faite n'est pas connue | — |
 | Séance prévue (prévision) | étape par étape : % FTP, % seuil, zones, RPE, ou valeurs absolues rapportées aux seuils du jour | estimée ; une étape sans intensité exprimable n'est pas comptée (l'écran le dit) |
+
+### Mesures tirées des courbes
+
+Quand l'activité arrive avec sa courbe (montre reliée par intervals.icu, fichier FIT), trois mesures sont calculées une fois, seconde par seconde, avant la réduction de la courbe pour l'affichage, et gardées avec elle (`activity_streams.metrics`). Elles ne dépendent pas des seuils : la charge est recalculée à chaque affichage avec les seuils en vigueur à la date de l'activité. Dix minutes de mesures au moins ; sinon la moyenne sert.
+
+- **Puissance normalisée** (méthode de Coggan) : moyenne glissante sur 30 s, élevée à la puissance 4, moyennée, racine 4e. Un fractionné pèse ce qu'il coûte, là où la moyenne l'écrase.
+- **Vitesse normalisée ajustée à la pente** (course) : chaque seconde, la vitesse est corrigée par le coût énergétique de la pente, mesurée sur 30 s (au moins 20 m parcourus) et bornée à ±35 % : `C(i) = 155,4 i⁵ − 30,4 i⁴ − 43,3 i³ + 46,3 i² + 19,5 i + 3,6` J/kg/m (Minetti et al., 2002), rapporté au plat (3,6). Les arrêts (moins de 0,3 m/s) sont écartés. Puis la même normalisation que la puissance. Une côte compte ce qu'elle coûte, une descente moins.
+- **FC quadratique moyenne** : racine de la moyenne des carrés ; elle donne le même résultat que la somme, seconde par seconde, de (FC / FC seuil)², c'est-à-dire la charge des passages intenses, que la FC moyenne sous-estime.
 
 RPE en intensité : 1 → 45 %, 2 → 52 %, 3 → 62 %, 4 → 70 %, 5 → 80 %, 6 → 87 %, 7 → 95 %, 8 → 102 %, 9 → 113 %, 10 → 125 % du seuil (interpolé), calé sur les zones (RPE 7–8 = seuil). Les seuils utilisés sont ceux en vigueur à la date de chaque séance.
 

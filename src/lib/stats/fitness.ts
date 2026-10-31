@@ -46,9 +46,13 @@ export interface LoadActivity {
   weighted_power: number | null;
   avg_hr: number | null;
   avg_speed_mps: number | null;
+  /** Mesures normalisées tirées de la courbe seconde par seconde (montre, fichier FIT), si elle a été lue. */
+  np?: number | null;
+  ngs?: number | null;
+  hr_rms?: number | null;
 }
 
-export type LoadMethod = "power" | "pace" | "swim" | "heart_rate" | "rpe" | "plan";
+export type LoadMethod = "power" | "pace" | "graded_pace" | "swim" | "heart_rate" | "rpe" | "plan";
 
 export interface LoadEstimate {
   load: number;
@@ -62,12 +66,18 @@ export function activityLoad(activity: LoadActivity, thresholds?: AthleteThresho
   const seconds = activity.moving_s ?? activity.elapsed_s;
   if (!seconds) return null;
   const ftp = thresholds?.bike?.ftpW;
-  const power = activity.weighted_power ?? activity.avg_power;
+  // Puissance normalisée : celle de la source (intervals.icu, fichier FIT), sinon celle tirée de la courbe.
+  const normalizedPower = activity.weighted_power ?? activity.np ?? null;
+  const power = normalizedPower ?? activity.avg_power;
   if (activity.sport === "bike" && ftp && power) {
-    return { load: tss(seconds, power / ftp), method: "power", estimated: activity.weighted_power === null };
+    return { load: tss(seconds, power / ftp), method: "power", estimated: normalizedPower === null };
+  }
+  const pace = thresholds?.run?.thresholdPaceSPerKm;
+  // Course : vitesse normalisée ajustée à la pente (courbe seconde par seconde), sinon vitesse moyenne.
+  if (activity.sport === "run" && pace && activity.ngs) {
+    return { load: tss(seconds, activity.ngs / (1000 / pace)), method: "graded_pace", estimated: false };
   }
   const speed = activity.avg_speed_mps;
-  const pace = thresholds?.run?.thresholdPaceSPerKm;
   if (activity.sport === "run" && pace && speed) {
     return { load: tss(seconds, speed / (1000 / pace)), method: "pace", estimated: true };
   }
@@ -76,8 +86,10 @@ export function activityLoad(activity: LoadActivity, thresholds?: AthleteThresho
     return { load: tss(seconds, speed / (100 / css), 3), method: "swim", estimated: true };
   }
   const lthr = activity.sport === "run" ? (thresholds?.run?.lthrBpm ?? thresholds?.bike?.lthrBpm) : (thresholds?.bike?.lthrBpm ?? thresholds?.run?.lthrBpm);
-  if (activity.sport !== "swim" && lthr && activity.avg_hr) {
-    return { load: tss(seconds, activity.avg_hr / lthr), method: "heart_rate", estimated: true };
+  // FC quadratique moyenne de la courbe (les passages intenses pèsent plus), sinon FC moyenne.
+  const heartRate = activity.hr_rms ?? activity.avg_hr;
+  if (activity.sport !== "swim" && lthr && heartRate) {
+    return { load: tss(seconds, heartRate / lthr), method: "heart_rate", estimated: true };
   }
   return null;
 }

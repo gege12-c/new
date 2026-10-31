@@ -1,6 +1,6 @@
 -- TriCoach : mise à jour de la base de production.
 -- Généré par scripts/production-sql.mjs à partir de supabase/migrations : ne pas modifier à la main.
--- Migrations incluses : 20261019000000_activities.sql, 20261020000000_workout_exports.sql, 20261021000000_notifications.sql, 20261021100000_admin_accounts.sql, 20261022000000_account_deletion.sql, 20261023000000_strava_coach_sharing.sql, 20261024000000_garmin_watch.sql, 20261030000000_device_workouts.sql, 20261031000000_intervals_activities.sql, 20261031010000_calendar_notes.sql, 20261031020000_wellness.sql, 20261031030000_calendar_feeds.sql, 20261031040000_training_plans.sql, 20261031050000_activity_streams.sql.
+-- Migrations incluses : 20261019000000_activities.sql, 20261020000000_workout_exports.sql, 20261021000000_notifications.sql, 20261021100000_admin_accounts.sql, 20261022000000_account_deletion.sql, 20261023000000_strava_coach_sharing.sql, 20261024000000_garmin_watch.sql, 20261030000000_device_workouts.sql, 20261031000000_intervals_activities.sql, 20261031010000_calendar_notes.sql, 20261031020000_wellness.sql, 20261031030000_calendar_feeds.sql, 20261031040000_training_plans.sql, 20261031050000_activity_streams.sql, 20261031060000_activity_metrics.sql.
 -- Mode d'emploi : Supabase > SQL Editor > New query, coller tout le fichier, puis Run.
 -- Tout ou rien : en cas d'erreur, la transaction est annulée et la base reste inchangée.
 
@@ -3272,10 +3272,26 @@ with check (
   )
 );
 
+-- ===== 20261031060000_activity_metrics.sql =====
+
+-- Mesures normalisées d'une activité, tirées de sa courbe seconde par seconde : puissance
+-- normalisée, vitesse normalisée ajustée à la pente (course), fréquence cardiaque quadratique
+-- moyenne. Indépendantes des seuils : la charge d'entraînement (courbe de condition) en est
+-- tirée à la lecture, avec les seuils en vigueur à la date de l'activité.
+
+alter table public.activity_streams
+  add column metrics jsonb not null default '{}'::jsonb check (jsonb_typeof(metrics) = 'object' and octet_length(metrics::text) <= 1000);
+
+comment on column public.activity_streams.metrics is
+  'Mesures normalisées (np en W, ngs en m/s, hr_rms en bpm), calculées avant la réduction des courbes.';
+
+-- Fichiers FIT : l'athlète les enregistre avec les courbes de ses imports.
+grant insert (metrics) on public.activity_streams to authenticated;
+
 -- ===== Inscription des migrations appliquées =====
 
 insert into supabase_migrations.schema_migrations (version, name)
-values ('20261019000000', 'activities'), ('20261020000000', 'workout_exports'), ('20261021000000', 'notifications'), ('20261021100000', 'admin_accounts'), ('20261022000000', 'account_deletion'), ('20261023000000', 'strava_coach_sharing'), ('20261024000000', 'garmin_watch'), ('20261030000000', 'device_workouts'), ('20261031000000', 'intervals_activities'), ('20261031010000', 'calendar_notes'), ('20261031020000', 'wellness'), ('20261031030000', 'calendar_feeds'), ('20261031040000', 'training_plans'), ('20261031050000', 'activity_streams')
+values ('20261019000000', 'activities'), ('20261020000000', 'workout_exports'), ('20261021000000', 'notifications'), ('20261021100000', 'admin_accounts'), ('20261022000000', 'account_deletion'), ('20261023000000', 'strava_coach_sharing'), ('20261024000000', 'garmin_watch'), ('20261030000000', 'device_workouts'), ('20261031000000', 'intervals_activities'), ('20261031010000', 'calendar_notes'), ('20261031020000', 'wellness'), ('20261031030000', 'calendar_feeds'), ('20261031040000', 'training_plans'), ('20261031050000', 'activity_streams'), ('20261031060000', 'activity_metrics')
 on conflict (version) do nothing;
 
 commit;

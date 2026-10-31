@@ -57,6 +57,14 @@ describe("charge d'entraînement", () => {
     expect(activityLoad(activity({ avg_hr: 160 }), { bike: { lthrBpm: 160 } })).toMatchObject({ load: 100, method: "heart_rate", estimated: true });
   });
 
+  it("courbe seconde par seconde : puissance normalisée, allure ajustée à la pente, FC quadratique", () => {
+    expect(activityLoad(activity({ avg_power: 180, np: 250 }), thresholds)).toEqual({ load: 100, method: "power", estimated: false });
+    expect(activityLoad(activity({ avg_power: 180, weighted_power: 240, np: 250 }), thresholds)?.load).toBeCloseTo(92.16);
+    expect(activityLoad(activity({ sport: "run", avg_speed_mps: 3.5, ngs: 1000 / 240 }), thresholds)).toMatchObject({ method: "graded_pace", estimated: false });
+    expect(activityLoad(activity({ sport: "run", avg_speed_mps: 3.5, ngs: 1000 / 240 }), thresholds)?.load).toBeCloseTo(100);
+    expect(activityLoad(activity({ avg_hr: 140, hr_rms: 160 }), { bike: { lthrBpm: 160 } })?.load).toBeCloseTo(100);
+  });
+
   it("puissance moyenne faute de normalisée : estimée ; rien d'exploitable : non comptée", () => {
     expect(activityLoad(activity({ avg_power: 200 }), thresholds)).toMatchObject({ method: "power", estimated: true });
     expect(activityLoad(activity({ weighted_power: 250 }), {})).toBeNull();
