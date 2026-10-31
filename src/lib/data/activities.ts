@@ -6,6 +6,7 @@
 import "server-only";
 import { addDays } from "@/lib/planning/dates";
 import type { RealizedRange } from "@/lib/activities/realization";
+import { readStoredStreams, type ActivityStreams } from "@/lib/activities/streams";
 import { isMissingSchema } from "@/lib/supabase/schema";
 import type { ServerSupabase } from "@/lib/supabase/server";
 import type { ActivityMatch, CalendarActivity, MatchStatus, SessionCompletion } from "./planning-types";
@@ -207,4 +208,24 @@ export async function getActivityDetail(supabase: ServerSupabase, activityId: st
       .map((l) => ({ session_id: l.session_id, status: l.status as MatchStatus, title: l.session!.title, scheduled_date: l.session!.scheduled_date, sport: l.session!.sport })),
     candidates: sessions.data ?? [],
   };
+}
+
+/**
+ * Courbes et intervalles d'activités, sous les droits de l'utilisateur (visibles comme l'activité).
+ * Une ligne illisible, ou notée vide (pas de courbe chez la source), n'est pas renvoyée.
+ */
+export async function getActivityStreams(supabase: ServerSupabase, activityIds: string[]): Promise<Map<string, ActivityStreams>> {
+  const out = new Map<string, ActivityStreams>();
+  if (!activityIds.length) return out;
+  const { data, error } = await supabase.from("activity_streams").select("activity_id, sample_s, series, laps, laps_origin, bests").in("activity_id", activityIds);
+  if (error) {
+    // Base pas encore à jour : pas de courbes, le reste de la page s'affiche.
+    if (isMissingSchema(error)) return out;
+    throw new Error(`Courbes illisibles : ${error.message}`);
+  }
+  for (const { activity_id, ...row } of data ?? []) {
+    const streams = readStoredStreams(row);
+    if (streams) out.set(activity_id, streams);
+  }
+  return out;
 }

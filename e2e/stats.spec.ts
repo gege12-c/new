@@ -57,7 +57,7 @@ test.beforeAll(async () => {
     planned_duration_s: 3900,
   });
   await rest(athlete.token, "session_completions", { session_id: session.id, status: "done", rpe: 6 });
-  await rest(athlete.token, "activities", {
+  const [activity] = await rest(athlete.token, "activities", {
     source: "fit_upload",
     external_id: `e2e-stats-${stamp}:0`,
     sport: "bike",
@@ -68,6 +68,15 @@ test.beforeAll(async () => {
     moving_s: 3800,
     distance_m: 31000,
     avg_power: 203,
+  });
+  // Ses courbes, lues dans le fichier par le navigateur : meilleures puissances de la sortie.
+  await rest(athlete.token, "activity_streams", {
+    activity_id: activity.id,
+    sample_s: 5,
+    series: { time: [0, 5, 10], watts: [300, 310, 305] },
+    laps: [],
+    laps_origin: null,
+    bests: { "5": 612, "60": 402, "300": 318, "1200": 262 },
   });
 });
 
@@ -87,6 +96,11 @@ test("l'athlète voit sa progression, sans aucune donnée Strava", async ({ brow
   // Records tirés du fichier FIT, seuil de 20 minutes respecté.
   await expect(page.getByText("Meilleure puissance moyenne (sortie de 20 min ou plus)")).toBeVisible();
   await expect(page.getByText(/\b2\d\d W\b/).first()).toBeVisible();
+
+  // Meilleures puissances par période, seconde par seconde : rien au-delà de la sortie la plus longue.
+  const power = page.locator("section", { has: page.getByRole("heading", { name: "Meilleures puissances" }) });
+  await expect(power.getByRole("row", { name: /^20 min/ })).toContainText("262 W");
+  await expect(power.getByRole("row", { name: /^60 min/ })).not.toContainText("W");
 
   // Le tableau donne les valeurs sans survol.
   await page.getByText("Voir le tableau").click();

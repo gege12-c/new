@@ -251,6 +251,14 @@ Migration `20261031000000_intervals_activities.sql`.
 | `private.rematch_window` | ignore désormais les doublons |
 | `schema_version()` | dernière migration inscrite dans l'historique Supabase, lisible sans compte : le contrôle de production (`/api/health`) dit si la base attend sa mise à jour |
 
+### Courbes des activités
+
+Migration `20261031050000_activity_streams.sql`.
+
+| Table | Rôle | Points clés |
+| --- | --- | --- |
+| `activity_streams` | courbes réduites d'une activité (puissance, fréquence cardiaque, vitesse, cadence, altitude, distance, alignées sur le temps), ses intervalles (détectés par intervals.icu, ou tours de l'appareil) et ses meilleures puissances (5 s à 60 min, calculées seconde par seconde avant réduction) | une ligne par activité (clé : `activity_id`, effacée avec l'activité) ; 720 points au plus par courbe ; jamais de trace GPS ni de courbe Strava. Lecture : celle de l'activité (la sous-requête de la politique applique la RLS des activités). Écriture : le serveur pour intervals.icu, l'athlète pour ses propres fichiers FIT (une fois, ni modification ni effacement à la main). Une ligne aux séries vides note une activité sans courbe chez intervals.icu (pas relue). |
+
 ## Notes de calendrier et jours indisponibles
 
 Migration `20261031010000_calendar_notes.sql`.

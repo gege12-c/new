@@ -6,8 +6,8 @@
  * passe la clé), athlète 0 = celui de la clé ; création ou mise à jour en lot des séances prévues
  * par identifiant externe (POST /events/bulk?upsert=true), retrait en lot (PUT /events/bulk-delete,
  * les évènements absents sont ignorés) ; activités faites d'une période (GET /activities?oldest&newest :
- * résumés, sans les activités reçues de Strava, qu'intervals.icu ne transmet pas). Quotas : 429 avec
- * Retry-After.
+ * résumés, sans les activités reçues de Strava, qu'intervals.icu ne transmet pas) ; courbes et
+ * intervalles d'une activité (spécification OpenAPI d'intervals.icu). Quotas : 429 avec Retry-After.
  */
 import { z } from "zod";
 
@@ -129,6 +129,19 @@ export class IntervalsApi {
     );
     if (!Array.isArray(body)) throw new IntervalsError("invalid_response", "Données de forme d'intervals.icu illisibles.");
     return body;
+  }
+
+  /**
+   * Courbes d'une activité (GET /activity/{id}/streams.json?types=…) : une liste { type, data },
+   * une valeur par mesure enregistrée. Spécification OpenAPI d'intervals.icu (ActivityStream).
+   */
+  async streams(key: string, activityId: string, types: string[]): Promise<unknown> {
+    return this.call(key, `/activity/${encodeURIComponent(activityId)}/streams.json?types=${types.map(encodeURIComponent).join(",")}`, {}, "Lecture des courbes");
+  }
+
+  /** Intervalles détectés d'une activité (GET /activity/{id}/intervals : { icu_intervals: […] }). */
+  async intervals(key: string, activityId: string): Promise<unknown> {
+    return this.call(key, `/activity/${encodeURIComponent(activityId)}/intervals`, {}, "Lecture des intervalles");
   }
 
   /** Retire des séances déposées par TriCoach ; celles qui n'existent plus sont ignorées. */

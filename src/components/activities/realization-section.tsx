@@ -4,12 +4,14 @@ import { TextLink } from "@/components/ui/button";
 import { activityDuration, completionRatio, DONE_RATIO, deviation, realizedTotals } from "@/lib/activities/compare";
 import { formatSignedDistance, formatSignedDuration, formatSignedPercent } from "@/lib/activities/format";
 import { activityTitle } from "@/lib/activities/labels";
+import type { ActivityStreams } from "@/lib/activities/streams";
 import type { SessionRealizationDetail } from "@/lib/data/activities";
 import type { CalendarActivity, CalendarSession } from "@/lib/data/planning-types";
 import { formatDayMonth } from "@/lib/planning/dates";
 import { STATUS_LABELS, type SessionStatus } from "@/lib/planning/status";
 import { formatDistance, formatDurationShort, formatTimeOfDay } from "@/lib/workout/format";
 import { cn } from "@/lib/utils";
+import { ActivityAnalysis } from "./activity-analysis";
 import { ActivityFacts, SOURCE_SHORT } from "./activity-facts";
 import { AttachButton, CompletionForm, DetachButton, ProposalButtons } from "./realization-actions";
 
@@ -140,6 +142,7 @@ export function RealizationSection({
   stravaShared = false,
   today,
   timeZone,
+  streams,
 }: {
   session: SessionLike;
   realization: SessionRealizationDetail;
@@ -150,6 +153,8 @@ export function RealizationSection({
   stravaShared?: boolean;
   today: string;
   timeZone: string;
+  /** Courbes des activités rattachées, quand la source en donne. */
+  streams?: Map<string, ActivityStreams>;
 }) {
   const { attached, proposals, candidates, completion } = realization;
   const canManage = (activity: CalendarActivity) => viewer === "athlete" || (canPlan && activity.source !== "strava");
@@ -178,12 +183,18 @@ export function RealizationSection({
       </h3>
 
       {attached.length ? <Comparison session={session} activities={attached} /> : null}
-      {attached.map((activity) => (
-        <ActivityFacts key={activity.id} activity={activity} timeZone={timeZone}>
-          {canManage(activity) ? <DetachButton sessionId={session.id} activityId={activity.id} /> : null}
-          {activity.match.status === "auto" ? <span className="self-center text-[12px] text-muted">Rattachée automatiquement</span> : null}
-        </ActivityFacts>
-      ))}
+      {attached.map((activity) => {
+        const curves = streams?.get(activity.id);
+        return (
+          <div key={activity.id} className="space-y-3">
+            <ActivityFacts activity={activity} timeZone={timeZone}>
+              {canManage(activity) ? <DetachButton sessionId={session.id} activityId={activity.id} /> : null}
+              {activity.match.status === "auto" ? <span className="self-center text-[12px] text-muted">Rattachée automatiquement</span> : null}
+            </ActivityFacts>
+            {curves ? <ActivityAnalysis streams={curves} sport={activity.sport} /> : null}
+          </div>
+        );
+      })}
 
       {proposals.length ? (
         <div className="space-y-2 rounded-[12px] border border-warning/30 bg-warning-soft/50 p-3">

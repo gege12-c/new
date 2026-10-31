@@ -131,6 +131,45 @@ export type Database = {
           },
         ];
       };
+      activity_streams: {
+        Row: {
+          activity_id: string;
+          bests: NonNullable<Json>;
+          created_at: string;
+          laps: NonNullable<Json>;
+          laps_origin: string | null;
+          sample_s: number;
+          series: NonNullable<Json>;
+        };
+        ComputedFields: never;
+        Insert: {
+          activity_id: string;
+          bests?: NonNullable<Json>;
+          created_at?: string;
+          laps?: NonNullable<Json>;
+          laps_origin?: string | null;
+          sample_s: number;
+          series: NonNullable<Json>;
+        };
+        Update: {
+          activity_id?: string;
+          bests?: NonNullable<Json>;
+          created_at?: string;
+          laps?: NonNullable<Json>;
+          laps_origin?: string | null;
+          sample_s?: number;
+          series?: NonNullable<Json>;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "activity_streams_activity_id_fkey";
+            columns: ["activity_id"];
+            isOneToOne: true;
+            referencedRelation: "activities";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       admin_users: {
         Row: {
           created_at: string;

@@ -95,8 +95,21 @@ export async function importActivities(input: unknown): Promise<ImportResult> {
   const { data, error } = await supabase
     .from("activities")
     .upsert(rows, { onConflict: "athlete_id,source,external_id", ignoreDuplicates: true })
-    .select("id");
+    .select("id, external_id");
   if (error) return { status: "error", message: friendlyError(error, "L’import a échoué.") };
+  // Courbes et tours des activités nouvelles ; en cas d'échec, l'import est annulé en entier.
+  const streamsByExternal = new Map(parsed.data.map((item) => [item.external_id, item.streams ?? null]));
+  const curves = (data ?? []).flatMap((row) => {
+    const streams = streamsByExternal.get(row.external_id);
+    return streams ? [{ activity_id: row.id, ...streams } as unknown as TablesInsert<"activity_streams">] : [];
+  });
+  if (curves.length) {
+    const { error: curvesError } = await supabase.from("activity_streams").insert(curves);
+    if (curvesError) {
+      await supabase.from("activities").delete().in("id", (data ?? []).map((row) => row.id));
+      return { status: "error", message: friendlyError(curvesError, "L’import a échoué.") };
+    }
+  }
   refresh();
   return { status: "ok", imported: data?.length ?? 0, duplicates: rows.length - (data?.length ?? 0) };
 }

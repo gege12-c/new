@@ -1,5 +1,5 @@
 /** Mise en forme des mesures d’une activité et des écarts au prévu. */
-import { formatDistance, formatDurationShort, formatPace } from "@/lib/workout/format";
+import { formatClock, formatDistance, formatDurationShort, formatPace } from "@/lib/workout/format";
 import type { ActivitySport } from "./schema";
 
 const decimal = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 });
@@ -26,4 +26,11 @@ export function formatSignedDistance(deltaM: number, sport?: ActivitySport | "br
 export function formatSignedPercent(percent: number): string {
   if (percent === 0) return "0 %";
   return `${percent > 0 ? "+" : MINUS}${Math.abs(percent)} %`;
+}
+
+/** Temps écoulé depuis le départ : « 1:05:30 », « 23:15 ». */
+export function formatElapsed(seconds: number): string {
+  const s = Math.max(0, Math.round(seconds));
+  const h = Math.floor(s / 3600);
+  return h ? `${h}:${String(Math.floor((s % 3600) / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}` : formatClock(s);
 }

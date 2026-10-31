@@ -31,6 +31,7 @@ import { currentThresholds, toAthleteThresholds, type ThresholdRow } from "@/lib
 import { localDate } from "@/lib/utils";
 import { parseWorkout } from "@/lib/workout/schema";
 import { IntervalsApi, IntervalsError, type IntervalsEvent } from "./api";
+import { INTERVALS_STREAM_TYPES, intervalsLaps, intervalsStreams, powerBests, reduceStreams } from "@/lib/activities/streams";
 import { INTERVALS_HISTORY_DAYS, INTERVALS_RECENT_DAYS, normalizeIntervalsActivity, sameActivity } from "./activities";
 import { missingMeasures, morningMeasures, WELLNESS_RECENT_DAYS } from "./wellness";
 import { buildIntervalsEvents, intervalsExternalId, INTERVALS_FORMAT_VERSION, INTERVALS_WINDOW_DAYS, type IntervalsBuild } from "./workout";
@@ -267,6 +268,8 @@ export interface IntervalsSyncReport {
   activities?: { saved: number; removed: number; fromStrava: number };
   /** Jours de forme complétés par les mesures du matin. */
   wellness?: number;
+  /** Activités dont les courbes ont été lues. */
+  streams?: number;
 }
 
 /** Dépose les séances nouvelles ou modifiées, retire celles qui ne sont plus prévues. */
@@ -373,6 +376,7 @@ export async function syncIntervals(deps: IntervalsDeps, connection: DeviceConne
 
   report.activities = await pullActivities(deps, connection, today);
   report.wellness = await pullMorningMeasures(deps, connection, today);
+  report.streams = await pullStreams(deps, connection, today);
 
   await deps.admin.from("external_connections").update({ last_sync_at: deps.now().toISOString(), last_error: null, last_error_at: null }).eq("id", connection.id);
   return report;
@@ -456,6 +460,9 @@ async function pullActivities(deps: IntervalsDeps, connection: DeviceConnection,
     const { error: saveError } = await deps.admin.from("activities").upsert(changed.slice(i, i + 50), { onConflict: "athlete_id,source,external_id" });
     if (saveError) throw new Error(`Activités non enregistrées : ${saveError.message}`);
   }
+  // Activité modifiée chez intervals.icu (souvent : analyse terminée) : ses courbes sont relues.
+  const updated = changed.map((a) => storedByExternal.get(a.external_id)?.id).filter((id): id is string => Boolean(id));
+  if (updated.length) await deps.admin.from("activity_streams").delete().in("activity_id", updated);
   const gone = (stored ?? []).filter((row) => !upstream.has(row.external_id)).map((row) => row.id);
   if (gone.length) {
     const { error: removeError } = await deps.admin.from("activities").delete().in("id", gone);
@@ -469,6 +476,71 @@ async function pullActivities(deps: IntervalsDeps, connection: DeviceConnection,
     await log(deps, { level: "info", event: "intervals_activities", message: `${changed.length} reçue(s), ${gone.length} retirée(s)`, athleteId: connection.athlete_id });
   }
   return { saved: changed.length, removed: gone.length, fromStrava };
+}
+
+/** Courbes lues au plus par passage (deux appels chacune), les plus récentes d'abord ; la suite au passage suivant. */
+export const STREAMS_PER_RUN = 8;
+const STREAMS_BUDGET_MS = 20_000;
+
+/**
+ * Courbes et intervalles détectés des activités reçues des 90 derniers jours qui n'en ont pas encore.
+ * Une activité sans courbe chez intervals.icu (saisie à la main, introuvable) est notée vide, pour ne
+ * pas être relue ; un quota atteint ou une panne passagère arrête la lecture, reprise au passage suivant.
+ */
+async function pullStreams(deps: IntervalsDeps, connection: DeviceConnection, today: string): Promise<number> {
+  const { data: rows, error } = await deps.admin
+    .from("activities")
+    .select("id, external_id, stored:activity_streams(activity_id)")
+    .eq("athlete_id", connection.athlete_id)
+    .eq("source", "intervals")
+    .gte("local_date", addDays(today, -INTERVALS_HISTORY_DAYS))
+    .order("start_time", { ascending: false })
+    .limit(400);
+  if (error) throw new Error(`Activités reçues illisibles : ${error.message}`);
+  const missing = (rows ?? []).filter((row) => (Array.isArray(row.stored) ? row.stored.length === 0 : !row.stored));
+  if (!missing.length) return 0;
+  const key = await apiKey(deps, connection);
+  const started = Date.now();
+  let read = 0;
+  for (const activity of missing.slice(0, STREAMS_PER_RUN)) {
+    if (Date.now() - started > STREAMS_BUDGET_MS) break;
+    let streamsBody: unknown;
+    let lapsBody: unknown = null;
+    try {
+      streamsBody = await deps.api.streams(key, activity.external_id, Object.keys(INTERVALS_STREAM_TYPES));
+      lapsBody = await deps.api.intervals(key, activity.external_id).catch((failure) => {
+        // Intervalles indisponibles : les courbes restent utiles sans eux.
+        if (failure instanceof IntervalsError && (failure.kind === "bad_request" || failure.kind === "invalid_response")) return null;
+        throw failure;
+      });
+    } catch (failure) {
+      if (failure instanceof IntervalsError && (failure.kind === "bad_request" || failure.kind === "invalid_response")) {
+        streamsBody = null;
+      } else {
+        // Quota, clé, panne : la suite au prochain passage.
+        if (!(failure instanceof IntervalsError)) throw failure;
+        break;
+      }
+    }
+    const raw = intervalsStreams(streamsBody);
+    const reduced = reduceStreams(raw);
+    const laps = intervalsLaps(lapsBody);
+    const { error: saveError } = await deps.admin.from("activity_streams").upsert(
+      {
+        activity_id: activity.id,
+        sample_s: reduced?.sample_s ?? 1,
+        series: (reduced?.series ?? {}) as unknown as NonNullable<Json>,
+        laps: laps as unknown as NonNullable<Json>,
+        laps_origin: laps.length ? "detected" : null,
+        bests: powerBests(raw) as unknown as NonNullable<Json>,
+      },
+      { onConflict: "activity_id" },
+    );
+    // Activité effacée entre-temps : rien à garder.
+    if (saveError && saveError.code !== "23503") throw new Error(`Courbes non enregistrées : ${saveError.message}`);
+    read += 1;
+  }
+  return read;
 }
 
 /** Exécute les dépôts dus (un seul à la fois par compte), dans le temps imparti. */

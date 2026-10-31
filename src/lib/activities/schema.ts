@@ -4,6 +4,7 @@
  * écartée (null) plutôt que de bloquer l'enregistrement de toute l'activité.
  */
 import { z } from "zod";
+import { StoredStreamsSchema } from "./streams";
 
 export const ACTIVITY_SPORTS = ["swim", "bike", "run", "strength", "other"] as const;
 export type ActivitySport = (typeof ACTIVITY_SPORTS)[number];
@@ -118,6 +119,8 @@ export const ImportedActivitySchema = z.strictObject({
   avg_speed_mps: optionalNumber(0, 999),
   trainer: z.boolean().nullable(),
   device_name: z.string().max(100).nullable(),
+  /** Courbes réduites et tours, lus dans le fichier (sans la trace GPS). */
+  streams: StoredStreamsSchema.nullable().optional(),
 });
 export type ImportedActivity = z.infer<typeof ImportedActivitySchema>;
 

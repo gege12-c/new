@@ -3,7 +3,7 @@ import { RealizationSection } from "@/components/activities/realization-section"
 import { ExportSection } from "@/components/exports/export-section";
 import { SportBadge } from "@/components/sport";
 import { relativeProfileNote, WorkoutProfile } from "@/components/workout/workout-profile";
-import { getSessionRealization } from "@/lib/data/activities";
+import { getActivityStreams, getSessionRealization } from "@/lib/data/activities";
 import { sharesStravaWithCoach } from "@/lib/data/athlete";
 import { getExportHistory } from "@/lib/data/exports";
 import { Notice } from "@/components/ui/feedback";
@@ -125,6 +125,8 @@ export async function SessionPanel({
     getCalendarNotes(supabase, detail.athlete_id, detail.scheduled_date, detail.scheduled_date),
   ]);
   const unavailable = dayNotes.filter(isUnavailability);
+  // Courbes des activités rattachées (montre via intervals.icu, fichier FIT).
+  const streams = realization?.attached.length ? await getActivityStreams(supabase, realization.attached.map((a) => a.id)) : undefined;
   const exportCtx = exportContext(detail, thresholdsOnDate);
   const status = sessionStatus({ ...detail, realization: realization ?? undefined }, today);
   const totals = computeTotals(detail.content, thresholds);
@@ -286,6 +288,7 @@ export async function SessionPanel({
             stravaShared={shared}
             today={today}
             timeZone={timeZone}
+            streams={streams}
           />
         ) : (
           <section aria-labelledby="done-title">

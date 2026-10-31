@@ -2,11 +2,12 @@ import Link from "next/link";
 import { SportGlyph } from "@/components/sport";
 import { PanelFrame } from "@/components/planning/panel-frame";
 import { activityTitle } from "@/lib/activities/labels";
-import { getActivityDetail } from "@/lib/data/activities";
+import { getActivityDetail, getActivityStreams } from "@/lib/data/activities";
 import { formatDayMonth } from "@/lib/planning/dates";
 import type { ServerSupabase } from "@/lib/supabase/server";
 import { formatTimeOfDay } from "@/lib/workout/format";
 import { SPORT_LABELS, type SessionSport } from "@/lib/workout/schema";
+import { ActivityAnalysis } from "./activity-analysis";
 import { ActivityFacts } from "./activity-facts";
 import { AttachButton, DeleteImportedButton, DetachButton, ProposalButtons } from "./realization-actions";
 
@@ -38,6 +39,7 @@ export async function ActivityPanel({
       </PanelFrame>
     );
   }
+  const curves = activity.source === "strava" ? undefined : (await getActivityStreams(supabase, [activity.id])).get(activity.id);
   const canManage = viewer === "athlete" || (canPlan && activity.source !== "strava");
   const attached = activity.links.filter((l) => l.status === "auto" || l.status === "confirmed");
   const proposed = activity.links.filter((l) => l.status === "proposed");
@@ -52,6 +54,7 @@ export async function ActivityPanel({
         <ActivityFacts activity={activity} timeZone={timeZone}>
           {canManage && activity.source === "fit_upload" && viewer === "athlete" ? <DeleteImportedButton activityId={activity.id} onDeletedHref={closeHref} /> : null}
         </ActivityFacts>
+        {curves ? <ActivityAnalysis streams={curves} sport={activity.sport} /> : null}
 
         {attached.map((link) => (
           <div key={link.session_id} className="flex flex-wrap items-center justify-between gap-2 rounded-[12px] bg-success-soft/60 px-3 py-2.5">

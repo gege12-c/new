@@ -3,7 +3,8 @@
  * triggers de rapprochement et de doublons) et un faux intervals.icu : historique de 90 jours à la
  * première réception, rattachement à la séance, aucune réécriture d'une activité inchangée,
  * modification et retrait répercutés, activités reçues de Strava ignorées (comptées), même séance
- * déjà arrivée par Strava gardée en doublon. Lancement : pile locale démarrée, variables de .env.local-stack.
+ * déjà arrivée par Strava gardée en doublon, courbes et intervalles lus une fois (relus si l'activité
+ * change). Lancement : pile locale démarrée, variables de .env.local-stack.
  */
 import { randomBytes, randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
@@ -31,6 +32,24 @@ describe.skipIf(!url || !serviceKey)("activités faites, reçues d'intervals.icu
   let sessionId = "";
 
   const run = () => runIntervalsJobs(deps, { limit: 20, budgetMs: 30_000 });
+  const streamCalls = () => fake.calls.filter((call) => call.includes("/streams.json")).length;
+  const curves = async () =>
+    new Map(
+      ((await admin.from("activity_streams").select("activity_id, sample_s, series, laps, laps_origin, bests").in("activity_id", (await received()).map((a) => a.id))).data ?? []).map((row) => [
+        row.activity_id,
+        row,
+      ]),
+    );
+  const SECONDS = Array.from({ length: 3600 }, (_, i) => i);
+  const withCurves = {
+    _streams: [
+      { type: "time", data: SECONDS },
+      { type: "watts", data: SECONDS.map((t) => (t >= 600 && t < 1080 ? 260 : 180)) },
+      { type: "heartrate", data: SECONDS.map(() => 150) },
+      { type: "latlng", data: SECONDS.map(() => 45.2), data2: SECONDS.map(() => 5.7) },
+    ],
+    _intervals: [{ type: "WORK", label: "Seuil", start_time: 600, end_time: 1080, elapsed_time: 480, average_watts: 260, average_heartrate: 158 }],
+  };
   const nudge = () => admin.from("sync_jobs").insert({ kind: "intervals_sync", athlete_id: athleteId });
   const received = async () =>
     (await admin.from("activities").select("id, external_id, name, avg_power, duplicate_of, updated_at").eq("athlete_id", athleteId).eq("source", "intervals").order("start_time")).data ?? [];
@@ -69,7 +88,7 @@ describe.skipIf(!url || !serviceKey)("activités faites, reçues d'intervals.icu
     if (session.error) throw session.error;
     sessionId = session.data.id;
     fake.addKey(key, athlete);
-    fake.addActivity(athlete, ride("i100", addDays(today, -1)));
+    fake.addActivity(athlete, ride("i100", addDays(today, -1), withCurves));
     fake.addActivity(athlete, ride("i101", addDays(today, -60), { type: "Run", name: "Footing", icu_average_watts: null }));
     // Hors de l'historique relu à la première réception.
     fake.addActivity(athlete, ride("i102", addDays(today, -120)));
@@ -91,19 +110,39 @@ describe.skipIf(!url || !serviceKey)("activités faites, reçues d'intervals.icu
     const { data: connection } = await admin.from("external_connections").select("activities_synced_at, activities_skipped").eq("athlete_id", athleteId).eq("provider", "intervals").single();
     expect(connection!.activities_synced_at).not.toBeNull();
     expect(connection!.activities_skipped).toBe(1);
+
+    // Courbes : réduites (un point toutes les 5 s), sans la trace GPS ; intervalles détectés ; meilleures puissances.
+    const stored = await curves();
+    const ride100 = stored.get(yesterday.id)!;
+    expect(ride100.sample_s).toBe(5);
+    const series = ride100.series as Record<string, unknown[]>;
+    expect(Object.keys(series).sort()).toEqual(["heartrate", "time", "watts"]);
+    expect(series.watts).toHaveLength(720);
+    expect(ride100.laps).toEqual([expect.objectContaining({ start_s: 600, duration_s: 480, avg_power: 260, avg_hr: 158, kind: "work", label: "Seuil" })]);
+    expect(ride100.laps_origin).toBe("detected");
+    expect(ride100.bests).toEqual({ "5": 260, "60": 260, "300": 260, "1200": 212, "3600": 191 });
+    // Activité sans courbe chez intervals.icu : notée vide, pour ne pas être relue.
+    const footing = (await received()).find((a) => a.external_id === "i101")!;
+    expect(stored.get(footing.id)).toMatchObject({ series: {}, laps: [], laps_origin: null });
   });
 
   it("rien n'est réécrit quand rien n'a changé ; une modification et un retrait chez intervals.icu sont répercutés", async () => {
     const before = await received();
+    const readBefore = streamCalls();
     await nudge();
     await run();
     expect((await received()).map((a) => a.updated_at)).toEqual(before.map((a) => a.updated_at));
+    expect(streamCalls()).toBe(readBefore);
 
     fake.removeActivity(athlete, "i100");
-    fake.addActivity(athlete, ride("i100", addDays(today, -1), { name: "Seuil, renommée", icu_average_watts: 220 }));
+    fake.addActivity(athlete, ride("i100", addDays(today, -1), { ...withCurves, name: "Seuil, renommée", icu_average_watts: 220 }));
     await nudge();
     await run();
-    expect((await received()).find((a) => a.external_id === "i100")).toMatchObject({ name: "Seuil, renommée", avg_power: 220 });
+    const renamed = (await received()).find((a) => a.external_id === "i100")!;
+    expect(renamed).toMatchObject({ name: "Seuil, renommée", avg_power: 220 });
+    // Activité modifiée : ses courbes sont relues.
+    expect(streamCalls()).toBe(readBefore + 1);
+    expect((await curves()).get(renamed.id)?.laps_origin).toBe("detected");
 
     // Retirée chez intervals.icu : retirée ici, dans la période relue (14 jours) ; plus ancienne : gardée.
     fake.removeActivity(athlete, "i100");

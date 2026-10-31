@@ -1,6 +1,6 @@
 -- TriCoach : mise à jour de la base de production.
 -- Généré par scripts/production-sql.mjs à partir de supabase/migrations : ne pas modifier à la main.
--- Migrations incluses : 20261019000000_activities.sql, 20261020000000_workout_exports.sql, 20261021000000_notifications.sql, 20261021100000_admin_accounts.sql, 20261022000000_account_deletion.sql, 20261023000000_strava_coach_sharing.sql, 20261024000000_garmin_watch.sql, 20261030000000_device_workouts.sql, 20261031000000_intervals_activities.sql, 20261031010000_calendar_notes.sql, 20261031020000_wellness.sql, 20261031030000_calendar_feeds.sql, 20261031040000_training_plans.sql.
+-- Migrations incluses : 20261019000000_activities.sql, 20261020000000_workout_exports.sql, 20261021000000_notifications.sql, 20261021100000_admin_accounts.sql, 20261022000000_account_deletion.sql, 20261023000000_strava_coach_sharing.sql, 20261024000000_garmin_watch.sql, 20261030000000_device_workouts.sql, 20261031000000_intervals_activities.sql, 20261031010000_calendar_notes.sql, 20261031020000_wellness.sql, 20261031030000_calendar_feeds.sql, 20261031040000_training_plans.sql, 20261031050000_activity_streams.sql.
 -- Mode d'emploi : Supabase > SQL Editor > New query, coller tout le fichier, puis Run.
 -- Tout ou rien : en cas d'erreur, la transaction est annulée et la base reste inchangée.
 
@@ -3230,10 +3230,52 @@ $$;
 revoke all on function public.save_training_plan(uuid, date, integer, text, text), public.apply_training_plan(uuid, uuid, date, boolean) from public, anon;
 grant execute on function public.save_training_plan(uuid, date, integer, text, text), public.apply_training_plan(uuid, uuid, date, boolean) to authenticated;
 
+-- ===== 20261031050000_activity_streams.sql =====
+
+-- Courbes et intervalles des activités : puissance, fréquence cardiaque, vitesse, cadence et
+-- altitude au fil de la séance (quelques centaines de points), intervalles détectés par
+-- intervals.icu ou tours enregistrés par l'appareil, meilleures puissances.
+--
+-- Sources : activités reçues d'intervals.icu (écrites par la file de jobs) et fichiers FIT importés
+-- par l'athlète (écrites par lui). Jamais de trace GPS, jamais de courbe Strava.
+-- Visibilité : celle de l'activité (la sous-requête applique sa politique) ; effacées avec elle.
+
+create table public.activity_streams (
+  activity_id uuid primary key references public.activities (id) on delete cascade,
+  -- Un point toutes les « sample_s » secondes ; séries alignées sur « time » (secondes depuis le départ).
+  sample_s smallint not null check (sample_s between 1 and 3600),
+  series jsonb not null check (jsonb_typeof(series) = 'object' and octet_length(series::text) <= 400000),
+  laps jsonb not null default '[]'::jsonb check (jsonb_typeof(laps) = 'array' and jsonb_array_length(laps) <= 300),
+  -- « detected » : intervalles détectés par intervals.icu ; « device » : tours de l'appareil.
+  laps_origin text check (laps_origin in ('detected', 'device')),
+  -- Meilleures puissances moyennes (W) sur 5 s, 1, 5, 20 et 60 min, calculées seconde par seconde.
+  bests jsonb not null default '{}'::jsonb check (jsonb_typeof(bests) = 'object'),
+  created_at timestamptz not null default now()
+);
+comment on table public.activity_streams is
+  'Courbes réduites et intervalles d''une activité (intervals.icu ou fichier FIT), visibles comme l''activité.';
+
+alter table public.activity_streams enable row level security;
+revoke all on public.activity_streams from anon, authenticated;
+
+grant select on public.activity_streams to authenticated;
+create policy activity_streams_select on public.activity_streams for select to authenticated
+using (exists (select 1 from public.activities a where a.id = activity_id));
+
+-- Fichiers FIT : l'athlète enregistre les courbes de ses propres imports, une fois.
+grant insert (activity_id, sample_s, series, laps, laps_origin, bests) on public.activity_streams to authenticated;
+create policy activity_streams_insert_own_files on public.activity_streams for insert to authenticated
+with check (
+  exists (
+    select 1 from public.activities a
+    where a.id = activity_id and a.athlete_id = (select auth.uid()) and a.source = 'fit_upload'
+  )
+);
+
 -- ===== Inscription des migrations appliquées =====
 
 insert into supabase_migrations.schema_migrations (version, name)
-values ('20261019000000', 'activities'), ('20261020000000', 'workout_exports'), ('20261021000000', 'notifications'), ('20261021100000', 'admin_accounts'), ('20261022000000', 'account_deletion'), ('20261023000000', 'strava_coach_sharing'), ('20261024000000', 'garmin_watch'), ('20261030000000', 'device_workouts'), ('20261031000000', 'intervals_activities'), ('20261031010000', 'calendar_notes'), ('20261031020000', 'wellness'), ('20261031030000', 'calendar_feeds'), ('20261031040000', 'training_plans')
+values ('20261019000000', 'activities'), ('20261020000000', 'workout_exports'), ('20261021000000', 'notifications'), ('20261021100000', 'admin_accounts'), ('20261022000000', 'account_deletion'), ('20261023000000', 'strava_coach_sharing'), ('20261024000000', 'garmin_watch'), ('20261030000000', 'device_workouts'), ('20261031000000', 'intervals_activities'), ('20261031010000', 'calendar_notes'), ('20261031020000', 'wellness'), ('20261031030000', 'calendar_feeds'), ('20261031040000', 'training_plans'), ('20261031050000', 'activity_streams')
 on conflict (version) do nothing;
 
 commit;

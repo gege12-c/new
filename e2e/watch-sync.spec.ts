@@ -2,8 +2,8 @@
  * Séances sur la montre par intervals.icu, de bout en bout, contre un faux intervals.icu (données
  * fictives) : l'athlète colle sa clé dans son profil (refusée, puis acceptée), une séance publiée
  * part dans son calendrier intervals.icu et la fiche de la séance le dit ; l'activité faite avec la
- * montre revient, rattachée à la séance de la veille ; puis la déliaison retire les séances
- * déposées. L'envoi direct vers Suunto, lui, attend l'accès partenaire.
+ * montre revient, rattachée à la séance de la veille, avec ses courbes et ses intervalles ; puis la
+ * déliaison retire les séances déposées. L'envoi direct vers Suunto, lui, attend l'accès partenaire.
  */
 import { randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
@@ -78,6 +78,12 @@ test("relier sa montre par intervals.icu : la séance publiée part, l'activité
       distance: 15_000,
       average_heartrate: 141,
       icu_average_watts: 201,
+      _streams: [
+        { type: "time", data: Array.from({ length: 1800 }, (_, t) => t) },
+        { type: "watts", data: Array.from({ length: 1800 }, (_, t) => (t >= 600 && t < 1080 ? 260 : 180)) },
+        { type: "heartrate", data: Array.from({ length: 1800 }, (_, t) => (t >= 600 && t < 1080 ? 158 : 138)) },
+      ],
+      _intervals: [{ type: "WORK", start_time: 600, end_time: 1080, elapsed_time: 480, average_watts: 260, average_heartrate: 158 }],
     },
   });
 
@@ -118,6 +124,18 @@ test("relier sa montre par intervals.icu : la séance publiée part, l'activité
   await page.goto(`/athlete/calendar?view=day&date=${yesterday}&session=${pastId}`);
   await expect(page.getByText("Montre, via intervals.icu").first()).toBeVisible();
   await expect(page.getByRole("link", { name: /Voir sur intervals\.icu/ }).first()).toBeVisible();
+  // Ses courbes, ses intervalles détectés et ses meilleures puissances.
+  const curves = page.getByRole("group", { name: "Courbes affichées" });
+  await expect(curves.getByRole("button", { name: "Puissance" })).toHaveAttribute("aria-pressed", "true");
+  await curves.getByRole("button", { name: "Fréquence cardiaque" }).click();
+  await expect(curves.getByRole("button", { name: "Fréquence cardiaque" })).toHaveAttribute("aria-pressed", "false");
+  const reader = page.getByRole("slider", { name: /Courbes de l’activité/ });
+  await reader.focus();
+  await reader.press("End");
+  await expect(reader).toHaveAttribute("aria-valuetext", /29:5\d : puissance 180 W/);
+  await expect(page.getByText("Intervalles détectés par intervals.icu (1 effort)")).toBeVisible();
+  await expect(page.getByRole("row", { name: /Effort 1/ })).toContainText("260 W");
+  await expect(page.getByText("Meilleures puissances de la séance")).toBeVisible();
 
   // Déliaison : les séances à venir quittent le calendrier intervals.icu, la clé est effacée.
   await page.goto("/athlete/profile#montre-auto");

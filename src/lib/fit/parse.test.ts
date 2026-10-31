@@ -30,6 +30,52 @@ describe("import FIT", () => {
     expect(ImportBatchSchema.safeParse([activity]).success).toBe(true);
   });
 
+  it("garde les courbes réduites et les tours de la montre, sans la trace GPS", async () => {
+    const records = Array.from({ length: 1201 }, (_, t) => ({
+      offsetS: t,
+      power: t >= 300 && t < 600 ? 300 : 180,
+      heartRate: 140,
+      speed: 9.5,
+      cadence: 88,
+      altitude: 210,
+      distance: t * 9.5,
+    }));
+    const file = buildActivityFit({
+      start: new Date("2026-10-22T06:00:00Z"),
+      sessions: [
+        {
+          sport: "cycling",
+          durationS: 1200,
+          distanceM: 11400,
+          records,
+          laps: [
+            { offsetS: 0, durationS: 300, avgPower: 180, intensity: "warmup" },
+            { offsetS: 300, durationS: 300, avgPower: 300, avgHr: 152, intensity: "active" },
+            { offsetS: 600, durationS: 600, avgPower: 180, intensity: "rest" },
+          ],
+        },
+      ],
+    });
+    const [activity] = await parseFitFile(buffer(file));
+    const streams = activity.streams!;
+    expect(streams.sample_s).toBe(2);
+    expect(Object.keys(streams.series).sort()).toEqual(["altitude", "cadence", "distance", "heartrate", "speed", "time", "watts"]);
+    expect(streams.series.time).toHaveLength(601);
+    expect(streams.series.watts![200]).toBe(300);
+    expect(streams.series.altitude![0]).toBe(210);
+    expect(streams.laps.map((l) => [l.start_s, l.duration_s, l.avg_power, l.kind, l.label])).toEqual([
+      [0, 300, 180, null, "Échauffement"],
+      [300, 300, 300, "work", null],
+      [600, 600, 180, "recovery", null],
+    ]);
+    expect(streams.laps_origin).toBe("device");
+    expect(streams.bests).toMatchObject({ "5": 300, "60": 300, "300": 300 });
+    expect(ImportBatchSchema.safeParse([activity]).success).toBe(true);
+    // Le résumé seul, sans mesure au fil de la séance : pas de courbe.
+    const bare = buildActivityFit({ start: new Date("2026-10-22T06:00:00Z"), sessions: [{ sport: "running", durationS: 600 }] });
+    expect((await parseFitFile(buffer(bare)))[0].streams).toBeNull();
+  });
+
   it("découpe un fichier multisport par discipline, sans les transitions", async () => {
     const file = buildActivityFit({
       start: new Date("2026-10-21T07:00:00Z"),

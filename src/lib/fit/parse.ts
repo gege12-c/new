@@ -1,10 +1,12 @@
 /**
  * Lecture d'un fichier d'activité FIT (montre, compteur, Garmin Connect…) avec le SDK FIT officiel
- * de Garmin. S'exécute dans le navigateur : seul le résumé (durées, distance, moyennes) part au
+ * de Garmin. S'exécute dans le navigateur : seuls le résumé (durées, distance, moyennes), les courbes
+ * réduites (puissance, fréquence cardiaque, vitesse, cadence, altitude) et les tours partent au
  * serveur, jamais la trace GPS. Un fichier multisport donne une activité par discipline.
  */
-import { Decoder, Stream, Utils, type SessionMesg } from "@garmin/fitsdk";
+import { Decoder, Stream, Utils, type LapMesg, type RecordMesg, type SessionMesg } from "@garmin/fitsdk";
 import { boundedInt, shortText, type ActivitySport, type ImportedActivity } from "@/lib/activities/schema";
+import { lap, powerBests, reduceStreams, type ActivityLap, type ActivityStreams, type RawStreams } from "@/lib/activities/streams";
 
 export class FitImportError extends Error {
   constructor(message: string) {
@@ -50,6 +52,63 @@ const decimal = (value: unknown, min: number, max: number, digits: number): numb
   return rounded >= min && rounded <= max ? rounded : null;
 };
 
+const finite = (value: unknown): number | null => (typeof value === "number" && Number.isFinite(value) ? value : null);
+
+const LAP_KINDS: Record<string, ActivityLap["kind"]> = { active: "work", interval: "work", rest: "recovery", recovery: "recovery" };
+const LAP_LABELS: Record<string, string> = { warmup: "Échauffement", cooldown: "Retour au calme" };
+
+/** Courbes et tours d'une session (mesures de son départ à sa fin) ; null sans courbe exploitable. */
+export function sessionStreams(records: RecordMesg[], laps: LapMesg[], startMs: number, elapsedS: number | null): ActivityStreams | null {
+  const endMs = startMs + Math.max(0, elapsedS ?? 0) * 1000;
+  const raw: Required<Pick<RawStreams, "time" | "watts" | "heartrate" | "cadence" | "speed" | "altitude" | "distance">> = {
+    time: [],
+    watts: [],
+    heartrate: [],
+    cadence: [],
+    speed: [],
+    altitude: [],
+    distance: [],
+  };
+  let firstDistance: number | null = null;
+  for (const record of records) {
+    const at = asDate(record.timestamp)?.getTime();
+    if (at === undefined || at < startMs || at > endMs) continue;
+    raw.time.push((at - startMs) / 1000);
+    raw.watts.push(finite(record.power));
+    raw.heartrate.push(finite(record.heartRate));
+    raw.cadence.push(finite(record.cadence));
+    raw.speed.push(finite(record.enhancedSpeed ?? record.speed));
+    raw.altitude.push(finite(record.enhancedAltitude ?? record.altitude));
+    const distance = finite(record.distance);
+    if (distance !== null && firstDistance === null) firstDistance = distance;
+    raw.distance.push(distance === null || firstDistance === null ? null : distance - firstDistance);
+  }
+  const reduced = reduceStreams(raw);
+  if (!reduced) return null;
+  const sessionLaps = laps
+    .map((l) => {
+      const lapStart = asDate(l.startTime)?.getTime();
+      if (lapStart === undefined || lapStart < startMs || lapStart >= endMs) return null;
+      return lap({
+        start_s: Math.round((lapStart - startMs) / 1000),
+        duration_s: Math.round(finite(l.totalElapsedTime) ?? 0),
+        distance_m: finite(l.totalDistance),
+        avg_power: finite(l.avgPower),
+        avg_hr: finite(l.avgHeartRate),
+        max_hr: finite(l.maxHeartRate),
+        avg_cadence: finite(l.avgCadence),
+        avg_speed_mps: finite(l.enhancedAvgSpeed ?? l.avgSpeed),
+        kind: typeof l.intensity === "string" ? (LAP_KINDS[l.intensity] ?? null) : null,
+        label: typeof l.intensity === "string" ? (LAP_LABELS[l.intensity] ?? null) : null,
+      });
+    })
+    .filter((l): l is ActivityLap => l !== null)
+    .sort((a, b) => a.start_s - b.start_s);
+  // Un seul tour, toute la session : il n'apprend rien de plus.
+  const kept = sessionLaps.length >= 2 ? sessionLaps.slice(0, 300) : [];
+  return { ...reduced, laps: kept, laps_origin: kept.length ? "device" : null, bests: powerBests(raw) };
+}
+
 function deviceName(fileId: Record<string, unknown> | undefined): string | null {
   if (!fileId) return null;
   const parts = [fileId.manufacturer, fileId.productName ?? fileId.garminProduct].filter((p) => typeof p === "string" && p && p !== "development");
@@ -82,6 +141,8 @@ export async function parseFitFile(buffer: ArrayBuffer): Promise<ImportedActivit
 
   const hash = await sha256Hex(bytes);
   const device = deviceName(fileId);
+  const records = (messages.recordMesgs ?? []) as RecordMesg[];
+  const laps = (messages.lapMesgs ?? []) as LapMesg[];
   const items: ImportedActivity[] = [];
   sessions.forEach((session, index) => {
     const sport = fitSport(session.sport, session.subSport);
@@ -108,6 +169,7 @@ export async function parseFitFile(buffer: ArrayBuffer): Promise<ImportedActivit
       avg_speed_mps: decimal(session.enhancedAvgSpeed ?? session.avgSpeed, 0, 999, 3),
       trainer: typeof session.subSport === "string" ? TRAINER_SUB_SPORTS.has(session.subSport) : null,
       device_name: device,
+      streams: sessionStreams(records, laps, start.getTime(), finite(session.totalElapsedTime)),
     });
   });
   if (!items.length) throw new FitImportError("Aucune activité exploitable dans ce fichier.");

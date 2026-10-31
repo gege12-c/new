@@ -2,7 +2,8 @@
  * Faux intervals.icu, pour les tests uniquement : clé API personnelle (authentification « Basic »,
  * utilisateur API_KEY), profil de l'athlète, dépôt en lot des séances prévues par identifiant externe
  * (création ou mise à jour), retrait en lot, activités faites d'une période (celles reçues de Strava
- * réduites à une note, comme le fait intervals.icu), quota (429). Données entièrement fictives.
+ * réduites à une note, comme le fait intervals.icu), courbes et intervalles d'une activité (champs
+ * `_streams` et `_intervals` de l'activité de test), quota (429). Données entièrement fictives.
  */
 import { createServer, type IncomingMessage, type Server } from "node:http";
 
@@ -83,10 +84,24 @@ export class FakeIntervals {
       // Comme intervals.icu : une activité reçue de Strava n'est pas transmise, seulement signalée.
       return this.json(
         200,
-        inRange.map((a) =>
-          a.source === "STRAVA" ? { id: a.id, start_date_local: a.start_date_local, type: a.type, source: "STRAVA", _note: "STRAVA activities are not available via the API" } : a,
-        ),
+        inRange.map((a) => {
+          if (a.source === "STRAVA") return { id: a.id, start_date_local: a.start_date_local, type: a.type, source: "STRAVA", _note: "STRAVA activities are not available via the API" };
+          const { _streams, _intervals, ...summary } = a;
+          void _streams;
+          void _intervals;
+          return summary;
+        }),
       );
+    }
+
+    const activityPath = /^\/api\/v1\/activity\/([^/]+)\/(streams\.json|intervals)$/.exec(url.pathname);
+    if (activityPath && method === "GET") {
+      const activity = (this.activities.get(athlete) ?? []).find((a) => String(a.id) === decodeURIComponent(activityPath[1]));
+      if (!activity || activity.source === "STRAVA") return this.json(404, { error: "Activity not found" });
+      if (activityPath[2] === "intervals") return this.json(200, { id: activity.id, analyzed: new Date().toISOString(), icu_intervals: activity._intervals ?? [], icu_groups: [] });
+      const types = new Set((url.searchParams.get("types") ?? "").split(",").filter(Boolean));
+      const streams = (Array.isArray(activity._streams) ? activity._streams : []) as { type: string }[];
+      return this.json(200, types.size ? streams.filter((stream) => types.has(stream.type)) : streams);
     }
 
     if (url.pathname === "/api/v1/athlete/0/wellness" && method === "GET") {

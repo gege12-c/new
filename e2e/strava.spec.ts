@@ -227,7 +227,17 @@ test("un fichier FIT importé par l'athlète est visible de son coach", async ({
   const start = new Date(`${day}T08:00:00Z`);
   start.setUTCSeconds(Math.floor(Math.random() * 3000));
   const file = path.join(mkdtempSync(path.join(tmpdir(), "tricoach-fit-")), "sortie-e2e.fit");
-  writeFileSync(file, buildActivityFit({ start, utcOffsetS: parisOffset(day) * 3600, sessions: [{ sport: "cycling", subSport: "road", durationS: 5400, distanceM: 45_000, avgPower: 190 }] }));
+  // Une mesure toutes les 5 s (puissance, fréquence cardiaque, vitesse) et trois tours enregistrés par la montre.
+  const records = Array.from({ length: 1081 }, (_, i) => ({ offsetS: i * 5, power: i >= 360 && i < 720 ? 240 : 170, heartRate: 140, speed: 8.4 }));
+  const laps = [
+    { offsetS: 0, durationS: 1800, avgPower: 170 },
+    { offsetS: 1800, durationS: 1800, avgPower: 240 },
+    { offsetS: 3600, durationS: 1800, avgPower: 170 },
+  ];
+  writeFileSync(
+    file,
+    buildActivityFit({ start, utcOffsetS: parisOffset(day) * 3600, sessions: [{ sport: "cycling", subSport: "road", durationS: 5400, distanceM: 45_000, avgPower: 190, records, laps }] }),
+  );
 
   const athlete = await signedIn(browser, "athlete");
   await athlete.goto("/athlete/profile#connexions");
@@ -244,4 +254,9 @@ test("un fichier FIT importé par l'athlète est visible de son coach", async ({
   await chip.click();
   await expect(coach.getByRole("complementary", { name: "Sortie à vélo" }).getByText("Fichier FIT")).toBeVisible();
   await expect(coach.getByRole("complementary", { name: "Sortie à vélo" }).getByText("190 W")).toBeVisible();
+  // Ses courbes et les tours de la montre, lus dans le fichier par le navigateur de l'athlète.
+  const panel = coach.getByRole("complementary", { name: "Sortie à vélo" });
+  await expect(panel.getByRole("group", { name: "Courbes affichées" }).getByRole("button", { name: "Vitesse" })).toBeVisible();
+  await expect(panel.getByText("Tours enregistrés par la montre (3)")).toBeVisible();
+  await expect(panel.getByRole("row", { name: /Tour 2/ })).toContainText("240 W");
 });

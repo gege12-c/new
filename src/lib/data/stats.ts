@@ -3,6 +3,7 @@ import "server-only";
 import { addDays } from "@/lib/planning/dates";
 import { adherence, fitRecords, intensityDistribution, lastWeeks, thresholdSeries, weeklyVolumes, type Adherence, type IntensityDistribution, type RecordEntry, type StatActivity, type ThresholdSeries, type WeekVolume } from "@/lib/stats/stats";
 import { DURABLE_SOURCES } from "@/lib/activities/schema";
+import { powerCurve, type PowerCurve } from "@/lib/stats/power";
 import { isMissingSchema } from "@/lib/supabase/schema";
 import type { ServerSupabase } from "@/lib/supabase/server";
 import { currentThresholds, toAthleteThresholds } from "@/lib/thresholds";
@@ -29,6 +30,8 @@ export interface StatsData {
   thresholds: ThresholdSeries[];
   records: RecordEntry[];
   fitness: FitnessData;
+  /** Meilleures puissances par période ; null tant que la base n'a pas les courbes d'activité. */
+  power: PowerCurve | null;
 }
 
 const ACTIVITY_COLUMNS = "sport, local_date, moving_s, elapsed_s, distance_m, avg_power, avg_speed_mps";
@@ -40,13 +43,28 @@ export async function getStatsData(supabase: ServerSupabase, athleteId: string, 
   const intensityFrom = addDays(weeks[weeks.length - INTENSITY_WEEKS], 0);
   const adherenceFrom = weeks[weeks.length - ADHERENCE_WEEKS];
 
-  const [sessions, thresholdRows, recent, all, fitness] = await Promise.all([
+  const [sessions, thresholdRows, recent, all, fitness, curves] = await Promise.all([
     getSessionsInRange(supabase, athleteId, from, to),
     getThresholds(supabase, athleteId),
     supabase.from("activities").select(ACTIVITY_COLUMNS).eq("athlete_id", athleteId).in("source", [...DURABLE_SOURCES]).is("duplicate_of", null).gte("local_date", from).lte("local_date", to),
     supabase.from("activities").select(ACTIVITY_COLUMNS).eq("athlete_id", athleteId).in("source", [...DURABLE_SOURCES]).is("duplicate_of", null).order("local_date", { ascending: false }).limit(2000),
     getFitnessData(supabase, athleteId, today),
+    // Courbes lues (montre, fichiers FIT) des sorties à vélo des 12 derniers mois.
+    supabase
+      .from("activity_streams")
+      .select("bests, activity:activities!inner(id, local_date, sport, duplicate_of, athlete_id)")
+      .eq("activity.athlete_id", athleteId)
+      .eq("activity.sport", "bike")
+      .is("activity.duplicate_of", null)
+      .gte("activity.local_date", addDays(today, -365)),
   ]);
+  if (curves.error && !isMissingSchema(curves.error)) throw curves.error;
+  const power = curves.error
+    ? null
+    : powerCurve(
+        (curves.data ?? []).flatMap((row) => (row.activity ? [{ activityId: row.activity.id, date: row.activity.local_date, bests: row.bests }] : [])),
+        today,
+      );
   const activitiesAvailable = !recent.error;
   if (recent.error && !isMissingSchema(recent.error)) throw recent.error;
   if (all.error && !isMissingSchema(all.error)) throw all.error;
@@ -92,5 +110,6 @@ export async function getStatsData(supabase: ServerSupabase, athleteId: string, 
     thresholds: thresholdSeries(thresholdRows, THRESHOLD_KEYS),
     records: fitRecords(allActivities),
     fitness,
+    power,
   };
 }
