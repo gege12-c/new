@@ -7,10 +7,13 @@ import type { ServerSupabase } from "@/lib/supabase/server";
 import { currentThresholds, toAthleteThresholds } from "@/lib/thresholds";
 import { WorkoutSchema, type Workout, type SessionSport } from "@/lib/workout/schema";
 import type { AthleteThresholds } from "@/lib/workout/zones";
+import { missingColumn } from "@/lib/supabase/schema";
 import { getThresholds } from "./athlete";
 
-const LIST_COLUMNS =
-  "id, athlete_id, scheduled_date, start_time, sport, title, objective, planned_duration_s, planned_distance_m, state, version, created_by, content, source, import_notes";
+const BASE_COLUMNS =
+  "id, athlete_id, scheduled_date, start_time, sport, title, objective, planned_duration_s, planned_distance_m, state, version, created_by, content";
+/** Avec les séances reprises d’intervals.icu (migration 20261031100000) ; base pas encore à jour : BASE_COLUMNS. */
+const LIST_COLUMNS = `${BASE_COLUMNS}, source, import_notes`;
 
 
 type ListRow = Omit<CalendarSession, "pending" | "planned_distance_m" | "content" | "sport" | "state" | "source"> & {
@@ -51,16 +54,18 @@ export async function getSessionsInRange(
   to: string,
   options: { withPending?: boolean } = {},
 ): Promise<CalendarSession[]> {
-  const columns = options.withPending ? `${LIST_COLUMNS}, pending:planned_session_drafts(updated_at)` : LIST_COLUMNS;
-  const { data, error } = await supabase
-    .from("planned_sessions")
-    .select(columns)
-    .eq("athlete_id", athleteId)
-    .gte("scheduled_date", from)
-    .lte("scheduled_date", to)
-    .order("scheduled_date", { ascending: true })
-    .order("start_time", { ascending: true, nullsFirst: false })
-    .order("created_at", { ascending: true });
+  const run = (base: string) =>
+    supabase
+      .from("planned_sessions")
+      .select(options.withPending ? `${base}, pending:planned_session_drafts(updated_at)` : base)
+      .eq("athlete_id", athleteId)
+      .gte("scheduled_date", from)
+      .lte("scheduled_date", to)
+      .order("scheduled_date", { ascending: true })
+      .order("start_time", { ascending: true, nullsFirst: false })
+      .order("created_at", { ascending: true });
+  const first = await run(LIST_COLUMNS);
+  const { data, error } = first.error && missingColumn(first.error) ? await run(BASE_COLUMNS) : first;
   if (error) throw error;
   return ((data ?? []) as unknown as ListRow[]).map(toCalendarSession);
 }
@@ -77,11 +82,10 @@ export interface SessionDetail extends CalendarSession {
 }
 
 export async function getSessionDetail(supabase: ServerSupabase, sessionId: string, options: { withDraft?: boolean } = {}) {
-  const { data, error } = await supabase
-    .from("planned_sessions")
-    .select(`${LIST_COLUMNS}, description, nutrition_notes, published_at, updated_at, template_id`)
-    .eq("id", sessionId)
-    .maybeSingle();
+  const run = (base: string) =>
+    supabase.from("planned_sessions").select(`${base}, description, nutrition_notes, published_at, updated_at, template_id`).eq("id", sessionId).maybeSingle();
+  const first = await run(LIST_COLUMNS);
+  const { data, error } = first.error && missingColumn(first.error) ? await run(BASE_COLUMNS) : first;
   if (error) throw error;
   if (!data) return null;
   const row = data as unknown as ListRow & { description: string | null; nutrition_notes: string | null; published_at: string | null; updated_at: string; template_id: string | null };
