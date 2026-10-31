@@ -631,6 +631,7 @@ export type Database = {
           connected_at: string;
           external_athlete_id: string;
           history_from: string | null;
+          wellness_from: string | null;
           id: string;
           last_error: string | null;
           last_error_at: string | null;
@@ -649,6 +650,7 @@ export type Database = {
           connected_at?: string;
           external_athlete_id: string;
           history_from?: string | null;
+          wellness_from?: string | null;
           id?: string;
           last_error?: string | null;
           last_error_at?: string | null;
@@ -666,6 +668,7 @@ export type Database = {
           connected_at?: string;
           external_athlete_id?: string;
           history_from?: string | null;
+          wellness_from?: string | null;
           id?: string;
           last_error?: string | null;
           last_error_at?: string | null;

@@ -109,10 +109,14 @@ test("l'athlète voit sa progression, sans aucune donnée Strava", async ({ brow
   await expect(page.getByText("Meilleure puissance moyenne (sortie de 20 min ou plus)")).toBeVisible();
   await expect(page.getByText(/\b2\d\d W\b/).first()).toBeVisible();
 
-  // Meilleures puissances par période, seconde par seconde : rien au-delà de la sortie la plus longue.
-  const power = page.locator("section", { has: page.getByRole("heading", { name: "Meilleures puissances" }) });
+  // Records de la saison, seconde par seconde : rien au-delà de la sortie la plus longue.
+  const power = page.locator("section", { has: page.getByRole("heading", { name: "Records de la saison" }) });
   await expect(power.getByRole("row", { name: /^20 min/ })).toContainText("262 W");
-  await expect(power.getByRole("row", { name: /^60 min/ })).not.toContainText("W");
+  await expect(power.getByRole("row", { name: /^1 h/ })).not.toContainText("W");
+  // FTP estimée : 95 % des 262 W sur 20 min (compte de test partagé : rien n'est enregistré ici).
+  await expect(power.getByText("FTP estimée")).toBeVisible();
+  await expect(power).toContainText("249 W");
+  await expect(power.getByRole("button", { name: "Enregistrer 249 W comme FTP" })).toBeVisible();
 
   // Le tableau donne les valeurs sans survol.
   await page.getByText("Voir le tableau").click();

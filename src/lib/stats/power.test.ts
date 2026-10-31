@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { powerCurve } from "./power";
+import { paceCurve, powerCurve } from "./power";
 
 describe("meilleures puissances par période", () => {
   it("la meilleure moyenne de chaque durée, par période, avec sa date", () => {
@@ -30,5 +30,31 @@ describe("meilleures puissances par période", () => {
     const curve = powerCurve([], "2026-10-31");
     expect(curve.activities).toBe(0);
     expect(curve.bests[60]).toEqual({});
+  });
+});
+
+describe("meilleurs temps par distance et par période", () => {
+  it("le plus court de chaque distance, par sport et par période, avec sa date", () => {
+    const curve = paceCurve(
+      [
+        { activityId: "a", date: "2026-10-20", sport: "run", pace: { "1000": 230, "5000": 1250 } },
+        { activityId: "b", date: "2026-07-01", sport: "run", pace: { "1000": 222, "10000": 2700 } },
+        { activityId: "c", date: "2026-10-21", sport: "swim", pace: { "400": 330 } },
+        // Illisible, vide, trop ancien : ignorés.
+        { activityId: "d", date: "2026-10-22", sport: "run", pace: "oops" },
+        { activityId: "e", date: "2026-10-23", sport: "run", pace: {} },
+        { activityId: "f", date: "2025-06-01", sport: "run", pace: { "1000": 200 } },
+      ],
+      "run",
+      "2026-10-31",
+    );
+    expect(curve.activities).toBe(2);
+    expect(curve.bests[1000]).toEqual({
+      "42": { seconds: 230, date: "2026-10-20", activityId: "a" },
+      "90": { seconds: 230, date: "2026-10-20", activityId: "a" },
+      "365": { seconds: 222, date: "2026-07-01", activityId: "b" },
+    });
+    expect(curve.bests[10000]).toEqual({ "365": { seconds: 2700, date: "2026-07-01", activityId: "b" } });
+    expect(paceCurve([], "swim", "2026-10-31").activities).toBe(0);
   });
 });

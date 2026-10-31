@@ -3,75 +3,12 @@ import { EmptyState } from "@/components/ui/feedback";
 import { Panel } from "@/components/ui/panel";
 import { addDays, dateRange } from "@/lib/planning/dates";
 import { cn } from "@/lib/utils";
-import { formatMeasure, MEASURE_DEFS, MEASURES, SCALE_DEFS, SCALES, type MeasureKey, type ScaleKey, type WellnessEntry } from "@/lib/wellness/wellness";
+import { formatMeasure, MEASURE_DEFS, MEASURES, SCALE_DEFS, SCALES, type ScaleKey, type WellnessEntry } from "@/lib/wellness/wellness";
 
 /** Fenêtre affichée, et nombre de jours renseignés en dessous duquel rien n'est tracé. */
 export const WELLNESS_DAYS = 28;
 const MIN_POINTS = 3;
-
-const W = 240;
-const H = 48;
 const shortDate = (iso: string) => `${Number(iso.slice(8, 10))}/${Number(iso.slice(5, 7))}`;
-
-function Sparkline({ days, values, label }: { days: string[]; values: (number | null)[]; label: string }) {
-  const known = values.filter((v): v is number => v !== null);
-  const min = Math.min(...known);
-  const max = Math.max(...known);
-  const span = max - min || 1;
-  const x = (i: number) => (i / Math.max(1, days.length - 1)) * W;
-  const y = (v: number) => H - 4 - ((v - min) / span) * (H - 8);
-  // Un trait par suite de jours renseignés : un jour vide coupe la courbe (rien n'est interpolé).
-  const runs: string[] = [];
-  let current = "";
-  values.forEach((v, i) => {
-    if (v === null) {
-      if (current) runs.push(current);
-      current = "";
-      return;
-    }
-    current += `${current ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`;
-  });
-  if (current) runs.push(current);
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" role="img" aria-label={label} className="h-12 w-full overflow-visible">
-      {runs.map((d) => (
-        <path key={d} d={d} fill="none" stroke="var(--chart-swim)" strokeWidth={2} vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
-      ))}
-      {values.map((v, i) => (v === null ? null : <circle key={days[i]} cx={x(i)} cy={y(v)} r={2.2} fill="var(--chart-swim)" vectorEffect="non-scaling-stroke" />))}
-    </svg>
-  );
-}
-
-function MeasureTile({ measure, days, byDay }: { measure: MeasureKey; days: string[]; byDay: Map<string, WellnessEntry> }) {
-  const def = MEASURE_DEFS[measure];
-  const values = days.map((d) => {
-    const v = byDay.get(d)?.[measure];
-    return v === null || v === undefined ? null : Number(v);
-  });
-  const known = values.filter((v): v is number => v !== null);
-  const last = [...values].reverse().find((v) => v !== null) ?? null;
-  const recent = values.slice(-7).filter((v): v is number => v !== null);
-  return (
-    <div className="min-w-0 rounded-[12px] border border-line p-3">
-      <p className="flex items-baseline justify-between gap-2">
-        <span className="text-[13px] font-semibold text-ink-soft">{def.label}</span>
-        <span className="figure text-[17px] text-ink">{last === null ? "—" : formatMeasure(measure, last)}</span>
-      </p>
-      {known.length >= MIN_POINTS ? (
-        <>
-          <Sparkline days={days} values={values} label={`${def.label} sur ${WELLNESS_DAYS} jours : de ${formatMeasure(measure, Math.min(...known))} à ${formatMeasure(measure, Math.max(...known))}`} />
-          <p className="text-[12px] text-muted">
-            {recent.length >= MIN_POINTS ? `Moyenne sur 7 jours : ${formatMeasure(measure, recent.reduce((a, b) => a + b, 0) / recent.length)}` : `${known.length} jours renseignés`}
-          </p>
-        </>
-      ) : (
-        <p className="mt-2 text-[12px] text-muted">
-          {known.length ? `${known.length} jour${known.length > 1 ? "s" : ""} renseigné${known.length > 1 ? "s" : ""} : la courbe apparaît à partir de 3.` : "Pas encore renseigné."}
-        </p>
-      )}
-    </div>
-  );
-}
 
 /** Une ligne de 28 cases par échelle : du mieux (clair) au moins bien (marqué), vide si non renseigné. */
 function ScaleRow({ scale, days, byDay }: { scale: ScaleKey; days: string[]; byDay: Map<string, WellnessEntry> }) {
@@ -113,7 +50,7 @@ export function WellnessPanel({ entries, today, viewer }: { entries: WellnessEnt
   return (
     <Panel
       title="Forme du jour"
-      description={`Sommeil, fatigue, courbatures, stress, motivation et mesures du matin, sur ${WELLNESS_DAYS} jours.`}
+      description={`Ressenti du matin (sommeil, fatigue, courbatures, stress, motivation) sur ${WELLNESS_DAYS} jours ; les mesures de la montre sont dans « Mesures du matin ».`}
     >
       {entries === null ? (
         <p className="text-[14px] text-muted">Disponible après la mise à jour de la base de données du site.</p>
@@ -133,11 +70,6 @@ export function WellnessPanel({ entries, today, viewer }: { entries: WellnessEnt
         </EmptyState>
       ) : (
         <div className="space-y-5">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {MEASURES.map((m) => (
-              <MeasureTile key={m} measure={m} days={days} byDay={byDay} />
-            ))}
-          </div>
           <div className="space-y-2">
             {SCALES.map((s) => (
               <ScaleRow key={s} scale={s} days={days} byDay={byDay} />

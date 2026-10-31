@@ -90,8 +90,10 @@ describe.skipIf(!url || !serviceKey)("activités faites, reçues d'intervals.icu
     fake.addKey(key, athlete);
     fake.addActivity(athlete, ride("i100", addDays(today, -1), { ...withCurves, icu_training_load: 74.27 }));
     fake.addActivity(athlete, ride("i101", addDays(today, -60), { type: "Run", name: "Footing", icu_average_watts: null }));
-    // Dans l'année reçue à la première réception, sans courbe (plus de 90 jours).
+    // Dans l'année reçue à la première réception, sans courbe chez intervals.icu.
     fake.addActivity(athlete, ride("i102", addDays(today, -120)));
+    // Mesures du matin d'il y a plus de six mois : reçues avec l'année d'historique.
+    fake.wellness.set(athlete, [{ id: addDays(today, -200), restingHR: 49, hrv: 70, sleepSecs: 28_800 }]);
     // Hors de l'historique d'un an.
     fake.addActivity(athlete, ride("i104", addDays(today, -400)));
     // Reçue de Strava par intervals.icu : non transmise.
@@ -115,6 +117,10 @@ describe.skipIf(!url || !serviceKey)("activités faites, reçues d'intervals.icu
     expect(connection!.activities_synced_at).not.toBeNull();
     expect(connection!.activities_skipped).toBe(1);
     expect(connection!.history_from).toBe(addDays(today, -365));
+    const { data: oldMeasures } = await admin.from("wellness_entries").select("entry_date, resting_hr, hrv_ms, sleep_hours").eq("athlete_id", athleteId);
+    expect(oldMeasures).toEqual([{ entry_date: addDays(today, -200), resting_hr: 49, hrv_ms: 70, sleep_hours: 8 }]);
+    const { data: wellnessState } = await admin.from("external_connections").select("wellness_from").eq("athlete_id", athleteId).eq("provider", "intervals").single();
+    expect(wellnessState!.wellness_from).toBe(addDays(today, -364));
 
     // Courbes : réduites (un point toutes les 5 s), sans la trace GPS ; intervalles détectés ; meilleures puissances.
     const stored = await curves();
@@ -125,9 +131,11 @@ describe.skipIf(!url || !serviceKey)("activités faites, reçues d'intervals.icu
     expect(series.watts).toHaveLength(720);
     expect(ride100.laps).toEqual([expect.objectContaining({ start_s: 600, duration_s: 480, avg_power: 260, avg_hr: 158, kind: "work", label: "Seuil" })]);
     expect(ride100.laps_origin).toBe("detected");
-    expect(ride100.bests).toEqual({ "5": 260, "60": 260, "300": 260, "1200": 212, "3600": 191 });
+    // Courbe de puissance détaillée : 8 min à 260 W, puis 180 W ; rien au-delà de la durée de la sortie.
+    expect(ride100.bests).toMatchObject({ "5": 260, "60": 260, "300": 260, "480": 260, "600": 244, "900": 223, "1200": 212, "1800": 201, "3600": 191 });
+    expect(ride100.bests).not.toHaveProperty("5400");
     // Mesures normalisées, pour la courbe de condition : puissance normalisée au-dessus de la moyenne (191 W).
-    expect(ride100.metrics).toMatchObject({ hr_rms: 150 });
+    expect(ride100.metrics).toMatchObject({ hr_rms: 150, v: 2 });
     expect((ride100.metrics as { np: number }).np).toBeGreaterThan(191);
     // Activité sans courbe chez intervals.icu : notée vide, pour ne pas être relue.
     const footing = (await received()).find((a) => a.external_id === "i101")!;
@@ -142,14 +150,25 @@ describe.skipIf(!url || !serviceKey)("activités faites, reçues d'intervals.icu
     expect((await received()).map((a) => a.updated_at)).toEqual(before.map((a) => a.updated_at));
     expect(streamCalls()).toBe(readBefore);
 
+    // Courbe lue avec un calcul plus ancien : relue une fois, puis plus.
+    const old = (await received()).find((a) => a.external_id === "i100")!;
+    await admin.from("activity_streams").update({ metrics: { hr_rms: 150 } }).eq("activity_id", old.id);
+    await nudge();
+    await run();
+    expect(streamCalls()).toBe(readBefore + 1);
+    expect((await curves()).get(old.id)!.metrics).toMatchObject({ v: 2 });
+    await nudge();
+    await run();
+    expect(streamCalls()).toBe(readBefore + 1);
+
     fake.removeActivity(athlete, "i100");
     fake.addActivity(athlete, ride("i100", addDays(today, -1), { ...withCurves, name: "Seuil, renommée", icu_average_watts: 220 }));
     await nudge();
     await run();
     const renamed = (await received()).find((a) => a.external_id === "i100")!;
     expect(renamed).toMatchObject({ name: "Seuil, renommée", avg_power: 220 });
-    // Activité modifiée : ses courbes sont relues.
-    expect(streamCalls()).toBe(readBefore + 1);
+    // Activité modifiée : ses courbes sont relues (une lecture de plus que la relecture du calcul ancien).
+    expect(streamCalls()).toBe(readBefore + 2);
     expect((await curves()).get(renamed.id)?.laps_origin).toBe("detected");
 
     // Retirée chez intervals.icu : retirée ici, dans la période relue (14 jours) ; plus ancienne : gardée.
@@ -169,7 +188,12 @@ describe.skipIf(!url || !serviceKey)("activités faites, reçues d'intervals.icu
     ]);
     await nudge();
     await run();
-    const { data } = await admin.from("wellness_entries").select("entry_date, fatigue, resting_hr, hrv_ms, sleep_hours, weight_kg").eq("athlete_id", athleteId).order("entry_date");
+    const { data } = await admin
+      .from("wellness_entries")
+      .select("entry_date, fatigue, resting_hr, hrv_ms, sleep_hours, weight_kg")
+      .eq("athlete_id", athleteId)
+      .gte("entry_date", yesterday)
+      .order("entry_date");
     expect(data).toEqual([
       { entry_date: yesterday, fatigue: 2, resting_hr: 51, hrv_ms: 63, sleep_hours: 7.5, weight_kg: null },
       { entry_date: today, fatigue: null, resting_hr: 46, hrv_ms: null, sleep_hours: null, weight_kg: 72.4 },

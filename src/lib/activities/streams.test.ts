@@ -1,5 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { activityMetrics, availableMetrics, intervalsLaps, intervalsStreams, minettiCost, powerBests, readStoredStreams, reduceStreams, STREAM_MAX_POINTS } from "./streams";
+import {
+  activityMetrics,
+  availableMetrics,
+  intervalsLaps,
+  intervalsStreams,
+  minettiCost,
+  paceBests,
+  powerBests,
+  readStoredStreams,
+  reduceStreams,
+  STREAM_MAX_POINTS,
+  streamMetrics,
+  STREAMS_VERSION,
+} from "./streams";
 
 const seconds = (n: number) => Array.from({ length: n }, (_, i) => i);
 
@@ -66,8 +79,55 @@ describe("meilleures puissances", () => {
     const paused = powerBests({ time: [0, 1, 2, 3, 4, 70, 71, 72, 73, 74], watts: [300, 300, 300, 300, 300, 300, 300, 300, 300, 300] });
     expect(paused["5"]).toBe(300);
     expect(paused["60"]).toBe(Math.round((5 * 300) / 60));
-    expect(powerBests({ time: seconds(30), watts: seconds(30).map(() => 300) })).toEqual({ "5": 300 });
+    expect(powerBests({ time: seconds(30), watts: seconds(30).map(() => 300) })).toEqual({ "5": 300, "10": 300, "15": 300, "30": 300 });
     expect(powerBests({ time: seconds(30), heartrate: seconds(30).map(() => 140) })).toEqual({});
+  });
+});
+
+describe("meilleurs temps par distance", () => {
+  /** Distance cumulée d'une course à vitesse donnée seconde par seconde. */
+  const cumulative = (speeds: number[]) => {
+    let total = 0;
+    return speeds.map((v) => (total += v));
+  };
+
+  it("course : la fenêtre la plus courte pour chaque distance, interpolée", () => {
+    // 50 min à 3,5 m/s, avec 4 min à 5 m/s (1 200 m) au milieu.
+    const time = seconds(3000);
+    const speeds = time.map((t) => (t >= 1200 && t < 1440 ? 5 : 3.5));
+    const bests = paceBests({ time, distance: cumulative(speeds) }, "run");
+    expect(bests["400"]).toBeCloseTo(80, 0);
+    expect(bests["1000"]).toBeCloseTo(200, 0);
+    // 5 km : le bloc rapide (1 200 m en 240 s) puis 3 800 m à 3,5 m/s.
+    expect(bests["5000"]).toBeCloseTo(240 + 3800 / 3.5, 0);
+    expect(bests["10000"]).toBeCloseTo(240 + 8800 / 3.5, 0);
+    expect(bests).not.toHaveProperty("15000");
+  });
+
+  it("un bond GPS impossible ou une remise à zéro ne comptent pas ; une pause compte dans le temps", () => {
+    const time = seconds(600);
+    const distance = cumulative(time.map(() => 3));
+    // Bond de 500 m en une seconde, puis remise à zéro de la distance.
+    const glitched = distance.map((d, i) => (i >= 300 ? d + 500 : d)).map((d, i) => (i >= 450 ? d - 2000 : d));
+    const bests = paceBests({ time, distance: glitched }, "run");
+    expect(bests["1000"]).toBeGreaterThanOrEqual(1000 / 3 - 1);
+    // Pause de 2 min au milieu d'un kilomètre : comptée.
+    const paused = paceBests({ time: [...seconds(200), ...seconds(200).map((t) => t + 320)], distance: cumulative(Array.from({ length: 400 }, () => 3)) }, "run");
+    expect(paused["1000"]).toBeGreaterThan(1000 / 3 + 100);
+  });
+
+  it("natation : distances de la piscine ; vélo et autres sports : rien", () => {
+    const time = seconds(1200);
+    const distance = cumulative(time.map(() => 1.25));
+    expect(paceBests({ time, distance }, "swim")).toMatchObject({ "100": 80, "400": 320, "1000": 800 });
+    expect(paceBests({ time, distance }, "bike")).toEqual({});
+    expect(paceBests({ time }, "run")).toEqual({});
+  });
+
+  it("mesures enregistrées : version du calcul, meilleurs temps s'il y en a", () => {
+    const time = seconds(400);
+    expect(streamMetrics({ time, distance: cumulative(time.map(() => 3)) }, "run")).toMatchObject({ v: STREAMS_VERSION, pace: { "400": expect.any(Number), "1000": expect.any(Number) } });
+    expect(streamMetrics({ time, watts: time.map(() => 200) }, "bike")).toEqual({ v: STREAMS_VERSION });
   });
 });
 

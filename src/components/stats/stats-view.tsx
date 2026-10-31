@@ -3,13 +3,12 @@ import { EmptyState } from "@/components/ui/feedback";
 import { Panel } from "@/components/ui/panel";
 import { ADHERENCE_WEEKS, INTENSITY_WEEKS, VOLUME_WEEKS, type StatsData } from "@/lib/data/stats";
 import { INTENSITY_BANDS, MIN_INTENSITY_SECONDS, MIN_INTENSITY_SESSIONS, STAT_SPORTS, type RecordEntry, type ThresholdSeries } from "@/lib/stats/stats";
-import { POWER_BEST_DURATIONS } from "@/lib/activities/streams";
-import { POWER_PERIODS, type PowerCurve } from "@/lib/stats/power";
 import { THRESHOLD_DEFS, formatThresholdValue } from "@/lib/thresholds";
 import { formatClock, formatDistance, formatDurationShort } from "@/lib/workout/format";
 import { cn } from "@/lib/utils";
 import { SPORT_FILL, SPORT_NAME } from "@/lib/stats/labels";
 import { FitnessPanel } from "./fitness-panel";
+import { RecordsPanel } from "./records-panel";
 import { VolumeChart } from "./volume-chart";
 
 const BAND_FILL = ["bg-zone-1", "bg-zone-2", "bg-zone-3", "bg-zone-4", "bg-zone-5", "bg-zone-6"];
@@ -97,56 +96,21 @@ function recordValue(record: RecordEntry, sport: string) {
   }
 }
 
-const POWER_DURATION_LABELS: Record<(typeof POWER_BEST_DURATIONS)[number], string> = { 5: "5 s", 60: "1 min", 300: "5 min", 1200: "20 min", 3600: "60 min" };
-
-/** Meilleure moyenne de chaque durée, sur 6 semaines, 3 mois et 12 mois. */
-function PowerTable({ curve }: { curve: PowerCurve }) {
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[320px] text-left text-[13.5px]">
-        <thead>
-          <tr className="text-[12px] text-muted">
-            <th scope="col" className="pb-1.5 pr-3 font-medium">
-              Durée
-            </th>
-            {POWER_PERIODS.map((period) => (
-              <th key={period.key} scope="col" className="pb-1.5 pr-3 font-medium">
-                {period.label}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-line">
-          {POWER_BEST_DURATIONS.map((duration) => (
-            <tr key={duration}>
-              <th scope="row" className="py-2 pr-3 font-semibold text-ink-soft">
-                {POWER_DURATION_LABELS[duration]}
-              </th>
-              {POWER_PERIODS.map((period) => {
-                const best = curve.bests[duration][period.key];
-                return (
-                  <td key={period.key} className="py-2 pr-3">
-                    {best ? (
-                      <>
-                        <span className="figure block font-semibold text-ink">{best.watts} W</span>
-                        <span className="figure block text-[12px] text-muted">{dayMonth(best.date)}</span>
-                      </>
-                    ) : (
-                      <span className="text-muted">—</span>
-                    )}
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
 /** Progression d'un athlète : volumes, intensité prévue, suivi des séances, seuils et records. */
-export function StatsView({ data, today, viewer, canSeeFiles }: { data: StatsData; today: string; viewer: "athlete" | "coach"; canSeeFiles: boolean }) {
+export function StatsView({
+  data,
+  today,
+  viewer,
+  canSeeFiles,
+  canEditThresholds = false,
+}: {
+  data: StatsData;
+  today: string;
+  viewer: "athlete" | "coach";
+  canSeeFiles: boolean;
+  /** Peut enregistrer un seuil estimé (l'athlète lui-même, ou son coach autorisé à planifier). */
+  canEditThresholds?: boolean;
+}) {
   const { volumes, intensity, adherence } = data;
   const hasPlanned = volumes.some((v) => v.plannedTotal > 0);
   const showRealized = data.activitiesAvailable && canSeeFiles;
@@ -357,20 +321,30 @@ export function StatsView({ data, today, viewer, canSeeFiles }: { data: StatsDat
       </Panel>
 
       <Panel
-        title="Meilleures puissances"
-        description="À vélo : la meilleure moyenne de chaque durée, calculée seconde par seconde sur les courbes de la montre (intervals.icu) et des fichiers FIT."
+        id="records-saison"
+        title="Records de la saison"
+        description="Courbe de puissance à vélo et meilleurs temps par distance en course et en natation, calculés seconde par seconde sur les courbes de la montre (intervals.icu) et des fichiers FIT. Les seuils estimés en découlent."
       >
         {!showRealized ? (
           <p className="text-[13.5px] text-muted">{!data.activitiesAvailable ? "Disponible après la mise à jour de la base de données du site." : "L’athlète ne partage pas ses activités."}</p>
-        ) : !data.power ? (
+        ) : !data.power || !data.run || !data.swim ? (
           <p className="text-[13.5px] text-muted">Disponible après la mise à jour de la base de données du site.</p>
-        ) : data.power.activities ? (
-          <PowerTable curve={data.power} />
+        ) : data.power.activities || data.run.activities || data.swim.activities ? (
+          <RecordsPanel
+            power={data.power}
+            run={data.run}
+            swim={data.swim}
+            estimates={data.estimates}
+            athleteId={data.athleteId}
+            today={today}
+            calendarBase={own ? "/athlete/calendar" : `/coach/athletes/${data.athleteId}`}
+            canApply={canEditThresholds}
+          />
         ) : (
           <p className="text-[13.5px] text-muted">
             {own
-              ? "Aucune sortie à vélo avec puissance ces 12 derniers mois : il faut un capteur de puissance, et la montre reliée par intervals.icu ou le fichier FIT de la sortie."
-              : "Aucune sortie à vélo avec puissance de l’athlète ces 12 derniers mois (montre ou fichier FIT)."}
+              ? "Aucune courbe d’activité ces 12 derniers mois : reliez votre montre par intervals.icu (profil sportif) ou importez le fichier FIT d’une activité. Les courbes de l’année se lisent ensuite peu à peu."
+              : "Aucune courbe d’activité de l’athlète ces 12 derniers mois (montre ou fichier FIT)."}
           </p>
         )}
       </Panel>

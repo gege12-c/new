@@ -6,7 +6,7 @@
  */
 import { Decoder, Stream, Utils, type LapMesg, type RecordMesg, type SessionMesg } from "@garmin/fitsdk";
 import { boundedInt, shortText, type ActivitySport, type ImportedActivity } from "@/lib/activities/schema";
-import { activityMetrics, lap, powerBests, reduceStreams, type ActivityLap, type ActivityStreams, type RawStreams } from "@/lib/activities/streams";
+import { lap, powerBests, reduceStreams, streamMetrics, type ActivityLap, type ActivityStreams, type RawStreams } from "@/lib/activities/streams";
 
 export class FitImportError extends Error {
   constructor(message: string) {
@@ -106,7 +106,7 @@ export function sessionStreams(records: RecordMesg[], laps: LapMesg[], startMs: 
     .sort((a, b) => a.start_s - b.start_s);
   // Un seul tour, toute la session : il n'apprend rien de plus.
   const kept = sessionLaps.length >= 2 ? sessionLaps.slice(0, 300) : [];
-  return { ...reduced, laps: kept, laps_origin: kept.length ? "device" : null, bests: powerBests(raw), metrics: activityMetrics(raw, sport) };
+  return { ...reduced, laps: kept, laps_origin: kept.length ? "device" : null, bests: powerBests(raw), metrics: streamMetrics(raw, sport) };
 }
 
 function deviceName(fileId: Record<string, unknown> | undefined): string | null {

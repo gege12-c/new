@@ -15,9 +15,25 @@ export type StreamMetric = (typeof STREAM_METRICS)[number];
 
 /** Au plus autant de points par courbe : 1 toutes les 5 s pour une heure, toutes les 25 s pour cinq. */
 export const STREAM_MAX_POINTS = 720;
-/** Meilleures puissances moyennes : 5 s, 1 min, 5 min, 20 min, 60 min. */
-export const POWER_BEST_DURATIONS = [5, 60, 300, 1200, 3600] as const;
+/** Courbe de puissance : meilleure moyenne de chaque durée, de 5 s à 2 h. */
+export const CURVE_DURATIONS = [5, 10, 15, 30, 60, 120, 180, 300, 480, 600, 900, 1200, 1800, 2700, 3600, 5400, 7200] as const;
+export type CurveDuration = (typeof CURVE_DURATIONS)[number];
+/** Meilleures puissances affichées dans une activité : 5 s, 1 min, 5 min, 20 min, 60 min. */
+export const POWER_BEST_DURATIONS = [5, 60, 300, 1200, 3600] as const satisfies readonly CurveDuration[];
 export type PowerBestDuration = (typeof POWER_BEST_DURATIONS)[number];
+/** Meilleurs temps par distance (m), en course et en natation. */
+export const PACE_DISTANCES = {
+  run: [400, 1000, 1609, 3000, 5000, 10000, 15000, 21097, 42195],
+  swim: [50, 100, 200, 400, 750, 1000, 1500, 1900, 3800],
+} as const;
+export type PaceSport = keyof typeof PACE_DISTANCES;
+/** Vitesse au-delà de laquelle un bond de distance est une erreur de mesure (GPS), m/s. */
+const MAX_SPEED: Record<PaceSport, number> = { run: 7, swim: 2.6 };
+/**
+ * Version du calcul des mesures d'une courbe : 2 = courbe de puissance détaillée et meilleurs temps
+ * par distance. Les courbes reçues avant sont relues une fois (src/lib/intervals/service.ts).
+ */
+export const STREAMS_VERSION = 2;
 /** Intervalles gardés au plus par activité. */
 export const MAX_LAPS = 300;
 /** Longueur de courbe lue au plus (48 h à une mesure par seconde). */
@@ -74,7 +90,9 @@ export interface ActivityLap {
   label: string | null;
 }
 
-export type PowerBests = Partial<Record<`${PowerBestDuration}`, number>>;
+export type PowerBests = Partial<Record<`${CurveDuration}`, number>>;
+/** Meilleur temps (s) par distance (m), clé : la distance. */
+export type PaceBests = Record<string, number>;
 
 /**
  * Mesures normalisées, tirées de la courbe seconde par seconde et indépendantes des seuils : la
@@ -87,6 +105,10 @@ export interface ActivityMetrics {
   ngs?: number;
   /** Fréquence cardiaque quadratique moyenne (bpm) : les passages intenses pèsent plus que dans la moyenne. */
   hr_rms?: number;
+  /** Course et natation : meilleur temps (s) par distance (m). */
+  pace?: PaceBests;
+  /** Version du calcul (STREAMS_VERSION). */
+  v?: number;
 }
 
 export interface ActivityStreams {
@@ -175,7 +197,7 @@ export function powerBests(raw: RawStreams): PowerBests {
   }
   if (!measured) return {};
   const bests: PowerBests = {};
-  for (const window of POWER_BEST_DURATIONS) {
+  for (const window of CURVE_DURATIONS) {
     if (window > duration) break;
     let sum = 0;
     for (let i = 0; i < window; i += 1) sum += perSecond[i];
@@ -286,6 +308,58 @@ export function activityMetrics(raw: RawStreams, sport: string): ActivityMetrics
 // ---------------------------------------------------------------------------
 
 /** Courbes demandées à intervals.icu (noms de son API) et leur nom ici. */
+/**
+ * Meilleurs temps par distance (course, natation), sur la distance cumulée seconde par seconde :
+ * pour chaque distance, la fenêtre la plus courte qui la couvre, la fin de la fenêtre interpolée.
+ * Un bond de distance plus rapide que possible (erreur GPS) ou une remise à zéro ne compte pas ;
+ * une pause compte dans le temps, comme sur une course.
+ */
+export function paceBests(raw: RawStreams, sport: string): PaceBests {
+  if (sport !== "run" && sport !== "swim") return {};
+  const time = timeline(raw);
+  const distance = raw.distance;
+  if (!time || !distance || distance.length !== time.length) return {};
+  const t: number[] = [];
+  const d: number[] = [];
+  let total = 0;
+  let previous: { t: number; d: number } | null = null;
+  for (let i = 0; i < time.length; i += 1) {
+    const value = distance[i];
+    if (!valid(value, "distance")) continue;
+    if (previous) {
+      const step = value - previous.d;
+      const dt = time[i] - previous.t;
+      if (step > 0 && dt > 0 && step / dt <= MAX_SPEED[sport]) total += step;
+    }
+    previous = { t: time[i], d: value };
+    t.push(time[i]);
+    d.push(total);
+  }
+  const bests: PaceBests = {};
+  for (const target of PACE_DISTANCES[sport]) {
+    if (total < target) break;
+    let best = Infinity;
+    let j = 0;
+    for (let i = 0; i < d.length; i += 1) {
+      if (j <= i) j = i + 1;
+      while (j < d.length && d[j] - d[i] < target) j += 1;
+      if (j >= d.length) break;
+      const before = d[j - 1] - d[i];
+      const span = d[j] - d[j - 1];
+      const seconds = t[j - 1] - t[i] + (span > 0 ? ((target - before) / span) * (t[j] - t[j - 1]) : 0);
+      if (seconds > 0 && seconds < best) best = seconds;
+    }
+    if (Number.isFinite(best) && target / best <= MAX_SPEED[sport]) bests[`${target}`] = Math.round(best * 10) / 10;
+  }
+  return bests;
+}
+
+/** Mesures enregistrées avec une courbe : normalisées, meilleurs temps par distance, version du calcul. */
+export function streamMetrics(raw: RawStreams, sport: string): ActivityMetrics {
+  const pace = paceBests(raw, sport);
+  return { ...activityMetrics(raw, sport), ...(Object.keys(pace).length ? { pace } : {}), v: STREAMS_VERSION };
+}
+
 export const INTERVALS_STREAM_TYPES: Record<string, keyof RawStreams> = {
   time: "time",
   watts: "watts",
@@ -452,12 +526,16 @@ export const StoredLapSchema = z.object({
   label: z.string().max(80).nullable(),
 });
 
-export const StoredBestsSchema = z.object(Object.fromEntries(POWER_BEST_DURATIONS.map((d) => [`${d}`, z.number().int().positive().optional()]))).partial();
+export const StoredBestsSchema = z.object(Object.fromEntries(CURVE_DURATIONS.map((d) => [`${d}`, z.number().int().positive().optional()]))).partial();
+
+export const StoredPaceSchema = z.record(z.string().regex(/^\d{2,5}$/), z.number().positive().max(86_400));
 
 export const StoredMetricsSchema = z.object({
   np: z.number().int().min(1).max(3000).optional(),
   ngs: z.number().positive().max(40).optional(),
   hr_rms: z.number().min(20).max(260).optional(),
+  pace: StoredPaceSchema.optional(),
+  v: z.number().int().optional(),
 });
 
 export const StoredStreamsSchema = z.object({

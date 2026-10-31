@@ -3,7 +3,8 @@ import { Suspense } from "react";
 import { AthleteHeader } from "@/components/coach/athlete-header";
 import { PageContainer } from "@/components/layout/page";
 import { StatsView } from "@/components/stats/stats-view";
-import { WELLNESS_DAYS, WellnessPanel } from "@/components/stats/wellness-panel";
+import { MeasuresPanel } from "@/components/stats/measures-panel";
+import { WellnessPanel } from "@/components/stats/wellness-panel";
 import { SectionSkeleton } from "@/components/ui/feedback";
 import { loadCoachedAthlete } from "@/lib/coach/access";
 import { getEvents } from "@/lib/data/athlete";
@@ -11,6 +12,7 @@ import { getStatsData } from "@/lib/data/stats";
 import { getWellness } from "@/lib/data/wellness";
 import { addDays } from "@/lib/planning/dates";
 import { getThresholds } from "@/lib/data/athlete";
+import { MEASURE_DAYS } from "@/lib/wellness/trends";
 
 export const metadata: Metadata = { title: "Progression de l’athlète" };
 
@@ -31,7 +33,7 @@ async function AthleteStats({ params }: Pick<PageProps<"/coach/athletes/[athlete
     getThresholds(ctx.supabase, athleteId),
     getEvents(ctx.supabase, athleteId),
     getStatsData(ctx.supabase, athleteId, ctx.today),
-    ctx.link.can_view_activities ? getWellness(ctx.supabase, athleteId, addDays(ctx.today, -(WELLNESS_DAYS - 1)), ctx.today) : Promise.resolve([]),
+    ctx.link.can_view_activities ? getWellness(ctx.supabase, athleteId, addDays(ctx.today, -(MEASURE_DAYS - 1)), ctx.today) : Promise.resolve([]),
   ]);
   return (
     <>
@@ -46,9 +48,12 @@ async function AthleteStats({ params }: Pick<PageProps<"/coach/athletes/[athlete
         readOnly={!ctx.canPlan}
       />
       <div className="space-y-6">
-        <StatsView data={data} today={ctx.today} viewer="coach" canSeeFiles={ctx.link.can_view_activities} />
+        <StatsView data={data} today={ctx.today} viewer="coach" canSeeFiles={ctx.link.can_view_activities} canEditThresholds={ctx.canPlan} />
         {ctx.link.can_view_activities ? (
-          <WellnessPanel entries={wellness} today={ctx.today} viewer="coach" />
+          <>
+            <MeasuresPanel entries={wellness} today={ctx.today} viewer="coach" />
+            <WellnessPanel entries={wellness} today={ctx.today} viewer="coach" />
+          </>
         ) : (
           <p className="text-[13.5px] text-muted">{ctx.athlete.display_name} ne vous autorise pas à voir ses activités ni sa forme du jour.</p>
         )}

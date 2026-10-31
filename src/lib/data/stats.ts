@@ -3,7 +3,8 @@ import "server-only";
 import { addDays } from "@/lib/planning/dates";
 import { adherence, fitRecords, intensityDistribution, lastWeeks, thresholdSeries, weeklyVolumes, type Adherence, type IntensityDistribution, type RecordEntry, type StatActivity, type ThresholdSeries, type WeekVolume } from "@/lib/stats/stats";
 import { DURABLE_SOURCES } from "@/lib/activities/schema";
-import { powerCurve, type PowerCurve } from "@/lib/stats/power";
+import { estimateFtp, estimateThresholdPace, type FtpEstimate, type PaceEstimate } from "@/lib/stats/estimates";
+import { paceCurve, powerCurve, type PaceCurve, type PowerCurve } from "@/lib/stats/power";
 import { isMissingSchema } from "@/lib/supabase/schema";
 import type { ServerSupabase } from "@/lib/supabase/server";
 import { currentThresholds, toAthleteThresholds } from "@/lib/thresholds";
@@ -32,6 +33,12 @@ export interface StatsData {
   fitness: FitnessData;
   /** Meilleures puissances par période ; null tant que la base n'a pas les courbes d'activité. */
   power: PowerCurve | null;
+  /** Meilleurs temps par distance, en course et en natation ; null sans les courbes d'activité. */
+  run: PaceCurve | null;
+  swim: PaceCurve | null;
+  /** Seuils estimés d'après les records des 3 derniers mois, et les seuils en vigueur pour comparer. */
+  estimates: { ftp: FtpEstimate | null; pace: PaceEstimate | null; currentFtp: number | null; currentPace: number | null };
+  athleteId: string;
 }
 
 const ACTIVITY_COLUMNS = "sport, local_date, moving_s, elapsed_s, distance_m, avg_power, avg_speed_mps";
@@ -49,22 +56,24 @@ export async function getStatsData(supabase: ServerSupabase, athleteId: string, 
     supabase.from("activities").select(ACTIVITY_COLUMNS).eq("athlete_id", athleteId).in("source", [...DURABLE_SOURCES]).is("duplicate_of", null).gte("local_date", from).lte("local_date", to),
     supabase.from("activities").select(ACTIVITY_COLUMNS).eq("athlete_id", athleteId).in("source", [...DURABLE_SOURCES]).is("duplicate_of", null).order("local_date", { ascending: false }).limit(2000),
     getFitnessData(supabase, athleteId, today),
-    // Courbes lues (montre, fichiers FIT) des sorties à vélo des 12 derniers mois.
+    // Courbes lues (montre, fichiers FIT) des 12 derniers mois : puissance à vélo, temps par distance en course et en natation.
     supabase
       .from("activity_streams")
-      .select("bests, activity:activities!inner(id, local_date, sport, duplicate_of, athlete_id)")
+      .select("bests, metrics, activity:activities!inner(id, local_date, sport, duplicate_of, athlete_id)")
       .eq("activity.athlete_id", athleteId)
-      .eq("activity.sport", "bike")
+      .in("activity.sport", ["bike", "run", "swim"])
       .is("activity.duplicate_of", null)
-      .gte("activity.local_date", addDays(today, -365)),
+      .gte("activity.local_date", addDays(today, -365))
+      .limit(2000),
   ]);
   if (curves.error && !isMissingSchema(curves.error)) throw curves.error;
-  const power = curves.error
-    ? null
-    : powerCurve(
-        (curves.data ?? []).flatMap((row) => (row.activity ? [{ activityId: row.activity.id, date: row.activity.local_date, bests: row.bests }] : [])),
-        today,
-      );
+  const curveRows = (curves.data ?? []).flatMap((row) =>
+    row.activity ? [{ activityId: row.activity.id, date: row.activity.local_date, sport: row.activity.sport, bests: row.bests, pace: (row.metrics as { pace?: unknown } | null)?.pace }] : [],
+  );
+  const power = curves.error ? null : powerCurve(curveRows.filter((row) => row.sport === "bike"), today);
+  const run = curves.error ? null : paceCurve(curveRows, "run", today);
+  const swim = curves.error ? null : paceCurve(curveRows, "swim", today);
+  const now = currentThresholds(thresholdRows, today);
   const activitiesAvailable = !recent.error;
   if (recent.error && !isMissingSchema(recent.error)) throw recent.error;
   if (all.error && !isMissingSchema(all.error)) throw all.error;
@@ -111,5 +120,14 @@ export async function getStatsData(supabase: ServerSupabase, athleteId: string, 
     records: fitRecords(allActivities),
     fitness,
     power,
+    run,
+    swim,
+    estimates: {
+      ftp: power ? estimateFtp(power) : null,
+      pace: run ? estimateThresholdPace(run) : null,
+      currentFtp: now.has("bike.ftp_w") ? Number(now.get("bike.ftp_w")!.value) : null,
+      currentPace: now.has("run.threshold_pace_s_per_km") ? Number(now.get("run.threshold_pace_s_per_km")!.value) : null,
+    },
+    athleteId,
   };
 }

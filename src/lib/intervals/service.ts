@@ -33,9 +33,9 @@ import { missingColumn } from "@/lib/supabase/schema";
 import { parseWorkout } from "@/lib/workout/schema";
 import { IntervalsApi, IntervalsError, type IntervalsEvent } from "./api";
 import { alignmentUpdates, appliedAsSent, compareThresholds, type SyncedThresholdKey, type ThresholdComparison } from "./thresholds";
-import { activityMetrics, INTERVALS_STREAM_TYPES, intervalsLaps, intervalsStreams, powerBests, reduceStreams } from "@/lib/activities/streams";
+import { INTERVALS_STREAM_TYPES, intervalsLaps, intervalsStreams, powerBests, reduceStreams, streamMetrics, STREAMS_VERSION } from "@/lib/activities/streams";
 import { INTERVALS_FULL_HISTORY_DAYS, INTERVALS_HISTORY_DAYS, INTERVALS_RECENT_DAYS, normalizeIntervalsActivity, sameActivity } from "./activities";
-import { missingMeasures, morningMeasures, WELLNESS_RECENT_DAYS } from "./wellness";
+import { missingMeasures, morningMeasures, WELLNESS_RECENT_DAYS, type MorningMeasures } from "./wellness";
 import { buildIntervalsEvents, intervalsExternalId, INTERVALS_FORMAT_VERSION, INTERVALS_WINDOW_DAYS, type IntervalsBuild } from "./workout";
 
 export interface IntervalsDeps {
@@ -483,11 +483,22 @@ export async function syncIntervals(deps: IntervalsDeps, connection: DeviceConne
  * Mesures du matin (FC au repos, VFC, sommeil, poids) des 14 derniers jours : elles complètent la
  * forme du jour sans jamais remplacer une valeur saisie par l'athlète.
  */
+/** Mesures du matin reçues sur un an, une fois : les tendances (VFC, FC au repos, sommeil) en ont besoin. */
+export const WELLNESS_HISTORY_DAYS = 365;
+
+/**
+ * Mesures du matin : un an à la première réception (une fois), puis les 14 derniers jours. Seules
+ * les mesures absentes ou changées sont écrites ; une saisie de l'athlète n'est jamais écrasée.
+ */
 async function pullMorningMeasures(deps: IntervalsDeps, connection: DeviceConnection, today: string): Promise<number> {
-  const oldest = addDays(today, -(WELLNESS_RECENT_DAYS - 1));
+  // Base pas encore à jour (sans la date de l'historique) : les 14 derniers jours seulement.
+  const state = await deps.admin.from("external_connections").select("wellness_from").eq("id", connection.id).maybeSingle();
+  const upToDate = !missingColumn(state.error);
+  if (state.error && upToDate) throw new Error(`État de la réception illisible : ${state.error.message}`);
+  const needsHistory = upToDate && !state.data?.wellness_from;
+  const oldest = addDays(today, needsHistory ? -(WELLNESS_HISTORY_DAYS - 1) : -(WELLNESS_RECENT_DAYS - 1));
   const listed = await withKey(deps, connection, (key) => deps.api.wellness(key, oldest, today));
   const upstream = morningMeasures(listed).filter((m) => m.entry_date >= oldest && m.entry_date <= today);
-  if (!upstream.length) return 0;
   const { data: stored, error } = await deps.admin
     .from("wellness_entries")
     .select("entry_date, resting_hr, hrv_ms, sleep_hours, weight_kg")
@@ -497,15 +508,28 @@ async function pullMorningMeasures(deps: IntervalsDeps, connection: DeviceConnec
   if (error) throw new Error(`Forme du jour illisible : ${error.message}`);
   const byDate = new Map((stored ?? []).map((row) => [row.entry_date, row]));
   let written = 0;
+  const inserts: ({ athlete_id: string; entry_date: string } & Partial<MorningMeasures>)[] = [];
   for (const measures of upstream) {
     const row = byDate.get(measures.entry_date);
     const changes = missingMeasures(measures, row);
     if (!changes) continue;
-    const { error: saveError } = row
-      ? await deps.admin.from("wellness_entries").update(changes).eq("athlete_id", connection.athlete_id).eq("entry_date", measures.entry_date)
-      : await deps.admin.from("wellness_entries").insert({ athlete_id: connection.athlete_id, entry_date: measures.entry_date, ...changes });
+    if (!row) {
+      inserts.push({ athlete_id: connection.athlete_id, entry_date: measures.entry_date, ...changes });
+      continue;
+    }
+    const { error: saveError } = await deps.admin.from("wellness_entries").update(changes).eq("athlete_id", connection.athlete_id).eq("entry_date", measures.entry_date);
     if (saveError) throw new Error(`Forme du jour non enregistrée : ${saveError.message}`);
     written += 1;
+  }
+  // Jours nouveaux : en lots (une année d'historique en quelques écritures).
+  for (let i = 0; i < inserts.length; i += 200) {
+    const { error: saveError } = await deps.admin.from("wellness_entries").insert(inserts.slice(i, i + 200));
+    if (saveError) throw new Error(`Forme du jour non enregistrée : ${saveError.message}`);
+    written += Math.min(200, inserts.length - i);
+  }
+  if (needsHistory) {
+    const { error: markError } = await deps.admin.from("external_connections").update({ wellness_from: oldest }).eq("id", connection.id);
+    if (markError) throw new Error(`État de la réception non enregistré : ${markError.message}`);
   }
   return written;
 }
@@ -604,25 +628,33 @@ async function pullActivities(deps: IntervalsDeps, connection: DeviceConnection,
 }
 
 /** Courbes lues au plus par passage (deux appels chacune), les plus récentes d'abord ; la suite au passage suivant. */
-export const STREAMS_PER_RUN = 8;
+export const STREAMS_PER_RUN = 20;
 const STREAMS_BUDGET_MS = 20_000;
+/** Courbes lues sur un an : les records de la saison et la FTP estimée en dépendent. */
+export const STREAMS_HISTORY_DAYS = INTERVALS_FULL_HISTORY_DAYS;
 
 /**
- * Courbes et intervalles détectés des activités reçues des 90 derniers jours qui n'en ont pas encore.
+ * Courbes et intervalles détectés des activités reçues de l'année qui n'en ont pas encore, ou dont
+ * les mesures datent d'un calcul plus ancien (STREAMS_VERSION) : relues une fois.
  * Une activité sans courbe chez intervals.icu (saisie à la main, introuvable) est notée vide, pour ne
  * pas être relue ; un quota atteint ou une panne passagère arrête la lecture, reprise au passage suivant.
  */
 async function pullStreams(deps: IntervalsDeps, connection: DeviceConnection, today: string): Promise<number> {
   const { data: rows, error } = await deps.admin
     .from("activities")
-    .select("id, external_id, sport, stored:activity_streams(activity_id)")
+    .select("id, external_id, sport, stored:activity_streams(activity_id, metrics)")
     .eq("athlete_id", connection.athlete_id)
     .eq("source", "intervals")
-    .gte("local_date", addDays(today, -INTERVALS_HISTORY_DAYS))
+    .gte("local_date", addDays(today, -STREAMS_HISTORY_DAYS))
     .order("start_time", { ascending: false })
-    .limit(400);
+    .limit(1500);
   if (error) throw new Error(`Activités reçues illisibles : ${error.message}`);
-  const missing = (rows ?? []).filter((row) => (Array.isArray(row.stored) ? row.stored.length === 0 : !row.stored));
+  const outdated = (stored: { metrics: unknown } | null | undefined) => {
+    if (!stored) return true;
+    const version = (stored.metrics as { v?: unknown } | null)?.v;
+    return typeof version !== "number" || version < STREAMS_VERSION;
+  };
+  const missing = (rows ?? []).filter((row) => outdated(Array.isArray(row.stored) ? row.stored[0] : row.stored));
   if (!missing.length) return 0;
   const key = await apiKey(deps, connection);
   const started = Date.now();
@@ -658,7 +690,7 @@ async function pullStreams(deps: IntervalsDeps, connection: DeviceConnection, to
         laps: laps as unknown as NonNullable<Json>,
         laps_origin: laps.length ? "detected" : null,
         bests: powerBests(raw) as unknown as NonNullable<Json>,
-        metrics: activityMetrics(raw, activity.sport) as unknown as NonNullable<Json>,
+        metrics: streamMetrics(raw, activity.sport) as unknown as NonNullable<Json>,
       },
       { onConflict: "activity_id" },
     );
