@@ -271,6 +271,22 @@ Migration `20261031020000_wellness.sql`.
 
 Sécurité : écrite, modifiée et effacée par l'athlète seul ; lue par lui et par les coachs qu'il autorise à voir ses activités (`coach_can_view_activities`, même autorisation que les fichiers importés, libellée « Peut voir mes activités et ma forme du jour »). Effacée avec le compte ; incluse dans l'export des données personnelles.
 
+## Agenda du téléphone
+
+Migration `20261031030000_calendar_feeds.sql`. Route `GET /api/calendar/<jeton>.ics` (iCalendar, sans compte).
+
+| Table | Rôle | Points clés |
+| --- | --- | --- |
+| `calendar_feeds` | adresse d'abonnement de l'agenda d'un athlète (une au plus) | empreinte SHA-256 du jeton seulement (jeton de 244 bits, montré une fois) ; date de création et de dernière lecture (mise à jour au plus toutes les 10 minutes) |
+
+| Fonction | Usage |
+| --- | --- |
+| `create_calendar_feed()` | athlète connecté : nouvelle adresse (remplace l'ancienne, qui cesse aussitôt de fonctionner) ; rend le jeton |
+| `revoke_calendar_feed()` | athlète connecté : retire son adresse |
+| `calendar_feed(jeton)` | sans compte : séances publiées et annulées (pour les retirer des agendas) de J−60 à J+180, seuils, compétitions et jours indisponibles de l'athlète du jeton ; `unauthorized` sinon |
+
+Sécurité : aucune écriture directe ; l'athlète lit seulement l'existence et les dates de son adresse, jamais l'empreinte ; la fonction de lecture ne rend que les données de l'athlète du jeton.
+
 ## Journal d'audit
 
 Chaque création, modification et suppression sur les profils sportifs, relations, invitations, seuils, compétitions et séances est enregistrée avec son auteur. Pour une modification, seules les colonnes changées sont conservées (ancienne et nouvelle valeur). Le contenu structuré d'une séance est noté « modifié » sans être recopié, car l'enregistrement automatique le réécrit souvent.

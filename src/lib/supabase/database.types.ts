@@ -342,6 +342,36 @@ export type Database = {
         };
         Relationships: [];
       };
+      calendar_feeds: {
+        Row: {
+          athlete_id: string;
+          created_at: string;
+          last_read_at: string | null;
+          token_hash: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          athlete_id: string;
+          created_at?: string;
+          last_read_at?: string | null;
+          token_hash: string;
+        };
+        Update: {
+          athlete_id?: string;
+          created_at?: string;
+          last_read_at?: string | null;
+          token_hash?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "calendar_feeds_athlete_id_fkey";
+            columns: ["athlete_id"];
+            isOneToOne: true;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       calendar_notes: {
         Row: {
           athlete_id: string;
@@ -1624,6 +1654,7 @@ export type Database = {
           value: number;
         }[];
       };
+      calendar_feed: { Args: { p_token: string }; Returns: Json };
       claim_sync_jobs: {
         Args: { p_kinds: string[]; p_limit: number };
         Returns: {
@@ -1662,6 +1693,7 @@ export type Database = {
         Args: { p_athlete: string; p_from: string; p_state?: string; p_to: string };
         Returns: number;
       };
+      create_calendar_feed: { Args: Record<PropertyKey, never>; Returns: string };
       create_invitation: {
         Args: { p_email?: string; p_valid_hours?: number };
         Returns: {
@@ -1689,6 +1721,7 @@ export type Database = {
       purge_my_expired_activities: { Args: Record<PropertyKey, never>; Returns: number };
       rebase_session_draft: { Args: { p_prefer: string; p_session: string }; Returns: Json };
       release_sync_lease: { Args: { p_connection: string }; Returns: undefined };
+      revoke_calendar_feed: { Args: Record<PropertyKey, never>; Returns: boolean };
       revoke_coach_link: { Args: { p_link_id: string }; Returns: undefined };
       revoke_invitation: { Args: { p_invitation_id: string }; Returns: undefined };
       revoke_watch_device: { Args: { p_device_id: string }; Returns: undefined };
