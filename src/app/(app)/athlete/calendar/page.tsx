@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { ActivityPanel } from "@/components/activities/activity-panel";
+import { NotePanel } from "@/components/calendar/note-panel";
 import { PlanningCalendar, SportStatusFilters } from "@/components/calendar/planning-calendar";
 import { PageContainer } from "@/components/layout/page";
 import { CalendarSkeleton } from "@/components/layout/skeletons";
@@ -10,6 +11,7 @@ import { getProfile, requireSession } from "@/lib/auth/dal";
 import { getEvents, getThresholds } from "@/lib/data/athlete";
 import { unattachedActivities, withRealization } from "@/lib/activities/realization";
 import { getRealizedInRange } from "@/lib/data/activities";
+import { getCalendarNotes } from "@/lib/data/notes";
 import { getSessionsInRange } from "@/lib/data/planning";
 import { calendarHref, readCalendarQuery } from "@/lib/planning/calendar-query";
 import { viewRange } from "@/lib/planning/dates";
@@ -38,11 +40,12 @@ async function AthleteCalendar({ searchParams }: Pick<PageProps<"/athlete/calend
   // Les brouillons du coach ne sont jamais montrés à l’athlète (la RLS les exclut déjà).
   query.statuses = query.statuses?.filter((s) => s !== "draft");
   const { from, to } = viewRange(query.view, query.date);
-  const [planned, realized, thresholdRows, events] = await Promise.all([
+  const [planned, realized, thresholdRows, events, notes] = await Promise.all([
     getSessionsInRange(supabase, userId, from, to),
     getRealizedInRange(supabase, userId, from, to),
     getThresholds(supabase, userId),
     getEvents(supabase, userId),
+    getCalendarNotes(supabase, userId, from, to),
   ]);
   const sessions = withRealization(planned, realized);
   const thresholds = toAthleteThresholds(currentThresholds(thresholdRows, today));
@@ -68,6 +71,8 @@ async function AthleteCalendar({ searchParams }: Pick<PageProps<"/athlete/calend
         canMove
         canCreate
         newSessionPath="/athlete/sessions/new"
+        notes={notes}
+        canNote
       />
       {query.session ? (
         <SessionPanel
@@ -91,6 +96,16 @@ async function AthleteCalendar({ searchParams }: Pick<PageProps<"/athlete/calend
           timeZone={profile.timezone}
           closeHref={calendarHref(BASE, query, { activity: null })}
           sessionHref={(id) => calendarHref(BASE, query, { session: id })}
+        />
+      ) : query.note ? (
+        <NotePanel
+          supabase={supabase}
+          noteId={query.note}
+          athleteId={userId}
+          viewerId={userId}
+          canWrite
+          defaultDate={query.date >= today ? query.date : today}
+          closeHref={calendarHref(BASE, query, { note: null })}
         />
       ) : null}
     </>

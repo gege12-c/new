@@ -63,6 +63,8 @@ export interface SessionEditorProps {
   backLabel: string;
   /** Chemin de l’éditeur une fois la séance créée (« {id} » est remplacé). */
   editHrefPattern: string;
+  /** Avertissement affiché en tête (jour indisponible pour l’athlète, par exemple). */
+  warning?: string;
 }
 
 type Status =
@@ -606,6 +608,11 @@ export function SessionEditor(props: SessionEditorProps) {
       </header>
 
       <div className="mx-auto max-w-[1500px] px-4 pt-6 sm:px-6 lg:px-8">
+        {props.warning ? (
+          <Notice tone="warning" className="mb-4">
+            {props.warning}
+          </Notice>
+        ) : null}
         {notice ? (
           <div className="mb-4 flex items-start gap-3">
             <Notice className="flex-1">{notice}</Notice>

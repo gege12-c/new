@@ -251,6 +251,16 @@ Migration `20261031000000_intervals_activities.sql`.
 | `private.rematch_window` | ignore désormais les doublons |
 | `schema_version()` | dernière migration inscrite dans l'historique Supabase, lisible sans compte : le contrôle de production (`/api/health`) dit si la base attend sa mise à jour |
 
+## Notes de calendrier et jours indisponibles
+
+Migration `20261031010000_calendar_notes.sql`.
+
+| Table | Rôle | Points clés |
+| --- | --- | --- |
+| `calendar_notes` | jours indisponibles (`unavailable`, `travel`, `sick`, `injured`, `holiday`) et simples notes (`note`) du calendrier d'un athlète | période `start_date` à `end_date` (dates locales, un an au plus) ; intitulé (80 caractères) et précisions (500) ; auteur (`created_by`, mis à nul si son compte disparaît) ; journalisée ; signalée en temps réel sur `athlete:<id>` |
+
+Sécurité : lecture par l'athlète et ses coachs actifs (`has_athlete_access`, comme les compétitions) ; ajout par l'athlète ou un coach qui planifie pour lui (`can_plan_for`), l'auteur étant toujours l'utilisateur connecté ; modification et retrait par l'auteur, et par l'athlète sur son propre calendrier.
+
 ## Journal d'audit
 
 Chaque création, modification et suppression sur les profils sportifs, relations, invitations, seuils, compétitions et séances est enregistrée avec son auteur. Pour une modification, seules les colonnes changées sont conservées (ancienne et nouvelle valeur). Le contenu structuré d'une séance est noté « modifié » sans être recopié, car l'enregistrement automatique le réécrit souvent.

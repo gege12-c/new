@@ -5,10 +5,12 @@ import { PageContainer } from "@/components/layout/page";
 import { EditorSkeleton } from "@/components/layout/skeletons";
 import { Notice } from "@/components/ui/feedback";
 import { loadCoachedAthlete } from "@/lib/coach/access";
+import { getCalendarNotes } from "@/lib/data/notes";
 import { getTemplate, getThresholdsOn } from "@/lib/data/planning";
 import { calendarHref } from "@/lib/planning/calendar-query";
-import { isISODate } from "@/lib/planning/dates";
+import { formatFullDate, isISODate } from "@/lib/planning/dates";
 import type { EditorValues } from "@/lib/planning/editor-values";
+import { isUnavailability, noteTitle } from "@/lib/planning/notes";
 import { defaultWorkout } from "@/lib/workout/edit";
 import { SESSION_SPORTS, SPORT_LABELS, WorkoutSchema, type SessionSport } from "@/lib/workout/schema";
 
@@ -35,7 +37,8 @@ async function NewSession({ params, searchParams }: PageProps<"/coach/athletes/[
   }
   const date = isISODate(sp.date) ? sp.date : ctx.today;
   const sport: SessionSport = typeof sp.sport === "string" && (SESSION_SPORTS as readonly string[]).includes(sp.sport) ? (sp.sport as SessionSport) : "bike";
-  const thresholds = await getThresholdsOn(ctx.supabase, athleteId, date);
+  const [thresholds, dayNotes] = await Promise.all([getThresholdsOn(ctx.supabase, athleteId, date), getCalendarNotes(ctx.supabase, athleteId, date, date)]);
+  const unavailable = dayNotes.filter(isUnavailability);
   const template = typeof sp.template === "string" ? await getTemplate(ctx.supabase, sp.template).catch(() => null) : null;
   const templateContent = template ? WorkoutSchema.safeParse(template.content) : null;
 
@@ -74,6 +77,11 @@ async function NewSession({ params, searchParams }: PageProps<"/coach/athletes/[
       backHref={calendarHref(basePath, { view: "week", date })}
       backLabel={`Calendrier de ${ctx.athlete.display_name.split(" ")[0]}`}
       editHrefPattern={`${basePath}/sessions/{id}`}
+      warning={
+        unavailable.length
+          ? `Le ${formatFullDate(date)}, ${ctx.athlete.display_name.split(" ")[0]} a indiqué : ${unavailable.map((n) => noteTitle(n)).join(" ; ")}.`
+          : undefined
+      }
     />
   );
 }

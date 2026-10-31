@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, CopyPlus, Flag, LibraryBig, Plus, X } from "lucide-react";
+import { CalendarOff, ChevronLeft, ChevronRight, CopyPlus, Flag, LibraryBig, Plus, StickyNote, X } from "lucide-react";
 import Link from "next/link";
 import { useOptimistic, useState, useTransition, type DragEvent, type ReactNode } from "react";
 import { copyWeek, duplicateSession, moveSession, scheduleTemplate } from "@/app/(app)/planning-actions";
@@ -31,6 +31,7 @@ import {
   viewTitle,
   type ISODate,
 } from "@/lib/planning/dates";
+import { isUnavailability, NOTE_LABELS, notesByDay, noteTitle, type CalendarNote } from "@/lib/planning/notes";
 import { ATHLETE_STATUS_FILTERS, sessionStatus, STATUS_LABELS } from "@/lib/planning/status";
 import { plannedVolume } from "@/lib/planning/volume";
 import { formatDurationShort as formatDuration } from "@/lib/workout/format";
@@ -60,6 +61,8 @@ export function PlanningCalendar({
   newSessionPath,
   templates = [],
   toolbarExtra,
+  notes = [],
+  canNote = false,
 }: {
   mode: "coach" | "athlete";
   athleteId: string;
@@ -76,6 +79,10 @@ export function PlanningCalendar({
   newSessionPath?: string;
   templates?: TemplateSummary[];
   toolbarExtra?: ReactNode;
+  /** Jours indisponibles et notes qui touchent la période affichée. */
+  notes?: CalendarNote[];
+  /** Peut poser une note (l’athlète, ou un coach qui planifie). */
+  canNote?: boolean;
 }) {
   const [optimistic, apply] = useOptimistic(sessions, (state: CalendarSession[], action: Optimistic) => {
     if (action.type === "move") return state.map((s) => (s.id === action.id ? { ...s, scheduled_date: action.date } : s));
@@ -128,6 +135,9 @@ export function PlanningCalendar({
   }
   const eventsByDate = new Map<ISODate, CalendarEvent[]>();
   for (const event of events) eventsByDate.set(event.event_date, [...(eventsByDate.get(event.event_date) ?? []), event]);
+  const { from: rangeFrom, to: rangeTo } = viewRange(query.view, query.date);
+  const notesByDate = notesByDay(notes, dateRange(rangeFrom, rangeTo));
+  const noteHref = (note: CalendarNote) => calendarHref(basePath, query, { note: note.id });
 
   const sessionHref = (session: CalendarSession) => calendarHref(basePath, query, { session: session.id });
   const activityHref = (activity: LinkedActivity) => calendarHref(basePath, query, { session: null, activity: activity.id });
@@ -201,7 +211,7 @@ export function PlanningCalendar({
       }
     : {};
 
-  const shared = { basePath, byDate, activitiesByDate, eventsByDate, today, query, thresholds, sessionHref, activityHref, newHref, dropTarget, chipDrag, over, canCreate };
+  const shared = { basePath, byDate, activitiesByDate, eventsByDate, notesByDate, noteHref, today, query, thresholds, sessionHref, activityHref, newHref, dropTarget, chipDrag, over, canCreate };
 
   return (
     <div className={cn(dragging && "select-none")}>
@@ -216,6 +226,7 @@ export function PlanningCalendar({
         onPalette={templates.length ? () => setPaletteOpen((v) => !v) : undefined}
         paletteOpen={paletteOpen}
         extra={toolbarExtra}
+        newNoteHref={canNote ? calendarHref(basePath, query, { note: "new" }) : null}
       />
 
       {message ? (
@@ -272,6 +283,7 @@ function Toolbar({
   onPalette,
   paletteOpen,
   extra,
+  newNoteHref,
 }: {
   basePath: string;
   query: CalendarQuery;
@@ -283,6 +295,7 @@ function Toolbar({
   onPalette?: () => void;
   paletteOpen: boolean;
   extra?: ReactNode;
+  newNoteHref: string | null;
 }) {
   const navButton = "flex size-9 items-center justify-center rounded-[8px] border border-line-strong bg-surface text-ink-soft hover:bg-surface-2 hover:text-ink";
   const createDate = query.date >= today ? query.date : today;
@@ -337,6 +350,13 @@ function Toolbar({
             <span className="sm:hidden">Copier</span>
           </Button>
         ) : null}
+        {newNoteHref ? (
+          <ButtonLink href={newNoteHref} variant="secondary" scroll={false}>
+            <CalendarOff aria-hidden />
+            <span className="hidden sm:inline">Indisponibilité</span>
+            <span className="sm:hidden">Note</span>
+          </ButtonLink>
+        ) : null}
         {create ? (
           <ButtonLink href={create}>
             <Plus aria-hidden />
@@ -357,6 +377,8 @@ interface ViewProps {
   byDate: Map<ISODate, CalendarSession[]>;
   activitiesByDate: Map<ISODate, LinkedActivity[]>;
   eventsByDate: Map<ISODate, CalendarEvent[]>;
+  notesByDate: Map<ISODate, CalendarNote[]>;
+  noteHref: (note: CalendarNote) => string;
   today: ISODate;
   query: CalendarQuery;
   thresholds?: AthleteThresholds;
@@ -376,6 +398,31 @@ function EventBadge({ event }: { event: CalendarEvent }) {
       <span className="truncate">{event.name}</span>
       <span className="ml-auto shrink-0 opacity-70">{event.priority}</span>
     </span>
+  );
+}
+
+/** Jour indisponible ou note : bandeau discret, ouvert dans le panneau. */
+function NoteBadge({ note, href, selected }: { note: CalendarNote; href: string; selected: boolean }) {
+  const blocking = isUnavailability(note);
+  const Icon = blocking ? CalendarOff : StickyNote;
+  return (
+    <Link
+      href={href}
+      scroll={false}
+      aria-current={selected ? "true" : undefined}
+      data-note-kind={note.kind}
+      className={cn(
+        "flex items-center gap-1.5 rounded-[6px] border px-1.5 py-1 text-[11.5px] font-semibold",
+        blocking ? "border-warning/40 bg-warning-soft text-ink" : "border-line bg-surface-2 text-ink-soft",
+        selected && "outline-2 outline-ink",
+      )}
+      aria-label={noteTitle(note)}
+      title={note.note ? `${noteTitle(note)}\n${note.note}` : noteTitle(note)}
+    >
+      <Icon className="size-3 shrink-0" aria-hidden />
+      {/* L’icône dit déjà « indisponible » : la place va à l’intitulé (le libellé complet est dans le nom accessible). */}
+      <span className="truncate">{note.title ?? NOTE_LABELS[note.kind]}</span>
+    </Link>
   );
 }
 
@@ -422,7 +469,7 @@ function WeekSummary({ sessions, monday }: { sessions: CalendarSession[]; monday
 }
 
 function MonthView(props: ViewProps) {
-  const { byDate, activitiesByDate, eventsByDate, today, query, thresholds, sessionHref, activityHref, newHref, dropTarget, chipDrag, over } = props;
+  const { byDate, activitiesByDate, eventsByDate, notesByDate, noteHref, today, query, thresholds, sessionHref, activityHref, newHref, dropTarget, chipDrag, over } = props;
   const weeks = monthWeeks(query.date);
   const month = query.date.slice(0, 7);
   return (
@@ -466,6 +513,9 @@ function MonthView(props: ViewProps) {
                   {props.canCreate ? <AddButton href={newHref(day)} date={day} /> : null}
                 </div>
                 <div className="space-y-1">
+                  {(notesByDate.get(day) ?? []).map((note) => (
+                    <NoteBadge key={note.id} note={note} href={noteHref(note)} selected={query.note === note.id} />
+                  ))}
                   {(eventsByDate.get(day) ?? []).map((event) => (
                     <EventBadge key={event.id} event={event} />
                   ))}
@@ -498,9 +548,10 @@ function MonthView(props: ViewProps) {
 }
 
 function DayColumn({ day, props, size }: { day: ISODate; props: ViewProps; size: "regular" | "large" }) {
-  const { byDate, activitiesByDate, eventsByDate, today, query, thresholds, sessionHref, activityHref, newHref, dropTarget, chipDrag, over } = props;
+  const { byDate, activitiesByDate, eventsByDate, notesByDate, noteHref, today, query, thresholds, sessionHref, activityHref, newHref, dropTarget, chipDrag, over } = props;
   const sessions = byDate.get(day) ?? [];
   const dayActivities = activitiesByDate.get(day) ?? [];
+  const dayNotes = notesByDate.get(day) ?? [];
   const relative = relativeDay(day, today);
   return (
     <section
@@ -517,6 +568,9 @@ function DayColumn({ day, props, size }: { day: ISODate; props: ViewProps; size:
         {props.canCreate ? <AddButton href={newHref(day)} date={day} /> : null}
       </header>
       <div className="space-y-1.5">
+        {dayNotes.map((note) => (
+          <NoteBadge key={note.id} note={note} href={noteHref(note)} selected={query.note === note.id} />
+        ))}
         {(eventsByDate.get(day) ?? []).map((event) => (
           <EventBadge key={event.id} event={event} />
         ))}
@@ -535,7 +589,7 @@ function DayColumn({ day, props, size }: { day: ISODate; props: ViewProps; size:
         {dayActivities.map((activity) => (
           <ActivityChip key={activity.id} activity={activity} href={activityHref(activity)} size={size} selected={query.activity === activity.id} />
         ))}
-        {!sessions.length && !dayActivities.length && !(eventsByDate.get(day) ?? []).length ? <p className="px-1 py-2 text-[12px] text-muted">Repos</p> : null}
+        {!sessions.length && !dayActivities.length && !dayNotes.length && !(eventsByDate.get(day) ?? []).length ? <p className="px-1 py-2 text-[12px] text-muted">Repos</p> : null}
       </div>
     </section>
   );
@@ -604,7 +658,11 @@ function DayView(props: ViewProps) {
 function AgendaView(props: ViewProps) {
   const { from, to } = viewRange("agenda", props.query.date);
   const days = dateRange(from, to).filter(
-    (d) => (props.byDate.get(d)?.length ?? 0) > 0 || (props.eventsByDate.get(d)?.length ?? 0) > 0 || (props.activitiesByDate.get(d)?.length ?? 0) > 0,
+    (d) =>
+      (props.byDate.get(d)?.length ?? 0) > 0 ||
+      (props.eventsByDate.get(d)?.length ?? 0) > 0 ||
+      (props.activitiesByDate.get(d)?.length ?? 0) > 0 ||
+      (props.notesByDate.get(d)?.length ?? 0) > 0,
   );
   if (!days.length) {
     return (

@@ -342,6 +342,61 @@ export type Database = {
         };
         Relationships: [];
       };
+      calendar_notes: {
+        Row: {
+          athlete_id: string;
+          created_at: string;
+          created_by: string | null;
+          end_date: string;
+          id: string;
+          kind: string;
+          note: string | null;
+          start_date: string;
+          title: string | null;
+          updated_at: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          athlete_id: string;
+          created_at?: string;
+          created_by?: string | null;
+          end_date: string;
+          id?: string;
+          kind: string;
+          note?: string | null;
+          start_date: string;
+          title?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          athlete_id?: string;
+          created_at?: string;
+          created_by?: string | null;
+          end_date?: string;
+          id?: string;
+          kind?: string;
+          note?: string | null;
+          start_date?: string;
+          title?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "calendar_notes_athlete_id_fkey";
+            columns: ["athlete_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "calendar_notes_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       coach_athlete_links: {
         Row: {
           athlete_id: string;

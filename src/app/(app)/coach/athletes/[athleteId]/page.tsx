@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { ActivityPanel } from "@/components/activities/activity-panel";
+import { NotePanel } from "@/components/calendar/note-panel";
 import { PlanningCalendar } from "@/components/calendar/planning-calendar";
 import { AthleteHeader } from "@/components/coach/athlete-header";
 import { PageContainer } from "@/components/layout/page";
@@ -12,6 +13,7 @@ import { loadCoachedAthlete } from "@/lib/coach/access";
 import { getEvents, getThresholds } from "@/lib/data/athlete";
 import { unattachedActivities, withRealization } from "@/lib/activities/realization";
 import { getRealizedInRange } from "@/lib/data/activities";
+import { getCalendarNotes } from "@/lib/data/notes";
 import { getSessionsInRange, getTemplates } from "@/lib/data/planning";
 import { calendarHref, readCalendarQuery } from "@/lib/planning/calendar-query";
 import { viewRange } from "@/lib/planning/dates";
@@ -35,12 +37,13 @@ async function CoachAthleteCalendar({ params, searchParams }: PageProps<"/coach/
   const [ctx, sp] = await Promise.all([loadCoachedAthlete(athleteId, basePath), searchParams]);
   const query = readCalendarQuery(sp, ctx.today, "month");
   const { from, to } = viewRange(query.view, query.date);
-  const [planned, realized, thresholdRows, events, templates] = await Promise.all([
+  const [planned, realized, thresholdRows, events, templates, notes] = await Promise.all([
     getSessionsInRange(ctx.supabase, athleteId, from, to, { withPending: true }),
     getRealizedInRange(ctx.supabase, athleteId, from, to),
     getThresholds(ctx.supabase, athleteId),
     getEvents(ctx.supabase, athleteId),
     ctx.canPlan ? getTemplates(ctx.supabase, ctx.userId) : Promise.resolve([]),
+    getCalendarNotes(ctx.supabase, athleteId, from, to),
   ]);
   const sessions = withRealization(planned, realized);
   const thresholds = toAthleteThresholds(currentThresholds(thresholdRows, ctx.today));
@@ -77,6 +80,8 @@ async function CoachAthleteCalendar({ params, searchParams }: PageProps<"/coach/
         canCreate={ctx.canPlan}
         newSessionPath={ctx.canPlan ? `${basePath}/sessions/new` : undefined}
         templates={templates}
+        notes={notes}
+        canNote={ctx.canPlan}
         toolbarExtra={<PlanningLive athleteId={athleteId} strava={ctx.link.share_strava} className="order-first w-full sm:order-none sm:w-auto" />}
       />
       {query.session ? (
@@ -102,6 +107,16 @@ async function CoachAthleteCalendar({ params, searchParams }: PageProps<"/coach/
           timeZone={ctx.athlete.timezone}
           closeHref={calendarHref(basePath, query, { activity: null })}
           sessionHref={(id) => calendarHref(basePath, query, { session: id })}
+        />
+      ) : query.note ? (
+        <NotePanel
+          supabase={ctx.supabase}
+          noteId={query.note}
+          athleteId={athleteId}
+          viewerId={ctx.userId}
+          canWrite={ctx.canPlan}
+          defaultDate={query.date >= ctx.today ? query.date : ctx.today}
+          closeHref={calendarHref(basePath, query, { note: null })}
         />
       ) : null}
     </>

@@ -34,6 +34,10 @@ const SECTIONS: Section[] = [
     key: "comments",
     read: ({ supabase, userId }) => supabase.from("session_comments").select("*").or(`athlete_id.eq.${userId},author_id.eq.${userId}`).order("created_at"),
   },
+  {
+    key: "calendar_notes",
+    read: ({ supabase, userId }) => supabase.from("calendar_notes").select("*").or(`athlete_id.eq.${userId},created_by.eq.${userId}`).order("start_date"),
+  },
   { key: "session_feedback", read: ({ supabase, userId }) => supabase.from("session_completions").select("*").eq("athlete_id", userId).order("created_at") },
   {
     key: "imported_activities",

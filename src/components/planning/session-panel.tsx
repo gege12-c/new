@@ -6,6 +6,9 @@ import { relativeProfileNote, WorkoutProfile } from "@/components/workout/workou
 import { getSessionRealization } from "@/lib/data/activities";
 import { sharesStravaWithCoach } from "@/lib/data/athlete";
 import { getExportHistory } from "@/lib/data/exports";
+import { Notice } from "@/components/ui/feedback";
+import { getCalendarNotes } from "@/lib/data/notes";
+import { isUnavailability, noteTitle } from "@/lib/planning/notes";
 import { getDeviceDeliveries } from "@/lib/data/devices";
 import type { DeviceProvider } from "@/lib/devices/jobs";
 import { isIntervalsReady } from "@/lib/intervals/config";
@@ -108,7 +111,7 @@ export async function SessionPanel({
   // Envoi automatique sur la montre : relais intervals.icu, et Suunto en direct quand le site en a l'accès.
   const suuntoDirect = isSuuntoReady();
   const watchProviders: DeviceProvider[] = parsedContent?.success ? [...(isIntervalsReady() ? (["intervals"] as const) : []), ...(suuntoDirect ? (["suunto"] as const) : [])] : [];
-  const [comments, history, realization, exportHistory, thresholdsOnDate, shared, deliveries] = await Promise.all([
+  const [comments, history, realization, exportHistory, thresholdsOnDate, shared, deliveries, dayNotes] = await Promise.all([
     getSessionComments(supabase, sessionId),
     getSessionHistory(supabase, sessionId),
     getSessionRealization(supabase, detail),
@@ -119,7 +122,9 @@ export async function SessionPanel({
     watchProviders.length && parsedContent?.success
       ? getDeviceDeliveries(supabase, detail, parsedContent.data.segments.length, today, watchProviders)
       : Promise.resolve(null),
+    getCalendarNotes(supabase, detail.athlete_id, detail.scheduled_date, detail.scheduled_date),
   ]);
+  const unavailable = dayNotes.filter(isUnavailability);
   const exportCtx = exportContext(detail, thresholdsOnDate);
   const status = sessionStatus({ ...detail, realization: realization ?? undefined }, today);
   const totals = computeTotals(detail.content, thresholds);
@@ -147,6 +152,12 @@ export async function SessionPanel({
           </p>
           {detail.objective ? (
             <p className="mt-1 text-[14px] text-muted">Objectif : {OBJECTIVE_LABELS[detail.objective as SessionObjective] ?? detail.objective}</p>
+          ) : null}
+          {unavailable.length && detail.state !== "cancelled" ? (
+            <Notice tone="warning" className="mt-3">
+              {viewer === "athlete" ? "Ce jour-là, vous avez indiqué : " : "Ce jour-là, l’athlète a indiqué : "}
+              {unavailable.map((n) => noteTitle(n)).join(" ; ")}.
+            </Notice>
           ) : null}
         </header>
 

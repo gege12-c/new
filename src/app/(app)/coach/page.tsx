@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { CalendarOff } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 import { revokeInvitation } from "@/app/(app)/actions";
@@ -14,6 +15,8 @@ import { getProfile, requireSession } from "@/lib/auth/dal";
 import { withoutStrava, withRealization } from "@/lib/activities/realization";
 import { getRealizedInRange } from "@/lib/data/activities";
 import { getAthletesOverview, getCoachDashboard, getCoachedAthletes, getPendingInvitations, getSyncStatuses, type SyncStatus } from "@/lib/data/coach";
+import { getUpcomingUnavailability } from "@/lib/data/notes";
+import { noteTitle } from "@/lib/planning/notes";
 import { addDays, daysBetween, formatDayMonth, formatWeekRange, formatWeekdayShort, relativeDay, startOfWeek } from "@/lib/planning/dates";
 import { sessionStatus, STATUS_LABELS, type SessionState, type SessionStatus } from "@/lib/planning/status";
 import { plannedVolume } from "@/lib/planning/volume";
@@ -73,11 +76,12 @@ async function CoachContent() {
   const ids = links.map((l) => l.athlete_id);
   // Sept derniers jours (retours de l’athlète) et deux semaines à venir.
   const recentFrom = addDays(today, -7) < monday ? addDays(today, -7) : monday;
-  const [overview, dashboard, realized, syncStatuses] = await Promise.all([
+  const [overview, dashboard, realized, syncStatuses, unavailability] = await Promise.all([
     getAthletesOverview(supabase, ids, today),
     getCoachDashboard(supabase, ids, recentFrom, addDays(monday, 13)),
     getRealizedInRange(supabase, ids, addDays(today, -7), today),
     getSyncStatuses(supabase, ids),
+    getUpcomingUnavailability(supabase, ids, today, addDays(today, 13)),
   ]);
   // Bilans : sans les activités Strava, même partagées par l’athlète (aucune statistique tirée de Strava).
   const allSessions = withRealization(dashboard.sessions, withoutStrava(realized));
@@ -129,6 +133,7 @@ async function CoachContent() {
                 const draftCount = sessions.filter((s) => s.state === "draft").length;
                 const lastComment = dashboard.comments.find((c) => c.athlete_id === link.athlete_id && c.visibility === "shared");
                 const target = athleteProfile?.weekly_hours_target ? Number(athleteProfile.weekly_hours_target) * 3600 : null;
+                const away = unavailability.find((n) => n.athlete_id === link.athlete_id);
                 return (
                   <li key={link.id}>
                     <Link
@@ -150,6 +155,14 @@ async function CoachContent() {
                           <p className="mt-1 flex flex-wrap gap-1.5">
                             <SyncPill status={sync} />
                           </p>
+                          {away ? (
+                            <p className="mt-1 flex items-center gap-1 text-[12.5px] font-medium text-warning">
+                              <CalendarOff className="size-3.5 shrink-0" aria-hidden />
+                              <span className="truncate">
+                                {noteTitle(away)}, {away.start_date <= today ? `jusqu’au ${formatDayMonth(away.end_date)}` : `dès le ${formatDayMonth(away.start_date)}`}
+                              </span>
+                            </p>
+                          ) : null}
                         </div>
                       </div>
 
