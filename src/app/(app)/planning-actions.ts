@@ -9,6 +9,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { getSession } from "@/lib/auth/dal";
 import { getSessionDetail, getThresholdsOn } from "@/lib/data/planning";
+import { kickDeviceSync } from "@/lib/devices/deps";
 import { friendlyError } from "@/lib/errors";
 import { isISODate, weekdayIndex } from "@/lib/planning/dates";
 import {
@@ -177,6 +178,7 @@ export async function publishSession(sessionId: string, options: PageOptions & {
       .select("*")
       .maybeSingle();
     if (error) return { status: "error", message: friendlyError(error, "La publication a échoué.") };
+    await kickDeviceSync();
     if (options.refreshPage !== false) refresh();
     const row = data as unknown as SessionRow | null;
     return { status: "ok", version: row?.version, snapshot: row ? snapshotOf(row) : undefined };
@@ -187,6 +189,7 @@ export async function publishSession(sessionId: string, options: PageOptions & {
       if (error.message.includes("session_conflict")) return conflictResult(supabase, sessionId, error.details, "session");
       return { status: "error", message: friendlyError(error, "La publication a échoué.") };
     }
+    await kickDeviceSync();
     if (options.refreshPage !== false) refresh();
     const row = data as unknown as SessionRow;
     return { status: "ok", version: row.version, snapshot: snapshotOf(row) };
@@ -246,6 +249,7 @@ export async function changeSessionState(
     .maybeSingle();
   if (error) return { status: "error", message: friendlyError(error) };
   if (!data) return { status: "error", message: "L’état de la séance a changé entre-temps. Rechargez la page." };
+  await kickDeviceSync();
   if (options.refreshPage !== false) refresh();
   return { status: "ok", version: data.version };
 }
@@ -265,6 +269,7 @@ export async function moveSession(sessionId: string, fromDate: string, toDate: s
     if (error.message.includes("session_conflict")) return conflictResult(supabase, sessionId, error.details, "session");
     return { status: "error", message: friendlyError(error, "Le déplacement a échoué.") };
   }
+  await kickDeviceSync();
   refresh();
   return { status: "ok", version: (data as unknown as SessionRow).version };
 }
@@ -274,6 +279,7 @@ export async function duplicateSession(sessionId: string, date: string): Promise
   const { supabase } = await sessionOrRedirect();
   const { data, error } = await supabase.rpc("duplicate_planned_session", { p_session: sessionId, p_date: date });
   if (error) return { status: "error", message: friendlyError(error, "La duplication a échoué.") };
+  await kickDeviceSync();
   refresh();
   return { status: "ok", id: data };
 }
@@ -296,6 +302,7 @@ export async function copyWeek(
     p_state: mode === "draft" ? "draft" : undefined,
   });
   if (error) return { status: "error", message: friendlyError(error, "La copie a échoué.") };
+  await kickDeviceSync();
   refresh();
   return { status: "ok", count: data };
 }
@@ -306,6 +313,7 @@ export async function deleteSession(sessionId: string): Promise<{ status: "ok" }
   const { data, error } = await supabase.from("planned_sessions").delete().eq("id", sessionId).select("id");
   if (error) return { status: "error", message: friendlyError(error, "La suppression a échoué.") };
   if (!data?.length) return { status: "error", message: "Vous ne pouvez pas supprimer cette séance." };
+  await kickDeviceSync();
   refresh();
   return { status: "ok" };
 }

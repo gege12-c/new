@@ -46,6 +46,18 @@ const REALIZED_VIA_STRAVA_OR_FIT: Capability = {
   detail: "Par Strava (si l'appareil y envoie ses activités) ou en important le fichier FIT de l'activité dans TriCoach.",
 };
 
+/** Relais intervals.icu : partenaire officiel de Suunto, Garmin et COROS (voir docs/WATCHES.md). */
+const VIA_INTERVALS = {
+  planned: "Par intervals.icu (relais officiel et gratuit), une fois relié dans le profil : chaque séance publiée part seule vers la montre.",
+  auto: "Par intervals.icu, une fois relié dans le profil : les séances publiées des 14 prochains jours sont déposées dans son calendrier, qui les transmet à la montre la semaine qui précède ; mises à jour ou retirées quand elles changent.",
+};
+const INTERVALS_SOURCES = {
+  suunto: { label: "intervals.icu : envoi des séances vers les montres Suunto", url: "https://forum.intervals.icu/t/upload-workouts-to-suunto-watches/9560" },
+  garmin: { label: "intervals.icu : envoi des séances vers Garmin Connect", url: "https://forum.intervals.icu/t/upload-planned-workouts-to-garmin-connect/1521" },
+  coros: { label: "intervals.icu : envoi des séances vers COROS", url: "https://forum.intervals.icu/t/coros-support-added/37006" },
+  api: { label: "intervals.icu : accès à l'API (clé personnelle)", url: "https://forum.intervals.icu/t/api-access-to-intervals-icu/609" },
+};
+
 export const ZWIFT: ConnectorInfo & { id: "zwift"; format: "zwo" } = {
   id: "zwift",
   name: "Zwift",
@@ -77,9 +89,8 @@ export const GARMIN: ConnectorInfo & { id: "garmin"; format: "fit" } = {
     planned: { status: "manual", detail: "Fichier FIT de séance à copier sur la montre ou le compteur par câble USB." },
     realized: REALIZED_VIA_STRAVA_OR_FIT,
     auto: {
-      status: "not_configured",
-      detail:
-        "Application TriCoach pour montre (Connect IQ) : elle charge vos séances des 7 prochains jours en vraies séances Garmin et vérifie seule, toutes les 30 minutes, si une séance est à charger (une confirmation sur la montre reste nécessaire : Garmin n'autorise pas l'enregistrement d'une séance en arrière-plan). Pas encore sur le Connect IQ Store : installation par câble en attendant. L'envoi vers le calendrier Garmin Connect (API Training) attend la réouverture des demandes chez Garmin.",
+      status: "available",
+      detail: `${VIA_INTERVALS.auto} Autre voie : l'application TriCoach pour montre (Connect IQ), installée par câble en attendant le Connect IQ Store.`,
     },
     download: { status: "available", detail: "Fichier FIT de type séance, écrit avec le SDK officiel de Garmin et relu avant téléchargement." },
   },
@@ -95,6 +106,7 @@ export const GARMIN: ConnectorInfo & { id: "garmin"; format: "fit" } = {
     "Calendrier Garmin Connect : accès au Garmin Connect Developer Program (API Training), réservé aux entreprises ; nouvelles demandes suspendues par Garmin depuis le printemps 2026.",
   ],
   sources: [
+    INTERVALS_SOURCES.garmin,
     { label: "Garmin : Connect IQ, contenu téléchargé sur la montre (PersistedContent)", url: "https://developer.garmin.com/connect-iq/api-docs/Toybox/PersistedContent.html" },
     { label: "Garmin : Connect IQ, tâches de fond et réveil de l'application", url: "https://developer.garmin.com/connect-iq/api-docs/Toybox/Background.html" },
     { label: "Garmin : API Training (Connect Developer Program)", url: "https://developer.garmin.com/gc-developer-program/training-api" },
@@ -140,12 +152,9 @@ export const SUUNTO: ConnectorInfo & { id: "suunto"; format: null } = {
   format: null,
   sports: [],
   capabilities: {
-    planned: {
-      status: "not_configured",
-      detail: "Les séances structurées arrivent sur la montre comme « guides SuuntoPlus », par l'API partenaire de Suunto, ouverte aux entreprises après examen.",
-    },
+    planned: { status: "available", detail: `${VIA_INTERVALS.planned} En direct par l'API Cloud de Suunto dès que TriCoach en aura l'accès partenaire.` },
     realized: REALIZED_VIA_STRAVA_OR_FIT,
-    auto: { status: "not_configured", detail: "Possible avec l'API partenaire de Suunto une fois l'accès accordé." },
+    auto: { status: "available", detail: VIA_INTERVALS.auto },
     download: {
       status: "unsupported",
       detail: "Pas d'import de fichier de séance : recopiez-la dans l'application Suunto avec la fiche « étapes Suunto », écrite comme son créateur d'entraînements.",
@@ -159,14 +168,48 @@ export const SUUNTO: ConnectorInfo & { id: "suunto"; format: null } = {
     "Sur la montre, choisissez le sport : la montre propose la séance du jour ; sinon, Options, SuuntoPlus, Guides, puis la séance, avant de démarrer.",
   ],
   prerequisites: [
-    "Candidature au programme API de Suunto (réservé aux entreprises proposant un service au public, examen sous deux semaines, contrat API).",
-    "Une fois l'accès obtenu : connexion du compte Suunto de l'athlète et envoi des séances comme guides.",
+    "Accès à l'API Cloud de Suunto (apizone.suunto.com) : abonnement activé par Suunto, puis une application OAuth dont l'adresse de retour est celle de TriCoach.",
+    "Les identifiants de cette application saisis dans la configuration du site ; chaque athlète relie ensuite son compte Suunto depuis son profil.",
   ],
   sources: [
+    INTERVALS_SOURCES.suunto,
     { label: "Suunto : programme API (APIZone)", url: "https://apizone.suunto.com/" },
     { label: "Suunto : créer un entraînement structuré dans l'application", url: "https://www.suunto.com/fr-ch/Assistance/faq-articles/suunto-app/how-can-i-create-structured-workouts-with-suunto-app/" },
     { label: "Suunto : planifier des séances fractionnées", url: "https://us.suunto.com/blogs/blog/plan-your-interval-workouts-with-suunto-app" },
   ],
 };
 
-export const CONNECTORS = [ZWIFT, GARMIN, WAHOO, SUUNTO] as const;
+export const COROS: ConnectorInfo & { id: "coros"; format: null } = {
+  id: "coros",
+  name: "COROS",
+  format: null,
+  sports: [],
+  capabilities: {
+    planned: { status: "available", detail: VIA_INTERVALS.planned },
+    realized: REALIZED_VIA_STRAVA_OR_FIT,
+    auto: { status: "available", detail: VIA_INTERVALS.auto },
+    download: { status: "unsupported", detail: "COROS ne documente pas d'import manuel de fichier de séance : passez par intervals.icu." },
+  },
+  procedure: [
+    "Créez un compte gratuit sur intervals.icu, puis reliez-y COROS dans ses réglages (encadré COROS) et cochez l'envoi des séances prévues.",
+    "Dans TriCoach, Profil sportif, « Séances sur la montre » : collez la clé API d'intervals.icu.",
+    "Dans l'application COROS, ajoutez si besoin le calendrier « Intervals.icu Training Plan » : les séances de la semaine y arrivent, puis sur la montre.",
+  ],
+  prerequisites: [],
+  sources: [INTERVALS_SOURCES.coros, INTERVALS_SOURCES.api],
+};
+
+export const CONNECTORS = [ZWIFT, GARMIN, WAHOO, SUUNTO, COROS] as const;
+
+/** Suunto quand le site a l'accès partenaire : l'envoi sur la montre est en place. */
+export const SUUNTO_LIVE: ConnectorInfo = {
+  ...SUUNTO,
+  capabilities: {
+    ...SUUNTO.capabilities,
+    planned: { status: "available", detail: "Guide SuuntoPlus envoyé sur la montre par l'API Cloud de Suunto, après connexion du compte Suunto dans le profil." },
+    auto: {
+      status: "available",
+      detail: "Chaque séance publiée des 7 prochains jours part seule sur la montre (écran par étape, cible, compte à rebours), mise à jour ou retirée quand elle change.",
+    },
+  },
+};

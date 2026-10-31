@@ -2,17 +2,21 @@
  * Prépare un coach et un athlète neufs, reliés par une invitation acceptée, via l'API Supabase
  * (comme le ferait l'application). Les identifiants sont écrits dans e2e/.accounts.json.
  * Démarre aussi un faux Strava (données fictives) que l'application joint si elle est configurée
- * avec STRAVA_CLIENT_ID=4242 et les adresses ci-dessous ; le coach devient administrateur.
+ * avec STRAVA_CLIENT_ID=4242 et les adresses ci-dessous, et un faux intervals.icu (avec
+ * INTERVALS_API_BASE_URL=http://127.0.0.1:4012) ; le coach devient administrateur.
  */
 import { randomUUID } from "node:crypto";
 import { writeFileSync } from "node:fs";
 import path from "node:path";
+import { FakeIntervals } from "../tests/fixtures/fake-intervals";
 import { FakeStrava } from "../tests/fixtures/fake-strava";
 
 export const ACCOUNTS_FILE = path.join(__dirname, ".accounts.json");
 export const PASSWORD = "E2e-tricoach-2026";
 export const FAKE_STRAVA_PORT = Number(process.env.E2E_FAKE_STRAVA_PORT ?? 4010);
 export const FAKE_STRAVA_URL = `http://127.0.0.1:${FAKE_STRAVA_PORT}`;
+export const FAKE_INTERVALS_PORT = Number(process.env.E2E_FAKE_INTERVALS_PORT ?? 4012);
+export const FAKE_INTERVALS_URL = `http://127.0.0.1:${FAKE_INTERVALS_PORT}`;
 
 async function call(url: string, init: RequestInit & { token?: string }) {
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -67,5 +71,11 @@ export default async function globalSetup() {
   const fake = await new FakeStrava().serve(FAKE_STRAVA_PORT).catch((error: Error) => {
     throw new Error(`Faux Strava : port ${FAKE_STRAVA_PORT} indisponible (${error.message}).`);
   });
-  return () => fake.close();
+  const intervals = await new FakeIntervals().serve(FAKE_INTERVALS_PORT).catch((error: Error) => {
+    throw new Error(`Faux intervals.icu : port ${FAKE_INTERVALS_PORT} indisponible (${error.message}).`);
+  });
+  return async () => {
+    await fake.close();
+    await intervals.close();
+  };
 }

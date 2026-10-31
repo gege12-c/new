@@ -11,6 +11,7 @@ import { done, fail, firstIssue, type ActionState } from "@/lib/action-state";
 import { getSession } from "@/lib/auth/dal";
 import { friendlyError } from "@/lib/errors";
 import { getSiteUrl } from "@/lib/site";
+import { kickDeviceSync } from "@/lib/devices/deps";
 import { isMissingSchema, SCHEMA_PENDING_MESSAGE } from "@/lib/supabase/schema";
 import { parseThresholdValue, thresholdDef } from "@/lib/thresholds";
 
@@ -131,6 +132,7 @@ export async function addThreshold(_prev: ActionState, formData: FormData): Prom
   } else if (inserted.error) {
     return fail(friendlyError(inserted.error));
   }
+  await kickDeviceSync();
   refresh();
   return done(`Seuil enregistré : ${def.label} (${def.group.toLowerCase()}).`);
 }
@@ -140,6 +142,7 @@ export async function deleteThreshold(formData: FormData) {
   if (!id.success) return;
   const { supabase } = await sessionOrFail();
   await supabase.from("athlete_thresholds").delete().eq("id", id.data);
+  await kickDeviceSync();
   refresh();
 }
 

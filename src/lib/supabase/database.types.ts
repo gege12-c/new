@@ -400,6 +400,89 @@ export type Database = {
           },
         ];
       };
+      device_workouts: {
+        Row: {
+          athlete_id: string;
+          connection_id: string;
+          content_hash: string | null;
+          created_at: string;
+          external_id: string;
+          id: string;
+          issues: NonNullable<Json>;
+          last_error: string | null;
+          provider: string;
+          remote_id: string | null;
+          scheduled_date: string | null;
+          segment_index: number;
+          sent_at: string | null;
+          session_id: string | null;
+          session_version: number | null;
+          status: string;
+          updated_at: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          athlete_id: string;
+          connection_id: string;
+          content_hash?: string | null;
+          created_at?: string;
+          external_id: string;
+          id?: string;
+          issues?: NonNullable<Json>;
+          last_error?: string | null;
+          provider: string;
+          remote_id?: string | null;
+          scheduled_date?: string | null;
+          segment_index: number;
+          sent_at?: string | null;
+          session_id?: string | null;
+          session_version?: number | null;
+          status: string;
+          updated_at?: string;
+        };
+        Update: {
+          athlete_id?: string;
+          connection_id?: string;
+          content_hash?: string | null;
+          created_at?: string;
+          external_id?: string;
+          id?: string;
+          issues?: NonNullable<Json>;
+          last_error?: string | null;
+          provider?: string;
+          remote_id?: string | null;
+          scheduled_date?: string | null;
+          segment_index?: number;
+          sent_at?: string | null;
+          session_id?: string | null;
+          session_version?: number | null;
+          status?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "device_workouts_athlete_id_fkey";
+            columns: ["athlete_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "device_workouts_connection_id_fkey";
+            columns: ["connection_id"];
+            isOneToOne: false;
+            referencedRelation: "external_connections";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "device_workouts_session_id_fkey";
+            columns: ["session_id"];
+            isOneToOne: false;
+            referencedRelation: "planned_sessions";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       external_connections: {
         Row: {
           athlete_id: string;
@@ -412,6 +495,7 @@ export type Database = {
           provider: string;
           scopes: string[];
           status: string;
+          sync_lease_until: string | null;
           updated_at: string;
         };
         ComputedFields: never;
@@ -426,6 +510,7 @@ export type Database = {
           provider: string;
           scopes?: string[];
           status?: string;
+          sync_lease_until?: string | null;
           updated_at?: string;
         };
         Update: {
@@ -439,6 +524,7 @@ export type Database = {
           provider?: string;
           scopes?: string[];
           status?: string;
+          sync_lease_until?: string | null;
           updated_at?: string;
         };
         Relationships: [
@@ -1363,6 +1449,7 @@ export type Database = {
     };
     Functions: {
       accept_invitation: { Args: { p_token: string }; Returns: string };
+      acquire_sync_lease: { Args: { p_connection: string; p_seconds: number }; Returns: boolean };
       admin_accounts: {
         Args: Record<PropertyKey, never>;
         Returns: {
@@ -1407,7 +1494,7 @@ export type Database = {
         }[];
       };
       claim_sync_jobs: {
-        Args: { p_limit: number };
+        Args: { p_kinds: string[]; p_limit: number };
         Returns: {
           athlete_id: string | null;
           attempts: number;
@@ -1470,6 +1557,7 @@ export type Database = {
       publish_session_draft: { Args: { p_prefer?: string; p_session: string }; Returns: Json };
       purge_my_expired_activities: { Args: Record<PropertyKey, never>; Returns: number };
       rebase_session_draft: { Args: { p_prefer: string; p_session: string }; Returns: Json };
+      release_sync_lease: { Args: { p_connection: string }; Returns: undefined };
       revoke_coach_link: { Args: { p_link_id: string }; Returns: undefined };
       revoke_invitation: { Args: { p_invitation_id: string }; Returns: undefined };
       revoke_watch_device: { Args: { p_device_id: string }; Returns: undefined };

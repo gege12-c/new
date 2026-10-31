@@ -2,12 +2,15 @@
 
 Demandé le 19 octobre 2026 : qu'une séance créée dans TriCoach arrive seule sur la montre, et que l'activité faite revienne seule, visible du coach. Garmin, Suunto, Zwift et MyWhoosh n'ouvrent cet accès qu'à des partenaires agréés ; vérifications faites le 19 octobre 2026 (sources en fin de page).
 
-Choix de l'utilisateur (19 octobre) : passer par les accès directs de Garmin et de Suunto, sans intermédiaire ; le relais par intervals.icu (déjà agréé par les quatre) est écarté pour l'instant. Le même jour, Strava a confirmé à l'utilisateur que le coach peut voir les activités Strava d'un athlète qui l'y autorise : le partage est en place (voir [STATUS.md](STATUS.md)).
+Choix de l'utilisateur (19 octobre) : passer par les accès directs de Garmin et de Suunto, sans intermédiaire. Le même jour, Strava a confirmé à l'utilisateur que le coach peut voir les activités Strava d'un athlète qui l'y autorise : le partage est en place (voir [STATUS.md](STATUS.md)).
+
+Nouveau choix de l'utilisateur (30 octobre), l'accès direct de Suunto se faisant attendre et celui de Garmin étant fermé : passer par **intervals.icu**, partenaire officiel de Suunto, Garmin et COROS, dont l'API est ouverte à toute application. C'est en place : les séances publiées partent seules sur la montre, et l'envoi direct à Suunto est prêt pour le jour où Suunto ouvre son accès ([WATCHES.md](WATCHES.md)).
 
 | Fournisseur | Accès pour TriCoach | État |
 | --- | --- | --- |
 | Garmin | Garmin Connect Developer Program (API Training pour envoyer les séances, API Activity pour recevoir les activités), réservé aux entreprises, gratuit | **demandes suspendues** depuis le printemps 2026 : formulaire indisponible, « new access requests are temporarily paused », aucune date de reprise. Les intégrations déjà agréées continuent. En attendant : **application TriCoach sur la montre** (Connect IQ, ouvert à tout développeur), voir [GARMIN_WATCH.md](GARMIN_WATCH.md) |
-| Suunto | programme partenaire (API Guides pour envoyer les séances comme guides SuuntoPlus, API Workout pour recevoir les activités en FIT), réservé aux entreprises et organisations qui proposent un service au public, gratuit, examen chaque semaine (deux semaines au plus), contrat API accepté dans le formulaire | **demande à envoyer** par l'utilisateur (texte ci-dessous) |
+| Suunto | programme partenaire (API Guides pour envoyer les séances comme guides SuuntoPlus, API Workout pour recevoir les activités en FIT), réservé aux entreprises et organisations qui proposent un service au public, gratuit, examen chaque semaine (deux semaines au plus), contrat API accepté dans le formulaire | demande envoyée le 19 octobre, **réponse attendue** ; connecteur « Suunto en direct » prêt et testé contre un faux Suunto ([WATCHES.md](WATCHES.md)). En attendant : envoi par intervals.icu |
+| intervals.icu | API publique (clé API personnelle de l'athlète, ou application OAuth), conditions du 23 octobre 2025 : tout usage légal, commercial compris ; partenaire officiel de Suunto, Garmin et COROS pour les séances prévues | **en place** : dépôt des séances publiées des 14 prochains jours dans le calendrier intervals.icu de l'athlète, qui les transmet à sa montre ([WATCHES.md](WATCHES.md)) |
 | Zwift | aucune API publique | fichier .zwo à importer (rubrique « Exporter vers mes appareils ») |
 | MyWhoosh | aucune API publique ni intégration directe pour les plateformes d'entraînement | fichier .zwo à importer dans le créateur de séances de MyWhoosh |
 

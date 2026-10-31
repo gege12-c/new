@@ -397,17 +397,17 @@ describe("file de jobs", () => {
     expect(again.rowCount).toBe(0);
 
     const [first, second] = await Promise.all([
-      asSuperuser("select id from public.claim_sync_jobs(50)"),
-      asSuperuser("select id from public.claim_sync_jobs(50)"),
+      asSuperuser("select id from public.claim_sync_jobs(50, array['strava_event', 'strava_sync', 'maintenance'])"),
+      asSuperuser("select id from public.claim_sync_jobs(50, array['strava_event', 'strava_sync', 'maintenance'])"),
     ]);
     const ids = [...first.rows, ...second.rows].map((r) => String(r.id));
     expect(new Set(ids).size).toBe(ids.length);
 
     // Un job resté bloqué est repris.
     await asSuperuser("update public.sync_jobs set locked_at = now() - interval '11 minutes' where dedupe_key = $1", [key]);
-    const reclaimed = await asSuperuser("select id, attempts from public.claim_sync_jobs(50) where dedupe_key = $1", [key]);
+    const reclaimed = await asSuperuser("select id, attempts from public.claim_sync_jobs(50, array['strava_event', 'strava_sync', 'maintenance']) where dedupe_key = $1", [key]);
     expect(reclaimed.rows[0].attempts).toBe(2);
-    await expectFailure(as(athlete, "select * from public.claim_sync_jobs(1)"), DENIED);
+    await expectFailure(as(athlete, "select * from public.claim_sync_jobs(1, array['strava_sync'])"), DENIED);
     await expectFailure(as(athlete, "select payload from public.sync_jobs"), DENIED);
   });
 });

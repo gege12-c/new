@@ -7,7 +7,7 @@ export const KIND_LABELS: Record<NotificationKind, { label: string; hint: string
   session_updated: { label: "Séance modifiée ou déplacée", hint: "Contenu, horaire ou date d’une séance publiée.", audience: "all" },
   session_cancelled: { label: "Séance annulée", hint: "Une séance publiée qui n’est plus au programme.", audience: "all" },
   comment: { label: "Commentaire sur une séance", hint: "Les commentaires partagés ; jamais les notes privées.", audience: "all" },
-  reconnect: { label: "Reconnexion Strava nécessaire", hint: "Quand Strava refuse l’accès (autorisation expirée ou retirée).", audience: "athlete" },
+  reconnect: { label: "Reconnexion d’un compte nécessaire", hint: "Quand Strava, intervals.icu ou Suunto refuse l’accès (autorisation expirée ou retirée).", audience: "athlete" },
   export_failed: { label: "Export impossible chez un athlète", hint: "Pour corriger la séance quand un export Zwift ou Garmin échoue.", audience: "coach" },
   missing_feedback: { label: "Séance de la veille sans retour", hint: "Un rappel le lendemain matin, une seule fois par séance.", audience: "athlete" },
 };
@@ -24,7 +24,10 @@ export interface NotificationItem {
   read_at: string | null;
 }
 
-const PROVIDERS: Record<string, string> = { zwift: "Zwift", garmin: "Garmin", strava: "Strava" };
+const PROVIDERS: Record<string, string> = { zwift: "Zwift", garmin: "Garmin", strava: "Strava", suunto: "Suunto", intervals: "intervals.icu" };
+
+/** Rubrique du profil où se trouve chaque compte à reconnecter. */
+const RECONNECT_ANCHORS: Record<string, string> = { suunto: "#suunto", intervals: "#montre-auto" };
 
 function day(value: unknown): string {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return "";
@@ -59,9 +62,9 @@ export function notificationText(n: NotificationItem, viewerId: string): string 
   }
 }
 
-/** Page à ouvrir : la séance dans le bon calendrier, ou le profil pour Strava. */
+/** Page à ouvrir : la séance dans le bon calendrier, ou le profil pour un compte à reconnecter. */
 export function notificationTarget(n: NotificationItem, viewerId: string): string {
-  if (n.kind === "reconnect") return "/athlete/profile#connexions";
+  if (n.kind === "reconnect") return `/athlete/profile${RECONNECT_ANCHORS[text(n.payload.provider)] ?? "#connexions"}`;
   const own = !n.athlete_id || n.athlete_id === viewerId;
   const params = new URLSearchParams({ view: own && n.session_id ? "day" : "week" });
   const date = text(n.payload.date);

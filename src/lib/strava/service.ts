@@ -41,6 +41,9 @@ export class StravaDeferError extends Error {
   }
 }
 
+/** Types de jobs traités par l'exécutant Strava (les envois Suunto ont le leur). */
+export const STRAVA_JOB_KINDS = ["strava_event", "strava_sync", "maintenance"] as const;
+
 type Connection = { id: string; athlete_id: string; external_athlete_id: string; status: string };
 type SyncJob = { id: number; kind: string; athlete_id: string | null; payload: Json; attempts: number; max_attempts: number };
 
@@ -71,7 +74,7 @@ async function ensureQuota(deps: StravaDeps) {
 
 export async function logSync(
   admin: AdminClient,
-  entry: { level: "info" | "warn" | "error"; event: string; message?: string; athleteId?: string | null; jobId?: number | null; provider?: "strava" | "fit" },
+  entry: { level: "info" | "warn" | "error"; event: string; message?: string; athleteId?: string | null; jobId?: number | null; provider?: "strava" | "fit" | "suunto" | "intervals" },
 ) {
   await admin.from("sync_logs").insert({
     level: entry.level,
@@ -484,7 +487,7 @@ export interface RunReport {
 export async function runDueJobs(deps: StravaDeps, options: { limit?: number; budgetMs?: number } = {}): Promise<RunReport> {
   const started = Date.now();
   const report: RunReport = { done: 0, failed: 0, deferred: 0 };
-  const { data: jobs, error } = await deps.admin.rpc("claim_sync_jobs", { p_limit: options.limit ?? 10 });
+  const { data: jobs, error } = await deps.admin.rpc("claim_sync_jobs", { p_limit: options.limit ?? 10, p_kinds: [...STRAVA_JOB_KINDS] });
   if (error) throw new Error(`File de jobs inaccessible : ${error.message}`);
 
   for (const job of (jobs ?? []) as SyncJob[]) {

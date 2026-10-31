@@ -1,6 +1,7 @@
 import { ChevronDown } from "lucide-react";
 import { Panel } from "@/components/ui/panel";
-import { CASE_LABELS, CONNECTORS, type CapabilityStatus, type ExportCase } from "@/lib/export/providers";
+import { CASE_LABELS, CONNECTORS, SUUNTO_LIVE, type CapabilityStatus, type ExportCase } from "@/lib/export/providers";
+import { isSuuntoReady } from "@/lib/suunto/config";
 import { cn } from "@/lib/utils";
 
 const STATUS: Record<CapabilityStatus, { label: string; tone: string }> = {
@@ -22,7 +23,7 @@ export function DevicesPanel() {
       description="Ce que TriCoach sait faire avec chaque appareil aujourd’hui. Les séances s’exportent depuis leur fiche, dans le calendrier."
     >
       <ul className="divide-y divide-line">
-        {CONNECTORS.map((connector) => (
+        {CONNECTORS.map((info) => (info.id === "suunto" && isSuuntoReady() ? SUUNTO_LIVE : info)).map((connector) => (
           <li key={connector.id}>
             <details className="group">
               <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1.5 py-2.5 [&::-webkit-details-marker]:hidden">

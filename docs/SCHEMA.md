@@ -141,7 +141,7 @@ Temps réel : ce qui touche une activité Strava part sur le canal `self:<id>`, 
 | `associate_activity(séance, activité)` | rattache une activité (décision `confirmed`, jamais remise en cause par le rapprochement automatique) ; l'ancien rattachement devient `rejected` |
 | `dissociate_activity(séance, activité)` | détache une activité ou écarte une proposition (`rejected`) |
 | `upsert_strava_activities(connexion, activités)` | serveur : enregistre ou met à jour des activités Strava, sans jamais repousser leur expiration ni toucher à l'activité d'un autre compte |
-| `claim_sync_jobs(n)` | serveur : réserve les jobs à exécuter (`skip locked`), reprend ceux bloqués depuis plus de 10 minutes |
+| `claim_sync_jobs(n, types[])` | serveur : réserve les jobs à exécuter des types demandés (`skip locked`), reprend ceux bloqués depuis plus de 10 minutes ; chaque intégration ne prend que les siens |
 | `run_maintenance()` | serveur : efface les activités Strava expirées, les jobs terminés depuis 7 jours, le journal de plus de 30 jours |
 | `purge_my_expired_activities()` | athlète : efface ses activités Strava expirées sans attendre la tâche quotidienne |
 | `set_strava_sharing(relation, oui/non)` | athlète : autorise un de ses coachs à voir ses activités Strava, ou retire cette autorisation (date du consentement gardée tant qu'il dure) |
@@ -215,6 +215,24 @@ Migration `20261024000000_garmin_watch.sql`. Application de la montre et routes 
 | `watch_sessions(jeton)` | montre : séances publiées d'aujourd'hui à J+6 (date locale de l'athlète) et seuils, ou `unauthorized` ; met à jour `last_seen_at` |
 
 Sécurité : RLS active, tous les privilèges retirés sur les deux tables ; l'athlète lit seulement les colonnes non sensibles de ses montres (ni empreinte ni code) ; tout le reste passe par les fonctions, qui vérifient l'appelant.
+
+## Séances sur la montre (Suunto, Garmin, COROS)
+
+Migration `20261030000000_device_workouts.sql`. Fonctionnement et limites : [WATCHES.md](WATCHES.md).
+
+| Table ou colonne | Rôle | Points clés |
+| --- | --- | --- |
+| `external_connections` | comptes reliés : `strava`, `intervals` (clé API personnelle), `suunto` (OAuth) | `sync_lease_until` : un seul envoi à la fois par compte ; identifiant externe de 100 caractères au plus |
+| `oauth_tokens` | clé API intervals.icu ou jetons Suunto | chiffrés comme ceux de Strava (AES-256-GCM, données associées = connexion) |
+| `device_workouts` | une ligne par séance et par discipline envoyée à un compte | `external_id` = `tricoach-<séance>-<partie>` (unique par compte, identifiant de l'évènement chez le fournisseur) ; `remote_id` (identifiant chez le fournisseur), `session_version` et `content_hash` (empreinte SHA-256 de ce qui a été envoyé : rien n'est renvoyé tant qu'elle ne change pas) ; `status` = `sent` ou `failed` (avec `issues` et `last_error`, raison lisible) ; `session_id` mis à nul si la séance disparaît, pour la retirer chez le fournisseur |
+| `sync_jobs` | types `intervals_sync` et `suunto_sync` | un job par compte relié actif, dédoublonné tant qu'il attend |
+
+| Fonction | Usage |
+| --- | --- |
+| `private.enqueue_device_sync(athlète)` | met un envoi en file pour chaque compte relié actif de l'athlète (intervals.icu, Suunto) ; appelée par les déclencheurs `planned_sessions_devices` (séance publiée créée, modifiée, déplacée, annulée, supprimée ou repassée en brouillon) et `athlete_thresholds_devices` (seuils, qui changent les cibles absolues) |
+| `acquire_sync_lease(connexion, secondes)` / `release_sync_lease(connexion)` | serveur : bail d'envoi par compte, pour qu'un envoi déclenché par le coach et la tâche quotidienne ne se croisent pas |
+
+Sécurité : `device_workouts` lisible par l'athlète et ses coachs actifs (`has_athlete_access`), écrite par le serveur seul ; les fonctions ne sont accessibles qu'au serveur (`service_role`).
 
 ## Journal d'audit
 

@@ -37,6 +37,8 @@ Variables serveur des activités (phase 3), environnement **Production**, à sai
 
 Sans elles, Strava est affiché « non configuré » et seul l'import de fichiers FIT fonctionne. Après les avoir ajoutées, relancez un déploiement (Deployments, dernier déploiement, « Redeploy »).
 
+Séances sur la montre par intervals.icu ([docs/WATCHES.md](docs/WATCHES.md)) : aucune variable de plus, seulement `SUPABASE_SECRET_KEY` et `TOKEN_ENCRYPTION_KEY` ; chaque athlète colle sa propre clé intervals.icu dans son profil sportif. Envoi direct à Suunto, plus tard, après l'accord de Suunto : `SUUNTO_CLIENT_ID`, `SUUNTO_CLIENT_SECRET`, `SUUNTO_SUBSCRIPTION_KEY` et `SUUNTO_APP_NAME` (APIZone de Suunto).
+
 Pour recréer le projet : importez le dépôt `gege12-c/new` sur [vercel.com](https://vercel.com), ajoutez les deux variables, puis vérifiez dans l'onglet Deployments qu'un déploiement a bien démarré (sans déploiement, l'adresse affiche « 404 DEPLOYMENT_NOT_FOUND »).
 
 ### 2. Régler l'authentification Supabase
@@ -160,7 +162,7 @@ STRAVA_API_BASE_URL=http://127.0.0.1:4010/api/v3 STRAVA_OAUTH_BASE_URL=http://12
 TOKEN_ENCRYPTION_KEY="$(openssl rand -base64 32)" NEXT_PUBLIC_SITE_URL=http://localhost:3000 npm run dev
 ```
 
-et lancez `npm run test:e2e` avec `STRAVA_CLIENT_ID=4242` et `SUPABASE_SECRET_KEY` (le coach de test devient administrateur). Sans ces variables, les parcours Strava sont ignorés.
+et lancez `npm run test:e2e` avec `STRAVA_CLIENT_ID=4242` et `SUPABASE_SECRET_KEY` (le coach de test devient administrateur). Sans ces variables, les parcours Strava sont ignorés. Les tests lancent aussi un faux intervals.icu sur le port 4012 : démarrez l'application avec `INTERVALS_API_BASE_URL=http://127.0.0.1:4012` pour le parcours « séances sur la montre ».
 
 ## Documentation
 
@@ -171,5 +173,6 @@ et lancez `npm run test:e2e` avec `STRAVA_CLIENT_ID=4242` et `SUPABASE_SECRET_KE
 - [docs/FITNESS.md](docs/FITNESS.md) : condition physique, fatigue et forme (méthode, sources, prévision).
 - [docs/PARTNERS.md](docs/PARTNERS.md) : accès partenaires de Garmin et Suunto pour l'envoi automatique vers les montres (état, demande Suunto prête, pistes étudiées : application Suunto, application Android).
 - [docs/GARMIN_WATCH.md](docs/GARMIN_WATCH.md) : application TriCoach pour montre Garmin (fonctionnement, compilation dans GitHub, installation).
+- [docs/WATCHES.md](docs/WATCHES.md) : séances envoyées seules sur la montre (Suunto, Garmin, COROS) par intervals.icu, et envoi direct à Suunto.
 
 Fonctions de la phase 5 : application installable (manifeste, icônes, page hors connexion, sans aucune donnée gardée sur l'appareil), page « Progression » (athlète et coach), notifications dans l'application (cloche, réglages par type), rubrique « Vos données » des réglages (téléchargement de toutes ses données en JSON, suppression définitive du compte). La tâche quotidienne (`/api/cron/daily`, Vercel Cron) envoie aussi les rappels de séance sans retour ; elle demande `CRON_SECRET` et `SUPABASE_SECRET_KEY`.

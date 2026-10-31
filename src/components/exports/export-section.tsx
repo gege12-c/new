@@ -11,6 +11,7 @@ import type { SuuntoPlan } from "@/lib/export/suunto-steps";
 import type { CompatibilityIssue, CompatibilityReport, FileProviderId } from "@/lib/export/types";
 import { SPORT_LABELS } from "@/lib/workout/schema";
 import { cn } from "@/lib/utils";
+import { DELIVERY_TITLES, DeviceDeliveryList, NoWatchLinked, type WatchAuto } from "./device-delivery";
 import { SuuntoSteps } from "./suunto-steps";
 
 type Download =
@@ -46,7 +47,9 @@ function IssueLine({ issue }: { issue: CompatibilityIssue }) {
 
 const ORDER = { blocking: 0, loss: 1, info: 2 } as const;
 
-function verdict(report: CompatibilityReport): { label: string; tone: string } {
+type ReportSummary = Pick<CompatibilityReport, "segmentIndex" | "sport" | "ok" | "issues">;
+
+function verdict(report: ReportSummary): { label: string; tone: string } {
   if (!report.ok) return { label: "export impossible", tone: "text-danger" };
   const losses = report.issues.filter((i) => i.severity === "loss").length;
   if (losses) return { label: `compatible, ${losses} approximation${losses > 1 ? "s" : ""}`, tone: "text-warning" };
@@ -55,8 +58,24 @@ function verdict(report: CompatibilityReport): { label: string; tone: string } {
 
 const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
+/** Contrôle de l'envoi automatique : ce que la montre suivra, ce qui reste seulement écrit. */
+function watchVerdict(report: ReportSummary): { label: string; tone: string } {
+  if (!report.ok) return { label: "envoi impossible", tone: "text-danger" };
+  const losses = report.issues.filter((i) => i.severity === "loss").length;
+  if (losses) return { label: `séance complète, ${losses} consigne${losses > 1 ? "s" : ""} seulement écrite${losses > 1 ? "s" : ""}`, tone: "text-warning" };
+  return { label: "séance complète, sans perte", tone: "text-success" };
+}
+
 /** Résumé du contrôle de compatibilité : ce qui passe, ce qui est approché, ce qui bloque. */
-function Compatibility({ reports }: { reports: CompatibilityReport[] }) {
+function Compatibility({
+  reports,
+  verdicts = verdict,
+  label,
+}: {
+  reports: ReportSummary[];
+  verdicts?: (report: ReportSummary) => { label: string; tone: string };
+  label?: string;
+}) {
   const multi = reports.length > 1;
   const hasDetail = reports.some((r) => r.issues.length);
   // Détail rendu à l'ouverture seulement (il cite les étapes de la séance).
@@ -64,8 +83,9 @@ function Compatibility({ reports }: { reports: CompatibilityReport[] }) {
   return (
     <details className="group mt-2" data-compatibility onToggle={(event) => setOpen(event.currentTarget.open)}>
       <summary className="cursor-pointer list-none text-[13px] leading-snug [&::-webkit-details-marker]:hidden">
+        {label ? <span className="text-ink-soft">{label} : </span> : null}
         {reports.map((report, i) => {
-          const v = verdict(report);
+          const v = verdicts(report);
           return (
             <span key={report.segmentIndex}>
               {i ? <span className="text-muted"> · </span> : null}
@@ -145,6 +165,8 @@ export function ExportSection({
   dateLabel,
   multiSegment,
   timeZone,
+  watchAuto,
+  suuntoDirect,
 }: {
   sessionId: string;
   version: number;
@@ -157,6 +179,10 @@ export function ExportSection({
   dateLabel: string;
   multiSegment: boolean;
   timeZone: string;
+  /** Envoi automatique sur la montre (intervals.icu, Suunto en direct) ; null s'il n'est pas configuré. */
+  watchAuto: WatchAuto | null;
+  /** Le site a l'accès partenaire de Suunto (envoi direct possible). */
+  suuntoDirect: boolean;
 }) {
   const router = useRouter();
   const [downloads, setDownloads] = useState<Record<string, Download>>({});
@@ -215,6 +241,28 @@ export function ExportSection({
         Exporter vers mes appareils
       </h3>
       <ul className="mt-2 divide-y divide-line rounded-[12px] border border-line">
+        {watchAuto ? (
+          <li className="p-3" data-export-provider="watch">
+            <p className="text-[14px] font-semibold text-ink">
+              Sur la montre <span className="font-normal text-muted">· envoi automatique (Suunto, Garmin, COROS)</span>
+            </p>
+            {watchAuto.deliveries === null ? (
+              <p className="mt-1 text-[13px] text-muted">L’envoi sur la montre sera disponible après la mise à jour de la base de données du site.</p>
+            ) : watchAuto.deliveries.length === 0 ? (
+              <NoWatchLinked viewer={watchAuto.viewer} />
+            ) : (
+              watchAuto.deliveries.map((delivery) => (
+                <div key={delivery.provider} className="mt-2">
+                  {watchAuto.deliveries!.length > 1 ? <p className="text-[12.5px] font-semibold text-ink-soft">{DELIVERY_TITLES[delivery.provider]}</p> : null}
+                  <DeviceDeliveryList delivery={delivery} auto={watchAuto} timeZone={timeZone} />
+                  {watchAuto.reports[delivery.provider]?.length ? (
+                    <Compatibility reports={watchAuto.reports[delivery.provider]!} verdicts={watchVerdict} label={watchAuto.deliveries!.length > 1 ? DELIVERY_TITLES[delivery.provider] : undefined} />
+                  ) : null}
+                </div>
+              ))
+            )}
+          </li>
+        ) : null}
         {providers.map(({ id, info, reports: list }) => (
           <li key={id} className="p-3" data-export-provider={id}>
             <div className="flex flex-wrap items-start justify-between gap-2">
@@ -282,34 +330,43 @@ export function ExportSection({
             {list.some((r) => r.ok) ? <Procedure info={info} /> : null}
           </li>
         ))}
-        {[WAHOO, SUUNTO].map((info) => (
-          <li key={info.id} className="p-3" data-export-provider={info.id}>
-            <p className="text-[14px] font-semibold text-ink">
-              {info.name} <span className="font-normal text-muted">· envoi direct non configuré</span>
-            </p>
-            <p className="mt-0.5 text-[13px] leading-snug text-muted">{info.capabilities.planned.detail}</p>
-            <details
-              className="mt-2"
-              onToggle={info.id === "suunto" ? (event) => event.currentTarget.open && setSuuntoShown(true) : undefined}
-            >
-              <summary className="cursor-pointer text-[13px] font-medium text-ink-soft hover:text-ink">
-                {info.id === "suunto" ? `Recopier dans l’appli Suunto (${suunto.segments.reduce((n, s) => n + s.stepCount, 0)} étapes)` : "En attendant : méthode manuelle"}
-              </summary>
-              <ol className="mt-2 list-decimal space-y-1 pl-5 text-[13px] leading-snug text-ink-soft">
-                {info.procedure.map((step) => (
-                  <li key={step}>{step}</li>
-                ))}
-              </ol>
-              {info.id === "suunto" && suuntoShown ? <SuuntoSteps plan={suunto} dateLabel={dateLabel} /> : null}
-              <p className="mt-3 text-[12px] font-semibold text-ink-soft">Pour un envoi automatique, il faudrait :</p>
-              <ul className="mt-1 list-disc space-y-1 pl-5 text-[12px] leading-snug text-muted">
-                {info.prerequisites.map((step) => (
-                  <li key={step}>{step}</li>
-                ))}
-              </ul>
-            </details>
-          </li>
-        ))}
+        <li className="p-3" data-export-provider="wahoo">
+          <p className="text-[14px] font-semibold text-ink">
+            {WAHOO.name} <span className="font-normal text-muted">· envoi direct non configuré</span>
+          </p>
+          <p className="mt-0.5 text-[13px] leading-snug text-muted">{WAHOO.capabilities.planned.detail}</p>
+          <details className="mt-2">
+            <summary className="cursor-pointer text-[13px] font-medium text-ink-soft hover:text-ink">En attendant : méthode manuelle</summary>
+            <ol className="mt-2 list-decimal space-y-1 pl-5 text-[13px] leading-snug text-ink-soft">
+              {WAHOO.procedure.map((step) => (
+                <li key={step}>{step}</li>
+              ))}
+            </ol>
+            <p className="mt-3 text-[12px] font-semibold text-ink-soft">Pour un envoi automatique, il faudrait :</p>
+            <ul className="mt-1 list-disc space-y-1 pl-5 text-[12px] leading-snug text-muted">
+              {WAHOO.prerequisites.map((step) => (
+                <li key={step}>{step}</li>
+              ))}
+            </ul>
+          </details>
+        </li>
+        <li className="p-3" data-export-provider="suunto">
+          <p className="text-[14px] font-semibold text-ink">
+            {SUUNTO.name} <span className="font-normal text-muted">· {suuntoDirect ? "envoi direct : voir « Sur la montre »" : "envoi direct non configuré"}</span>
+          </p>
+          <p className="mt-0.5 text-[13px] leading-snug text-muted">{SUUNTO.capabilities.planned.detail}</p>
+          <details className="mt-2" onToggle={(event) => event.currentTarget.open && setSuuntoShown(true)}>
+            <summary className="cursor-pointer text-[13px] font-medium text-ink-soft hover:text-ink">
+              {`Recopier dans l’appli Suunto (${suunto.segments.reduce((n, s) => n + s.stepCount, 0)} étapes)`}
+            </summary>
+            <ol className="mt-2 list-decimal space-y-1 pl-5 text-[13px] leading-snug text-ink-soft">
+              {SUUNTO.procedure.map((step) => (
+                <li key={step}>{step}</li>
+              ))}
+            </ol>
+            {suuntoShown ? <SuuntoSteps plan={suunto} dateLabel={dateLabel} /> : null}
+          </details>
+        </li>
         <li className="p-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-[13px] leading-snug text-ink-soft">Fiche texte de la séance, à recopier dans une application sans import de fichier.</p>

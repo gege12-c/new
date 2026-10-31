@@ -6,11 +6,17 @@ import { relativeProfileNote, WorkoutProfile } from "@/components/workout/workou
 import { getSessionRealization } from "@/lib/data/activities";
 import { sharesStravaWithCoach } from "@/lib/data/athlete";
 import { getExportHistory } from "@/lib/data/exports";
+import { getDeviceDeliveries } from "@/lib/data/devices";
+import type { DeviceProvider } from "@/lib/devices/jobs";
+import { isIntervalsReady } from "@/lib/intervals/config";
+import { buildIntervalsEvents } from "@/lib/intervals/workout";
 import { getSessionComments, getSessionDetail, getSessionHistory, getThresholdsOn } from "@/lib/data/planning";
 import { compatibilityReports } from "@/lib/export/connectors";
 import { exportContext } from "@/lib/export/session";
 import { workoutSheet } from "@/lib/export/sheet";
 import { suuntoPlan } from "@/lib/export/suunto-steps";
+import { isSuuntoReady } from "@/lib/suunto/config";
+import { buildGuides } from "@/lib/suunto/guide";
 import type { HistoryEntry } from "@/lib/data/planning-types";
 import { formatFullDate } from "@/lib/planning/dates";
 import { FIELD_LABELS, type EditableField } from "@/lib/planning/snapshot";
@@ -97,7 +103,12 @@ export async function SessionPanel({
     );
   }
   const exportable = detail.state !== "cancelled";
-  const [comments, history, realization, exportHistory, thresholdsOnDate, shared] = await Promise.all([
+  // Contenu normalisé (valeurs par défaut du format) : c'est lui que le téléchargement convertit.
+  const parsedContent = exportable ? parseWorkout(detail.content) : null;
+  // Envoi automatique sur la montre : relais intervals.icu, et Suunto en direct quand le site en a l'accès.
+  const suuntoDirect = isSuuntoReady();
+  const watchProviders: DeviceProvider[] = parsedContent?.success ? [...(isIntervalsReady() ? (["intervals"] as const) : []), ...(suuntoDirect ? (["suunto"] as const) : [])] : [];
+  const [comments, history, realization, exportHistory, thresholdsOnDate, shared, deliveries] = await Promise.all([
     getSessionComments(supabase, sessionId),
     getSessionHistory(supabase, sessionId),
     getSessionRealization(supabase, detail),
@@ -105,10 +116,11 @@ export async function SessionPanel({
     // Les exports utilisent les seuils en vigueur à la date de la séance (comme le téléchargement).
     exportable ? getThresholdsOn(supabase, detail.athlete_id, detail.scheduled_date) : Promise.resolve(undefined),
     viewer === "athlete" ? sharesStravaWithCoach(supabase, viewerId) : Promise.resolve(stravaShared === true),
+    watchProviders.length && parsedContent?.success
+      ? getDeviceDeliveries(supabase, detail, parsedContent.data.segments.length, today, watchProviders)
+      : Promise.resolve(null),
   ]);
   const exportCtx = exportContext(detail, thresholdsOnDate);
-  // Contenu normalisé (valeurs par défaut du format) : c'est lui que le téléchargement convertit.
-  const parsedContent = exportable ? parseWorkout(detail.content) : null;
   const status = sessionStatus({ ...detail, realization: realization ?? undefined }, today);
   const totals = computeTotals(detail.content, thresholds);
   // Sous le profil, seulement quand des hauteurs sont comparées faute de seuil (le pointillé se passe de légende).
@@ -209,6 +221,40 @@ export async function SessionPanel({
             dateLabel={formatFullDate(detail.scheduled_date)}
             multiSegment={parsedContent.data.segments.length > 1}
             timeZone={timeZone}
+            suuntoDirect={suuntoDirect}
+            watchAuto={
+              watchProviders.length
+                ? {
+                    viewer,
+                    deliveries,
+                    // Contrôle seul : le nom d'application et l'adresse réels sont ajoutés à l'envoi.
+                    reports: {
+                      intervals: watchProviders.includes("intervals")
+                        ? buildIntervalsEvents(parsedContent.data, {
+                            sessionId: detail.id,
+                            title: detail.title,
+                            description: detail.description,
+                            nutrition: detail.nutrition_notes,
+                            date: detail.scheduled_date,
+                            thresholds: thresholdsOnDate,
+                          }).map(({ segmentIndex, sport, event, issues }) => ({ segmentIndex, sport, ok: event !== null, issues }))
+                        : undefined,
+                      suunto: suuntoDirect
+                        ? buildGuides(parsedContent.data, {
+                            sessionId: detail.id,
+                            title: detail.title,
+                            description: detail.description,
+                            nutrition: detail.nutrition_notes,
+                            date: detail.scheduled_date,
+                            url: "https://tricoach.invalid",
+                            owner: "TriCoach",
+                            thresholds: thresholdsOnDate,
+                          }).map(({ segmentIndex, sport, guide, issues }) => ({ segmentIndex, sport, ok: guide !== null, issues }))
+                        : undefined,
+                    },
+                  }
+                : null
+            }
           />
         ) : parsedContent ? (
           <section aria-labelledby="export-title">

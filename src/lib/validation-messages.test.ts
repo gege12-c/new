@@ -27,7 +27,7 @@ describe("messages de validation par défaut", () => {
   });
 
   it("formats et choix", () => {
-    expect(message(z.email(), "gerald@")).toBe("Adresse email invalide.");
+    expect(message(z.email(), "athlete@")).toBe("Adresse email invalide.");
     expect(message(z.iso.date(), "19/10/2026")).toBe("Date invalide.");
     expect(message(z.uuid(), "abc")).toBe("Identifiant invalide : rechargez la page puis réessayez.");
     expect(message(z.enum(["A", "B"]), "Z")).toBe("Choix invalide : sélectionnez une option proposée.");

@@ -6,7 +6,7 @@
 import type { SegmentSport, Workout } from "@/lib/workout/schema";
 import type { AthleteThresholds } from "@/lib/workout/zones";
 
-export type ProviderId = "zwift" | "garmin" | "wahoo" | "suunto";
+export type ProviderId = "zwift" | "garmin" | "wahoo" | "suunto" | "coros";
 export type FileProviderId = "zwift" | "garmin";
 export type ExportFormat = "zwo" | "fit";
 

@@ -7,9 +7,10 @@ Une séance prévue s'exporte depuis sa fiche (panneau de séance, rubrique « E
 | | Séance prévue vers l'appareil | Téléchargement manuel | Synchronisation automatique | Activité réalisée vers TriCoach |
 | --- | --- | --- | --- | --- |
 | Zwift | manuel : fichier .zwo à importer sur ordinateur | disponible (.zwo, vélo et course) | impossible : pas d'API publique d'envoi de séances | par Strava ou fichier FIT |
-| Garmin | manuel : fichier FIT de séance copié par câble USB | disponible (FIT de type séance) | non configuré : API Training réservée aux développeurs approuvés | par Strava ou fichier FIT |
+| Garmin | automatique par intervals.icu (calendrier Garmin Connect, puis la montre) ; sinon fichier FIT de séance copié par câble USB, ou application TriCoach sur la montre | disponible (FIT de type séance) | par intervals.icu ; API Training de Garmin fermée aux nouvelles demandes | par Strava ou fichier FIT |
 | Wahoo | non configuré : API Cloud (plans) sur demande et approbation | impossible : aucun import manuel documenté par Wahoo | non configuré | par Strava ou fichier FIT |
-| Suunto | non configuré : API partenaire (guides SuuntoPlus) après examen | impossible : recopier la séance dans l'application Suunto (fiche « étapes Suunto » fournie) | non configuré | par Strava ou fichier FIT |
+| Suunto | automatique par intervals.icu (guide SuuntoPlus sur la montre) ; envoi direct prêt, en attente de l'accès partenaire | impossible : recopier la séance dans l'application Suunto (fiche « étapes Suunto » fournie) | par intervals.icu | par Strava ou fichier FIT |
+| COROS | automatique par intervals.icu (calendrier COROS, puis la montre) | aucun fichier de séance importable documenté | par intervals.icu | par Strava ou fichier FIT |
 
 Ces capacités sont des données (`src/lib/export/providers.ts`), affichées telles quelles dans l'application : rubrique d'export de chaque séance et panneau « Appareils et applications » du profil sportif.
 
@@ -21,6 +22,8 @@ Ces capacités sont des données (`src/lib/export/providers.ts`), affichées tel
 - **Suunto** : l'API est réservée aux entreprises et organisations proposant un service au public (pas d'accès personnel), examen hebdomadaire (deux semaines au plus), contrat API, gratuite ; la production exige une soumission de contenu. Source : [Suunto APIZone](https://apizone.suunto.com/). Les séances structurées y arrivent comme « guides SuuntoPlus ». Méthode manuelle officielle : le créateur de séances de l'application Suunto, synchronisé sur la montre comme guide : [Suunto, Plan your interval workouts](https://us.suunto.com/blogs/blog/plan-your-interval-workouts-with-suunto-app).
 
 Envoi direct vers Garmin, Wahoo ou Suunto : hors V1 tant que l'accès n'est pas obtenu (cahier des charges). Les prérequis sont affichés dans l'application.
+
+**Envoi automatique par intervals.icu** (depuis le 31 octobre 2026) : intervals.icu, partenaire officiel de Suunto, Garmin et COROS, reçoit les séances publiées par son API ouverte et les transmet à la montre de l'athlète. Conversion, fenêtre, limites et sources : [WATCHES.md](WATCHES.md). Dans chaque séance, « Sur la montre » donne l'état de l'envoi et le contrôle de compatibilité, comme pour les fichiers.
 
 ## Déroulé d'un export
 
