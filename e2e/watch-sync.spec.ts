@@ -21,7 +21,10 @@ const key = `e2e${randomUUID().replace(/-/g, "")}`;
 
 async function control(name: string, payload: unknown) {
   const response = await fetch(`${FAKE_INTERVALS_URL}/__control/${name}`, { method: "POST", body: JSON.stringify(payload) });
-  return (await response.json()) as { events: { name: string; external_id: string; description: string; type: string }[] };
+  return (await response.json()) as {
+    events: { name: string; external_id: string; description: string; type: string }[];
+    settings: { id: number; ftp: number | null; max_hr: number | null }[];
+  };
 }
 
 async function publishSession(date: string, title: string, plannedSeconds?: number) {
@@ -106,6 +109,25 @@ test("relier sa montre par intervals.icu : la séance publiée part, l'activité
   await panel.getByRole("button", { name: "Relier intervals.icu" }).click();
   // La page se met à jour : le formulaire laisse place au compte relié.
   await expect(panel.getByText(`Relié au compte ${intervalsAthlete}`, { exact: false })).toBeVisible();
+
+  // Seuils côte à côte : TriCoach fait référence, intervals.icu s'aligne d'un geste (FTP 250 W contre 230 W).
+  await panel.getByRole("button", { name: "Comparer avec intervals.icu" }).click();
+  const ftpLine = panel.locator('[data-threshold-line="Ride.ftp"]');
+  await expect(ftpLine).toContainText("250 W");
+  await expect(ftpLine).toContainText("230 W");
+  await panel.getByRole("button", { name: "Envoyer mes seuils à intervals.icu (1)" }).click();
+  await expect(panel.getByText("intervals.icu a maintenant les mêmes seuils que TriCoach.")).toBeVisible();
+  expect((await control("list", { athlete: intervalsAthlete })).settings.find((s) => s.id === 101)?.ftp).toBe(250);
+  // Une valeur d'intervals.icu reprise dans TriCoach, à partir d'aujourd'hui (puis retirée : compte de test partagé).
+  await panel.getByRole("button", { name: "FC max, course : reprendre la valeur d’intervals.icu dans TriCoach" }).click();
+  await expect(panel.getByText("FC max, course : la valeur d’intervals.icu est reprise dans TriCoach, à partir d’aujourd’hui.")).toBeVisible();
+  await expect(page.locator("#seuils")).toContainText("195 bpm");
+  const serviceKey = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY!;
+  const removed = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/athlete_thresholds?athlete_id=eq.${accounts().athlete.id}&metric=eq.max_hr_bpm`, {
+    method: "DELETE",
+    headers: { apikey: serviceKey, authorization: `Bearer ${serviceKey}` },
+  });
+  expect(removed.ok).toBe(true);
   await expect
     .poll(async () => (await control("list", { athlete: intervalsAthlete })).events.map((e) => e.name), { timeout: 20_000 })
     .toContain(title);

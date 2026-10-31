@@ -32,6 +32,7 @@ import { localDate } from "@/lib/utils";
 import { missingColumn } from "@/lib/supabase/schema";
 import { parseWorkout } from "@/lib/workout/schema";
 import { IntervalsApi, IntervalsError, type IntervalsEvent } from "./api";
+import { alignmentUpdates, appliedAsSent, compareThresholds, type SyncedThresholdKey, type ThresholdComparison } from "./thresholds";
 import { activityMetrics, INTERVALS_STREAM_TYPES, intervalsLaps, intervalsStreams, powerBests, reduceStreams } from "@/lib/activities/streams";
 import { INTERVALS_FULL_HISTORY_DAYS, INTERVALS_HISTORY_DAYS, INTERVALS_RECENT_DAYS, normalizeIntervalsActivity, sameActivity } from "./activities";
 import { missingMeasures, morningMeasures, WELLNESS_RECENT_DAYS } from "./wellness";
@@ -191,6 +192,101 @@ export async function resendIntervals(deps: IntervalsDeps, athleteId: string): P
   await deps.admin.from("device_workouts").delete().eq("connection_id", connection.id).eq("status", "failed");
   await enqueueDeviceSync(deps.admin, "intervals", athleteId, `intervals:manual:${athleteId}:${Math.floor(deps.now().getTime() / 60_000)}`);
   return true;
+}
+
+// ---------------------------------------------------------------------------
+// Seuils : TriCoach fait référence, intervals.icu s'aligne d'un geste
+// ---------------------------------------------------------------------------
+
+export type IntervalsThresholdsResult =
+  | { status: "ok"; rows: ThresholdComparison[]; aligned?: number; failed?: number }
+  | { status: "not_linked" }
+  | { status: "reauth" }
+  | { status: "unreachable" };
+
+async function intervalsConnection(deps: IntervalsDeps, athleteId: string) {
+  const { data } = await deps.admin
+    .from("external_connections")
+    .select("id, athlete_id, external_athlete_id, status")
+    .eq("athlete_id", athleteId)
+    .eq("provider", "intervals")
+    .maybeSingle();
+  return data;
+}
+
+/** Seuils en vigueur aujourd'hui dans TriCoach, pour ceux qu'intervals.icu connaît aussi. */
+async function syncedThresholds(deps: IntervalsDeps, athleteId: string): Promise<Partial<Record<SyncedThresholdKey, number>>> {
+  const [today, { data, error }] = await Promise.all([
+    todayOf(deps, athleteId),
+    deps.admin.from("athlete_thresholds").select("sport, metric, value, effective_from").eq("athlete_id", athleteId),
+  ]);
+  if (error) throw new Error(`Seuils illisibles : ${error.message}`);
+  const current = currentThresholds((data ?? []) as ThresholdRow[], today);
+  return Object.fromEntries([...current].map(([key, row]) => [key, Number(row.value)]));
+}
+
+/** Les erreurs d'intervals.icu deviennent un état à afficher ; les autres remontent. */
+function thresholdsFailure(error: unknown): IntervalsThresholdsResult {
+  if (error instanceof DeviceReauthError) return { status: "reauth" };
+  if (error instanceof DeviceDeferError || error instanceof IntervalsError) return { status: "unreachable" };
+  throw error;
+}
+
+/** Seuils de TriCoach et d'intervals.icu côte à côte (lecture seule chez intervals.icu). */
+export async function compareIntervalsThresholds(deps: IntervalsDeps, athleteId: string): Promise<IntervalsThresholdsResult> {
+  const connection = await intervalsConnection(deps, athleteId);
+  if (!connection) return { status: "not_linked" };
+  if (connection.status !== "active") return { status: "reauth" };
+  try {
+    const [current, settings] = await Promise.all([syncedThresholds(deps, athleteId), withKey(deps, connection, (key) => deps.api.sportSettings(key))]);
+    return { status: "ok", rows: compareThresholds(current, settings.map((s) => s.settings)) };
+  } catch (error) {
+    return thresholdsFailure(error);
+  }
+}
+
+/**
+ * Aligne intervals.icu sur TriCoach : seuls les seuils différents partent (FTP, FC seuil, FC max,
+ * allure seuil, CSS), relus dans la réponse ; rien n'est effacé chez intervals.icu. Si intervals.icu
+ * remplaçait tout le réglage au lieu des seuls champs envoyés (types d'activité perdus), le réglage
+ * complet lu juste avant est renvoyé avec les nouvelles valeurs : rien n'est perdu.
+ */
+export async function alignIntervalsThresholds(deps: IntervalsDeps, athleteId: string): Promise<IntervalsThresholdsResult> {
+  const connection = await intervalsConnection(deps, athleteId);
+  if (!connection) return { status: "not_linked" };
+  if (connection.status !== "active") return { status: "reauth" };
+  try {
+    const current = await syncedThresholds(deps, athleteId);
+    return await withKey(
+      deps,
+      connection,
+      async (key) => {
+        const before = await deps.api.sportSettings(key);
+        const updates = alignmentUpdates(compareThresholds(current, before.map((s) => s.settings)));
+        let aligned = 0;
+        let failed = 0;
+        for (const update of updates) {
+          const previous = before.find((s) => s.settings.id === update.settingsId)!;
+          try {
+            let after = await deps.api.updateSportSettings(key, update.settingsId, { ...update.patch }, update.recalcHrZones);
+            if (previous.settings.types.length && !after.settings.types.length) {
+              after = await deps.api.updateSportSettings(key, update.settingsId, { ...previous.raw, ...update.patch }, update.recalcHrZones);
+            }
+            if (appliedAsSent(update, after.settings)) aligned += update.rows.length;
+            else failed += update.rows.length;
+          } catch (error) {
+            if (error instanceof IntervalsError && (error.kind === "unauthorized" || error.kind === "rate_limited")) throw error;
+            failed += update.rows.length;
+          }
+        }
+        await log(deps, { level: failed ? "warn" : "info", event: failed ? "intervals_thresholds_partly_aligned" : "intervals_thresholds_aligned", athleteId, message: `${aligned} aligné(s), ${failed} en échec` });
+        const settings = updates.length ? await deps.api.sportSettings(key) : before;
+        return { status: "ok" as const, rows: compareThresholds(current, settings.map((s) => s.settings)), aligned, failed };
+      },
+    );
+  } catch (error) {
+    return thresholdsFailure(error);
+  }
 }
 
 // ---------------------------------------------------------------------------

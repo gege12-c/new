@@ -7,7 +7,8 @@
  * par identifiant externe (POST /events/bulk?upsert=true), retrait en lot (PUT /events/bulk-delete,
  * les évènements absents sont ignorés) ; activités faites d'une période (GET /activities?oldest&newest :
  * résumés, sans les activités reçues de Strava, qu'intervals.icu ne transmet pas) ; courbes et
- * intervalles d'une activité (spécification OpenAPI d'intervals.icu). Quotas : 429 avec Retry-After.
+ * intervalles d'une activité, réglages par sport (seuils) lus et mis à jour (spécification OpenAPI
+ * d'intervals.icu). Quotas : 429 avec Retry-After.
  */
 import { z } from "zod";
 
@@ -41,6 +42,55 @@ export interface IntervalsEvent {
   /** Texte de la séance, au format de l'éditeur d'intervals.icu (lu par intervals.icu). */
   description: string;
   external_id: string;
+}
+
+/**
+ * Réglages par sport d'intervals.icu (spécification OpenAPI, SportSettings) : seuils en unités SI,
+ * allure seuil en mètres par seconde (`pace_units` ne règle que l'affichage).
+ */
+export interface IntervalsSportSettings {
+  id: string;
+  /** Types d'activité couverts : « Ride », « VirtualRide », « Run », « Swim »… */
+  types: string[];
+  ftp: number | null;
+  lthr: number | null;
+  maxHr: number | null;
+  /** Allure seuil en m/s (course : allure seuil ; natation : CSS). */
+  thresholdPaceMps: number | null;
+}
+
+/** Champs modifiables d'un réglage par sport : seuls ceux envoyés changent (convention de l'API). */
+export interface SportSettingsPatch {
+  ftp?: number;
+  lthr?: number;
+  max_hr?: number;
+  threshold_pace?: number;
+}
+
+const SportSettingsSchema = z.object({
+  id: z.union([z.string(), z.number()]).transform(String),
+  types: z.array(z.string()).nullish(),
+  ftp: z.number().nullish(),
+  lthr: z.number().nullish(),
+  max_hr: z.number().nullish(),
+  threshold_pace: z.number().nullish(),
+});
+
+/** Réglage lu, et sa forme complète telle que reçue (pour la rétablir si besoin). */
+export interface SportSettingsRead {
+  settings: IntervalsSportSettings;
+  raw: Record<string, unknown>;
+}
+
+function readSportSettings(value: unknown): SportSettingsRead | null {
+  const parsed = SportSettingsSchema.safeParse(value);
+  if (!parsed.success) return null;
+  const s = parsed.data;
+  const positive = (v: number | null | undefined) => (typeof v === "number" && v > 0 ? v : null);
+  return {
+    settings: { id: s.id, types: s.types ?? [], ftp: positive(s.ftp), lthr: positive(s.lthr), maxHr: positive(s.max_hr), thresholdPaceMps: positive(s.threshold_pace) },
+    raw: value as Record<string, unknown>,
+  };
 }
 
 const AthleteSchema = z.object({ id: z.union([z.string(), z.number()]).transform(String), name: z.string().nullish() });
@@ -142,6 +192,26 @@ export class IntervalsApi {
   /** Intervalles détectés d'une activité (GET /activity/{id}/intervals : { icu_intervals: […] }). */
   async intervals(key: string, activityId: string): Promise<unknown> {
     return this.call(key, `/activity/${encodeURIComponent(activityId)}/intervals`, {}, "Lecture des intervalles");
+  }
+
+  /** Réglages par sport de l'athlète (GET /athlete/0/sport-settings). */
+  async sportSettings(key: string): Promise<SportSettingsRead[]> {
+    const body = await this.call(key, "/athlete/0/sport-settings", {}, "Lecture des seuils");
+    if (!Array.isArray(body)) throw new IntervalsError("invalid_response", "Seuils d'intervals.icu illisibles.");
+    const rows = body.map(readSportSettings);
+    if (rows.some((row) => row === null)) throw new IntervalsError("invalid_response", "Seuils d'intervals.icu illisibles.");
+    return rows as SportSettingsRead[];
+  }
+
+  /**
+   * Met à jour un réglage par sport (PUT /athlete/0/sport-settings/{id}) avec les seuls champs
+   * envoyés ; `recalcHrZones` recalcule ses zones de FC quand la FC seuil ou la FC max change.
+   */
+  async updateSportSettings(key: string, id: string, body: Record<string, unknown>, recalcHrZones: boolean): Promise<SportSettingsRead> {
+    const path = `/athlete/0/sport-settings/${encodeURIComponent(id)}${recalcHrZones ? "?recalcHrZones=true" : ""}`;
+    const read = readSportSettings(await this.call(key, path, { method: "PUT", body: JSON.stringify(body) }, "Mise à jour des seuils"));
+    if (!read) throw new IntervalsError("invalid_response", "Réponse d'intervals.icu illisible après la mise à jour des seuils.");
+    return read;
   }
 
   /** Retire des séances déposées par TriCoach ; celles qui n'existent plus sont ignorées. */

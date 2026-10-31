@@ -3,7 +3,8 @@
  * utilisateur API_KEY), profil de l'athlète, dépôt en lot des séances prévues par identifiant externe
  * (création ou mise à jour), retrait en lot, activités faites d'une période (celles reçues de Strava
  * réduites à une note, comme le fait intervals.icu), courbes et intervalles d'une activité (champs
- * `_streams` et `_intervals` de l'activité de test), quota (429). Données entièrement fictives.
+ * `_streams` et `_intervals` de l'activité de test), réglages par sport (seuils) lus et modifiés,
+ * quota (429). Données entièrement fictives.
  */
 import { createServer, type IncomingMessage, type Server } from "node:http";
 
@@ -34,7 +35,23 @@ export class FakeIntervals {
   readonly activities = new Map<string, Record<string, unknown>[]>();
   /** Données de forme par athlète et par jour (champs d'intervals.icu : restingHR, hrv, sleepSecs, weight). */
   readonly wellness = new Map<string, Record<string, unknown>[]>();
+  /** Réglages par sport, par athlète (champs d'intervals.icu, unités SI : allure seuil en m/s). */
+  readonly sportSettings = new Map<string, Record<string, unknown>[]>();
+  /** Simule un intervals.icu qui remplacerait tout le réglage par le corps reçu (filet de sécurité). */
+  replaceWholeSettings = false;
   private counter = 1000;
+
+  /** Réglages de l'athlète ; par défaut : FTP 230 W, FC seuil 176, FC max 195, 5:15 /km, CSS 1:40 /100 m. */
+  settingsOf(athlete: string): Record<string, unknown>[] {
+    if (!this.sportSettings.has(athlete)) {
+      this.sportSettings.set(athlete, [
+        { id: 101, athlete_id: athlete, types: ["Ride", "VirtualRide"], ftp: 230, lthr: 176, max_hr: 195, threshold_pace: null, power_zones: [55, 75, 90, 105, 120, 150, 999] },
+        { id: 102, athlete_id: athlete, types: ["Run", "VirtualRun", "TrailRun"], ftp: null, lthr: 176, max_hr: 195, threshold_pace: 1000 / 315, pace_units: "MINS_KM" },
+        { id: 103, athlete_id: athlete, types: ["Swim", "OpenWaterSwim"], ftp: null, lthr: null, max_hr: null, threshold_pace: 1, pace_units: "SECS_100M" },
+      ]);
+    }
+    return this.sportSettings.get(athlete)!;
+  }
 
   addActivity(athlete: string, activity: Record<string, unknown>) {
     this.activities.set(athlete, [...(this.activities.get(athlete) ?? []), activity]);
@@ -135,6 +152,19 @@ export class FakeIntervals {
       return this.json(200, out);
     }
 
+    if (url.pathname === "/api/v1/athlete/0/sport-settings" && method === "GET") return this.json(200, this.settingsOf(athlete));
+
+    const settingsPath = /^\/api\/v1\/athlete\/0\/sport-settings\/([^/]+)$/.exec(url.pathname);
+    if (settingsPath && method === "PUT") {
+      const list = this.settingsOf(athlete);
+      const index = list.findIndex((s) => String(s.id) === decodeURIComponent(settingsPath[1]));
+      if (index < 0) return this.json(404, { error: "Sport settings not found" });
+      if (!body || typeof body !== "object" || Array.isArray(body)) return this.json(400, { error: "Expected an object" });
+      // Comme l'API d'intervals.icu : seuls les champs envoyés changent (sauf simulation contraire).
+      list[index] = this.replaceWholeSettings ? { ...body, id: list[index].id } : { ...list[index], ...body, id: list[index].id };
+      return this.json(200, list[index]);
+    }
+
     if (url.pathname === "/api/v1/athlete/0/events/bulk-delete" && method === "PUT") {
       if (!Array.isArray(body)) return this.json(400, { error: "Expected an array" });
       let deleted = 0;
@@ -161,7 +191,8 @@ export class FakeIntervals {
           if (url.pathname === "/__control/key") this.addKey(payload.key, payload.athlete);
           if (url.pathname === "/__control/activity") this.addActivity(payload.athlete, payload.activity);
           const events = payload.athlete ? this.eventsOf(payload.athlete) : [];
-          res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ ok: true, events }));
+          const settings = payload.athlete ? this.settingsOf(payload.athlete) : [];
+          res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ ok: true, events, settings }));
           return;
         }
         const headers: Record<string, string> = {};

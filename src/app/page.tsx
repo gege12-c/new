@@ -67,13 +67,14 @@ const watts = (min: number, max: number) => {
 const COACH = [
   "Un calendrier par athlète, en vue mois, semaine, jour ou liste.",
   "Un éditeur de séances structurées : blocs, répétitions, cibles en watts, allure ou fréquence cardiaque.",
-  "Une bibliothèque de modèles, la copie d’une semaine entière, le glisser-déposer.",
+  "Une bibliothèque de modèles, des séances types en un geste, la copie d’une semaine entière, le glisser-déposer.",
 ];
 
 const ATHLETE = [
   "La séance du jour et la suivante, dès l’ouverture, sur téléphone.",
   "Des cibles calculées sur vos propres seuils : FTP, allure seuil, CSS, FC.",
   "Chaque modification du coach arrive en quelques secondes, sans recharger.",
+  "La séance part seule sur la montre (Suunto, Garmin, COROS) ; l’activité revient, comparée au prévu.",
 ];
 
 export default function LandingPage() {
@@ -158,7 +159,7 @@ export default function LandingPage() {
 
       <footer className="border-t border-line">
         <div className="mx-auto flex max-w-[1180px] flex-wrap items-center justify-between gap-4 px-5 py-8 text-[13px] text-muted sm:px-8">
-          <span>Import des activités Strava et export vers Garmin, Zwift, Wahoo et Suunto : en cours de développement.</span>
+          <span>Montres par intervals.icu, activités de la montre ou de Strava, fichiers Zwift et Garmin.</span>
           <ButtonLink href="/signup" variant="secondary" size="sm">
             Créer un compte
           </ButtonLink>

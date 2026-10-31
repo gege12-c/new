@@ -8,6 +8,7 @@ import { isSuuntoReady } from "@/lib/suunto/config";
 import { SCHEMA_PENDING_MESSAGE } from "@/lib/supabase/schema";
 import type { ServerSupabase } from "@/lib/supabase/server";
 import { IntervalsKeyForm, WatchSyncControls } from "./watch-sync-controls";
+import { IntervalsThresholds } from "./intervals-thresholds";
 
 /** Retour de la connexion Suunto (paramètre ?suunto= posé par /api/suunto/callback). */
 const SUUNTO_CALLBACK: Record<string, { tone: "success" | "error" | "warning"; text: string }> = {
@@ -133,6 +134,7 @@ export async function WatchSyncPanel({
               <>
                 <AccountState account={accounts.intervals} where="dans votre calendrier intervals.icu" timeZone={timeZone} />
                 <WatchSyncControls provider="intervals" />
+                <IntervalsThresholds />
               </>
             ) : (
               <>

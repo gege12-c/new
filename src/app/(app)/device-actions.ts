@@ -9,9 +9,20 @@ import { refresh } from "next/cache";
 import { after } from "next/server";
 import { z } from "zod";
 import { fail, done, firstIssue, type ActionState } from "@/lib/action-state";
-import { getSession } from "@/lib/auth/dal";
-import { intervalsDeps } from "@/lib/devices/deps";
-import { connectIntervals, disconnectIntervals, resendIntervals, runIntervalsJobs } from "@/lib/intervals/service";
+import {
+  alignIntervalsThresholds,
+  compareIntervalsThresholds,
+  connectIntervals,
+  disconnectIntervals,
+  resendIntervals,
+  runIntervalsJobs,
+  type IntervalsThresholdsResult,
+} from "@/lib/intervals/service";
+import type { ThresholdComparison } from "@/lib/intervals/thresholds";
+import { formatThresholdValue, thresholdDef } from "@/lib/thresholds";
+import { todayIn } from "@/lib/time";
+import { getProfile, getSession } from "@/lib/auth/dal";
+import { intervalsDeps, kickDeviceSync } from "@/lib/devices/deps";
 import { getSiteUrl } from "@/lib/site";
 import { suuntoDeps } from "@/lib/suunto/deps";
 import { disconnectSuunto, resendSuunto, runSuuntoJobs } from "@/lib/suunto/service";
@@ -95,4 +106,103 @@ export async function sendToWatchNow(): Promise<Result> {
   });
   refresh();
   return { status: "ok", message: "Envoi lancé : vos séances partent dans quelques secondes." };
+}
+
+// ---------------------------------------------------------------------------
+// Seuils : TriCoach et intervals.icu côte à côte
+// ---------------------------------------------------------------------------
+
+export interface ThresholdLine {
+  id: string;
+  label: string;
+  tricoach: string | null;
+  intervals: string | null;
+  same: boolean;
+  /** intervals.icu n'a pas de réglage pour ce sport : rien à aligner de ce côté. */
+  noSettings: boolean;
+}
+
+export type ThresholdsView = { status: "ok"; lines: ThresholdLine[]; message?: string; tone?: "success" | "warning" } | { status: "error"; message: string };
+
+const THRESHOLDS_ERRORS = {
+  not_linked: "Reliez d’abord intervals.icu (ci-dessus).",
+  reauth: "intervals.icu refuse la clé enregistrée : collez votre nouvelle clé pour comparer les seuils.",
+  unreachable: "intervals.icu ne répond pas pour l’instant : réessayez dans quelques minutes. Rien n’a été modifié.",
+} as const;
+
+function linesOf(rows: ThresholdComparison[]): ThresholdLine[] {
+  const format = (key: string, value: number | null) => {
+    if (value === null) return null;
+    const [sport, metric] = key.split(".");
+    const def = thresholdDef(sport, metric);
+    return def ? formatThresholdValue(def, value) : String(value);
+  };
+  return rows.map((row) => ({
+    id: row.id,
+    label: row.label,
+    tricoach: format(row.key, row.tricoach),
+    intervals: format(row.key, row.intervals),
+    same: row.same,
+    noSettings: row.settingsId === null,
+  }));
+}
+
+function viewOf(result: IntervalsThresholdsResult, message?: (r: Extract<IntervalsThresholdsResult, { status: "ok" }>) => Pick<ThresholdsView & { status: "ok" }, "message" | "tone">): ThresholdsView {
+  if (result.status !== "ok") return { status: "error", message: THRESHOLDS_ERRORS[result.status] };
+  return { status: "ok", lines: linesOf(result.rows), ...(message ? message(result) : {}) };
+}
+
+/** Lit les seuils d'intervals.icu (sans rien y changer) et les met à côté de ceux de TriCoach. */
+export async function compareThresholdsAction(): Promise<ThresholdsView> {
+  const session = await getSession();
+  if (!session) return { status: "error", message: EXPIRED };
+  const deps = intervalsDeps();
+  if (!deps) return { status: "error", message: NOT_READY };
+  return viewOf(await compareIntervalsThresholds(deps, session.userId));
+}
+
+/** Envoie à intervals.icu les seuils de TriCoach qui diffèrent : TriCoach fait référence. */
+export async function alignThresholdsAction(): Promise<ThresholdsView> {
+  const session = await getSession();
+  if (!session) return { status: "error", message: EXPIRED };
+  const deps = intervalsDeps();
+  if (!deps) return { status: "error", message: NOT_READY };
+  return viewOf(await alignIntervalsThresholds(deps, session.userId), ({ aligned = 0, failed = 0 }) =>
+    failed
+      ? { tone: "warning", message: `${failed} seuil${failed > 1 ? "s n’ont" : " n’a"} pas pu être modifié${failed > 1 ? "s" : ""} chez intervals.icu : réessayez, ou corrigez-le${failed > 1 ? "s" : ""} dans ses réglages.` }
+      : aligned
+        ? { tone: "success", message: "intervals.icu a maintenant les mêmes seuils que TriCoach." }
+        : { tone: "success", message: "Rien à changer : intervals.icu avait déjà les mêmes seuils." },
+  );
+}
+
+/** Reprend dans TriCoach une valeur d'intervals.icu, à la date du jour (l'historique est gardé). */
+export async function importIntervalsThresholdAction(lineId: string): Promise<ThresholdsView> {
+  const session = await getSession();
+  if (!session) return { status: "error", message: EXPIRED };
+  const deps = intervalsDeps();
+  if (!deps) return { status: "error", message: NOT_READY };
+  const result = await compareIntervalsThresholds(deps, session.userId);
+  if (result.status !== "ok") return viewOf(result);
+  const row = result.rows.find((r) => r.id === lineId);
+  if (!row || row.intervals === null) return { status: "error", message: "Cette valeur n’existe plus chez intervals.icu : comparez de nouveau." };
+  const [sport, metric] = row.key.split(".");
+  const def = thresholdDef(sport, metric);
+  if (!def || row.intervals < def.min || row.intervals > def.max) return { status: "error", message: `${row.label} : la valeur d’intervals.icu est hors des limites de TriCoach.` };
+
+  const profile = await getProfile();
+  const today = await todayIn(profile.timezone);
+  const values = { value: row.intervals, notes: "Repris d’intervals.icu" };
+  const match = { athlete_id: session.userId, sport, metric, effective_from: today };
+  const inserted = await session.supabase.from("athlete_thresholds").insert({ ...match, ...values });
+  if (inserted.error?.code === "23505") {
+    const updated = await session.supabase.from("athlete_thresholds").update(values).match(match).select("id");
+    if (updated.error || !updated.data?.length) return { status: "error", message: "Le seuil n’a pas pu être enregistré : réessayez." };
+  } else if (inserted.error) {
+    return { status: "error", message: "Le seuil n’a pas pu être enregistré : réessayez." };
+  }
+  await kickDeviceSync();
+  refresh();
+  const after = await compareIntervalsThresholds(deps, session.userId);
+  return viewOf(after, () => ({ tone: "success", message: `${row.label} : la valeur d’intervals.icu est reprise dans TriCoach, à partir d’aujourd’hui.` }));
 }
