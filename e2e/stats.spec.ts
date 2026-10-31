@@ -123,7 +123,10 @@ test("l'athlète voit sa progression, sans aucune donnée Strava", async ({ brow
   await expect(fitness).toContainText(/Compté : \d+ activités? \(fichiers? ou montre\)/);
   await expect(fitness).toContainText("Les activités Strava ne sont pas comptées (règles de Strava).");
   await expect(fitness.locator("dt", { hasText: /^Condition$/ }).locator("+ dd")).toHaveText(/^\d+$/);
-  await expect(fitness).toContainText(/Transition|Fraîcheur|Zone grise|Zone optimale|Risque élevé/);
+  await expect(fitness).toContainText(/Récup|Zone grise|Amélioration|Optimal|Attention blessure/);
+  // Les cinq zones sont nommées sous la courbe, avec leurs limites.
+  const zones = fitness.getByRole("list", { name: "Zones de forme" });
+  for (const name of ["Récup", "Zone grise", "Amélioration", "Optimal", "Attention blessure"]) await expect(zones).toContainText(name);
   const slider = fitness.getByRole("slider", { name: "Condition physique jour par jour" });
   await slider.focus();
   await page.keyboard.press("End");

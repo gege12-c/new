@@ -58,7 +58,17 @@ Les activités Strava ne sont **jamais** comptées : l'accord API Strava (versio
 
 ## Zones de forme
 
-Repères de Joe Friel, repris par Intervals.icu : transition au-dessus de +20, fraîcheur de +5 à +20, zone grise de −10 à +5, zone optimale de −30 à −10, risque élevé sous −30.
+Demandées le 31 octobre : récup, zone grise, amélioration, optimal, attention blessure. Repères de Joe Friel, repris par Intervals.icu (zone grise de −10 à +5, risque sous −30) ; la zone d'entraînement de −10 à −30 est partagée en deux :
+
+| Zone | Forme | Sens |
+| --- | --- | --- |
+| Récup | au-dessus de +5 | reposé, la fatigue est partie : bon moment pour une course ; au-delà de +20 longtemps, la condition baisse |
+| Zone grise | de −10 à +5 | charge d'entretien : peu de progrès |
+| Amélioration | de −20 à −10 | la charge fait progresser, avec une fatigue modérée |
+| Optimal | de −30 à −20 | charge la plus utile : forte progression, à condition de récupérer ensuite |
+| Attention blessure | sous −30 | fatigue très forte : risque de blessure ou de surentraînement si cela dure |
+
+Les cinq bandes sont colorées et nommées sur la courbe de forme, la ligne prend la couleur de la zone traversée, une légende donne les limites, et la zone du jour est expliquée sous les chiffres. Limites dans `FORM_ZONES` (`src/lib/stats/fitness.ts`) : à ajuster d'un seul endroit.
 
 ## Affichage
 

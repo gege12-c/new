@@ -17,7 +17,10 @@ const H_FORM = 120;
 
 const FITNESS_COLOR = "var(--chart-swim)";
 const FATIGUE_COLOR = "var(--chart-strength)";
-const FORM_TICKS = [20, 5, -10, -30];
+/** Fond des zones : plus marqué pour l'optimal et le risque de blessure. */
+const ZONE_OPACITY: Record<FormZoneKey, number> = { recovery: 0.12, grey: 0.12, improve: 0.14, optimal: 0.2, risk: 0.18 };
+/** Graduations de la forme : les limites des zones. */
+const FORM_TICKS = [5, -10, -20, -30];
 
 const PERIODS = [
   { days: 42, label: "6 sem." },
@@ -219,7 +222,7 @@ export function FitnessChart({ data }: { data: FitnessData }) {
             {firstRest > 0 ? (
               <span
                 aria-hidden
-                className={cn("absolute top-4 whitespace-nowrap text-[10.5px] font-medium text-muted", firstRest / (n - 1) > 0.75 && "-translate-x-full")}
+                className={cn("absolute top-4 hidden whitespace-nowrap text-[10.5px] font-medium text-muted sm:block", firstRest / (n - 1) > 0.75 && "-translate-x-full")}
                 style={{ left: firstRest / (n - 1) > 0.75 ? `calc(${pct(firstRest)} - 6px)` : `calc(${pct(firstRest)} + 6px)` }}
               >
                 Sans séance prévue
@@ -228,12 +231,12 @@ export function FitnessChart({ data }: { data: FitnessData }) {
           </div>
 
           {/* Forme et ses zones */}
-          <div className="relative mt-3 h-24 sm:h-28">
+          <div className="relative mt-3 h-36 sm:h-40">
             <svg aria-hidden viewBox={`0 0 ${W} ${H_FORM}`} preserveAspectRatio="none" className="absolute inset-0 h-full w-full overflow-visible">
               {FORM_ZONES.map((z, index) => {
                 const upper = index === 0 ? formMax : FORM_ZONES[index - 1].min;
                 const lower = Math.max(z.min, formMin);
-                return <rect key={z.key} x={0} width={W} y={yForm(upper)} height={Math.max(0, yForm(lower) - yForm(upper))} fill={ZONE_COLOR[z.key]} opacity={0.09} />;
+                return <rect key={z.key} x={0} width={W} y={yForm(upper)} height={Math.max(0, yForm(lower) - yForm(upper))} fill={ZONE_COLOR[z.key]} opacity={ZONE_OPACITY[z.key]} />;
               })}
               {formRuns.map((run) => (
                 <path
@@ -254,6 +257,22 @@ export function FitnessChart({ data }: { data: FitnessData }) {
                 {signed(tick)}
               </span>
             ))}
+            {/* Nom de chaque zone, dans sa bande, à gauche */}
+            {FORM_ZONES.map((z, index) => {
+              const upper = index === 0 ? formMax : FORM_ZONES[index - 1].min;
+              const lower = Math.max(z.min, formMin);
+              const middle = (yForm(upper) + yForm(lower)) / 2;
+              return (
+                <span
+                  key={z.key}
+                  aria-hidden
+                  className="pointer-events-none absolute left-1.5 -translate-y-1/2 whitespace-nowrap rounded-[4px] bg-surface/80 px-1 text-[10.5px] font-semibold leading-tight"
+                  style={{ top: `${(middle / H_FORM) * 100}%`, color: ZONE_COLOR[z.key] }}
+                >
+                  {z.label}
+                </span>
+              );
+            })}
           </div>
 
           {/* Courses, aujourd'hui, et le jour pointé */}
@@ -309,6 +328,18 @@ export function FitnessChart({ data }: { data: FitnessData }) {
           </span>
         </div>
       </div>
+
+      <ul aria-label="Zones de forme" className="flex flex-wrap gap-x-4 gap-y-1.5 text-[12px]">
+        {FORM_ZONES.map((z, index) => (
+          <li key={z.key} className="flex items-center gap-1.5" title={z.hint}>
+            <span aria-hidden className="size-2.5 rounded-[3px]" style={{ background: ZONE_COLOR[z.key] }} />
+            <span className="font-semibold text-ink">{z.label}</span>
+            <span className="figure text-muted">
+              {index === 0 ? `au-dessus de ${signed(z.min)}` : index === FORM_ZONES.length - 1 ? `sous ${signed(FORM_ZONES[index - 1].min)}` : `de ${signed(z.min)} à ${signed(FORM_ZONES[index - 1].min)}`}
+            </span>
+          </li>
+        ))}
+      </ul>
 
       {/* Détail du jour pointé (aujourd'hui par défaut) */}
       <section aria-label="Détail du jour" aria-live="polite" className="rounded-[12px] border border-line p-3">

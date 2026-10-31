@@ -115,11 +115,14 @@ describe("condition, fatigue et forme", () => {
   });
 
   it("zones de forme", () => {
-    expect(formZone(25).key).toBe("transition");
-    expect(formZone(10).key).toBe("fresh");
+    expect(formZone(25).key).toBe("recovery");
+    expect(formZone(5).key).toBe("recovery");
     expect(formZone(-6).key).toBe("grey");
-    expect(formZone(-20).key).toBe("optimal");
+    expect(formZone(-15).key).toBe("improve");
+    expect(formZone(-20).key).toBe("improve");
+    expect(formZone(-25).key).toBe("optimal");
     expect(formZone(-40).key).toBe("risk");
+    expect(formZone(-40).label).toBe("Attention blessure");
   });
 });
 

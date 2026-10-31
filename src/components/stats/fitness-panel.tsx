@@ -74,6 +74,12 @@ export function FitnessPanel({ data, viewer }: { data: FitnessData; viewer: "ath
               </div>
             ) : null}
           </dl>
+          <p className="-mt-2 mb-4 text-[13.5px] text-ink-soft">
+            <span className="font-semibold" style={{ color: ZONE_COLOR[zone.key] }}>
+              {zone.label}
+            </span>{" "}
+            : {zone.hint}
+          </p>
           <FitnessChart data={data} />
         </>
       ) : (
@@ -107,7 +113,7 @@ export function FitnessPanel({ data, viewer }: { data: FitnessData; viewer: "ath
             </li>
             <li>Condition : moyenne exponentielle de la charge quotidienne sur 42 jours ; fatigue : sur 7 jours ; forme = condition − fatigue.</li>
             <li>
-              Zones de forme (Joe Friel) :{" "}
+              Zones de forme (repères de Joe Friel, repris par Intervals.icu, la zone d’entraînement étant partagée en amélioration et optimal) :{" "}
               {FORM_ZONES.map((z, i) => `${z.label.toLowerCase()} ${i === FORM_ZONES.length - 1 ? `sous ${signed(FORM_ZONES[i - 1].min)}` : i === 0 ? `au-dessus de ${signed(z.min)}` : `de ${signed(z.min)} à ${signed(FORM_ZONES[i - 1].min)}`}`).join(", ")}.
             </li>
             <li>

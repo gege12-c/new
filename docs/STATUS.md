@@ -12,6 +12,7 @@ Livré :
 - **Courses sur la courbe** (A, B, C) et forme prévue au départ de chacune (celle de la veille au soir).
 - **Détail du jour pointé** : condition, fatigue, forme, et chaque charge du jour avec sa méthode (puissance, allure, FC, ressenti, séance prévue).
 - **Période au choix** : 6 semaines, 3 mois, 6 mois, 1 an ; **condition sur 7 jours** (en hausse, stable, en baisse).
+- **Zones de forme sur la courbe** (demandées à 6 h 16) : récup (au-dessus de +5), zone grise (+5 à −10), amélioration (−10 à −20), optimal (−20 à −30), attention blessure (sous −30) ; bandes colorées et nommées, ligne de la couleur de la zone, légende avec les limites, zone du jour expliquée sous les chiffres.
 - **Charges calculées seconde par seconde** quand l'activité a sa courbe (montre par intervals.icu, fichier FIT) : puissance normalisée (tirée de la courbe quand la source ne la donne pas), allure normalisée corrigée de la pente en course (coût énergétique de Minetti : une côte compte ce qu'elle coûte), fréquence cardiaque quadratique (les passages intenses pèsent plus). Mesures gardées avec la courbe, indépendantes des seuils ; la charge suit les seuils à la date de chaque activité. Migration `20261031060000_activity_metrics.sql`.
 
 Vérification des charges : 4 tests unitaires des mesures (fractionné, côte, arrêts, FC), 1 de leur usage dans la charge, fichier FIT ; base (`tests/db/activity-streams.test.ts` : écriture par l'athlète, contrainte) ; intégration intervals.icu (mesures gardées à la réception).

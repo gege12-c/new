@@ -385,13 +385,16 @@ export function weeklyRamp(points: Pick<FitnessPoint, "date" | "fitness">[], dat
   return now && before ? now.fitness - before.fitness : null;
 }
 
-/** Zones de forme (Joe Friel, reprises par Intervals.icu). */
+/**
+ * Zones de forme. Repères de Joe Friel, repris par Intervals.icu (zone grise de −10 à +5, risque
+ * sous −30) ; la zone d'entraînement de −10 à −30 est partagée en deux, amélioration puis optimal.
+ */
 export const FORM_ZONES = [
-  { key: "transition", label: "Transition", min: 20, hint: "Très reposé : la condition baisse si cela dure." },
-  { key: "fresh", label: "Fraîcheur", min: 5, hint: "Frais et en forme : prêt pour une course." },
-  { key: "grey", label: "Zone grise", min: -10, hint: "Charge d'entretien : peu de progrès." },
-  { key: "optimal", label: "Zone optimale", min: -30, hint: "La charge fait progresser." },
-  { key: "risk", label: "Risque élevé", min: -Infinity, hint: "Fatigue forte : risque de surentraînement si cela dure." },
+  { key: "recovery", label: "Récup", min: 5, hint: "Reposé : la fatigue est partie, bon moment pour une course. Au-delà de +20 longtemps, la condition baisse." },
+  { key: "grey", label: "Zone grise", min: -10, hint: "Charge d’entretien : peu de progrès." },
+  { key: "improve", label: "Amélioration", min: -20, hint: "La charge fait progresser, avec une fatigue modérée." },
+  { key: "optimal", label: "Optimal", min: -30, hint: "Charge la plus utile : forte progression, à condition de récupérer ensuite." },
+  { key: "risk", label: "Attention blessure", min: -Infinity, hint: "Fatigue très forte : risque de blessure ou de surentraînement si cela dure." },
 ] as const;
 
 export type FormZoneKey = (typeof FORM_ZONES)[number]["key"];
