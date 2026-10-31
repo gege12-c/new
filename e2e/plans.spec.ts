@@ -1,6 +1,7 @@
 /**
  * Plans d'entraînement : le coach enregistre une semaine du calendrier d'un athlète en plan, le
- * retrouve dans sa bibliothèque et l'applique quelques semaines plus tard, en brouillon.
+ * retrouve dans sa bibliothèque, l'applique quelques semaines plus tard en brouillon, puis publie
+ * d'un coup les brouillons de la semaine.
  */
 import { expect, test } from "@playwright/test";
 import { accounts, addDays, mondayIn, signedIn, takeHydrationErrors } from "./fixtures";
@@ -51,5 +52,14 @@ test("une semaine enregistrée en plan, puis appliquée plus tard en brouillon",
 
   await coach.goto(`/coach/athletes/${athlete.id}?view=week&date=${target}`);
   await expect(coach.getByText(title)).toBeVisible();
+
+  // Les brouillons de la semaine se publient d'un coup ; l'athlète les voit.
+  await coach.getByRole("button", { name: /Publier \d+ brouillons?/ }).click();
+  await coach.getByRole("dialog").getByRole("button", { name: "Publier" }).click();
+  await expect(coach.getByText(/séances? publiées? : l’athlète/)).toBeVisible();
+  const athletePage = await signedIn(browser, "athlete");
+  await athletePage.goto(`/athlete/calendar?view=week&date=${target}`);
+  await expect(athletePage.getByText(title)).toBeVisible();
+  await athletePage.context().close();
   await coach.context().close();
 });

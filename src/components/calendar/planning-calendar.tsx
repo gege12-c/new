@@ -1,12 +1,12 @@
 "use client";
 
-import { CalendarOff, ChevronLeft, ChevronRight, CopyPlus, Flag, LibraryBig, Plus, StickyNote, X } from "lucide-react";
+import { CalendarOff, ChevronLeft, ChevronRight, CopyPlus, Flag, LibraryBig, Plus, Send, StickyNote, X } from "lucide-react";
 import Link from "next/link";
 import { useOptimistic, useState, useTransition, type DragEvent, type ReactNode } from "react";
-import { copyWeek, duplicateSession, moveSession, scheduleTemplate } from "@/app/(app)/planning-actions";
+import { copyWeek, duplicateSession, moveSession, publishDrafts, scheduleTemplate } from "@/app/(app)/planning-actions";
 import { SPORT_ICONS, SPORT_STYLES, SportDot } from "@/components/sport";
 import { Button, ButtonLink } from "@/components/ui/button";
-import { Dialog } from "@/components/ui/dialog";
+import { ConfirmDialog, Dialog } from "@/components/ui/dialog";
 import { Notice } from "@/components/ui/feedback";
 import { controlClasses } from "@/components/ui/field";
 import type { LinkedActivity } from "@/lib/activities/realization";
@@ -117,6 +117,8 @@ export function PlanningCalendar({
   const [over, setOver] = useState<ISODate | null>(null);
   const [copyOpen, setCopyOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [publishOpen, setPublishOpen] = useState(false);
+  const [publishing, startPublishing] = useTransition();
 
   const visible = optimistic.filter((s) => {
     if (query.sports?.length && !query.sports.includes(s.sport)) return false;
@@ -137,6 +139,8 @@ export function PlanningCalendar({
   for (const event of events) eventsByDate.set(event.event_date, [...(eventsByDate.get(event.event_date) ?? []), event]);
   const { from: rangeFrom, to: rangeTo } = viewRange(query.view, query.date);
   const notesByDate = notesByDay(notes, dateRange(rangeFrom, rangeTo));
+  // Brouillons du coach sur la période affichée, à publier d'un coup (après un plan, par exemple).
+  const draftsInRange = mode === "coach" && canCreate ? optimistic.filter((s) => s.state === "draft" && s.created_by !== athleteId && s.scheduled_date >= rangeFrom && s.scheduled_date <= rangeTo && !s.id.startsWith("modele-") && !s.id.startsWith("copie-")).length : 0;
   const noteHref = (note: CalendarNote) => calendarHref(basePath, query, { note: note.id });
 
   const sessionHref = (session: CalendarSession) => calendarHref(basePath, query, { session: session.id });
@@ -227,6 +231,8 @@ export function PlanningCalendar({
         paletteOpen={paletteOpen}
         extra={toolbarExtra}
         newNoteHref={canNote ? calendarHref(basePath, query, { note: "new" }) : null}
+        onPublishDrafts={draftsInRange ? () => setPublishOpen(true) : undefined}
+        drafts={draftsInRange}
       />
 
       {message ? (
@@ -254,6 +260,28 @@ export function PlanningCalendar({
         </div>
         {paletteOpen ? <TemplatePalette templates={templates} onClose={() => setPaletteOpen(false)} /> : null}
       </div>
+
+      <ConfirmDialog
+        open={publishOpen}
+        title={`Publier ${draftsInRange} brouillon${draftsInRange > 1 ? "s" : ""} ?`}
+        confirmLabel="Publier"
+        tone="primary"
+        pending={publishing}
+        onCancel={() => setPublishOpen(false)}
+        onConfirm={() =>
+          startPublishing(async () => {
+            const result = await publishDrafts(athleteId, rangeFrom, rangeTo);
+            setPublishOpen(false);
+            setMessage(
+              result.status === "ok"
+                ? { tone: "success", text: `${result.count} séance${result.count > 1 ? "s" : ""} publiée${result.count > 1 ? "s" : ""} : l’athlète ${result.count > 1 ? "les" : "la"} voit aussitôt.` }
+                : { tone: "error", text: result.message },
+            );
+          })
+        }
+      >
+        Les brouillons du {formatDayMonth(rangeFrom)} au {formatDayMonth(rangeTo)} deviennent visibles de l’athlète (et partent sur sa montre si elle est reliée).
+      </ConfirmDialog>
 
       {mode === "coach" ? (
         <CopyWeekDialog
@@ -284,6 +312,8 @@ function Toolbar({
   paletteOpen,
   extra,
   newNoteHref,
+  onPublishDrafts,
+  drafts,
 }: {
   basePath: string;
   query: CalendarQuery;
@@ -296,6 +326,8 @@ function Toolbar({
   paletteOpen: boolean;
   extra?: ReactNode;
   newNoteHref: string | null;
+  onPublishDrafts?: () => void;
+  drafts: number;
 }) {
   const navButton = "flex size-9 items-center justify-center rounded-[8px] border border-line-strong bg-surface text-ink-soft hover:bg-surface-2 hover:text-ink";
   const createDate = query.date >= today ? query.date : today;
@@ -348,6 +380,12 @@ function Toolbar({
             <CopyPlus aria-hidden />
             <span className="hidden sm:inline">Copier une semaine</span>
             <span className="sm:hidden">Copier</span>
+          </Button>
+        ) : null}
+        {onPublishDrafts ? (
+          <Button variant="secondary" onClick={onPublishDrafts}>
+            <Send aria-hidden />
+            Publier {drafts} brouillon{drafts > 1 ? "s" : ""}
           </Button>
         ) : null}
         {newNoteHref ? (

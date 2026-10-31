@@ -307,6 +307,32 @@ export async function copyWeek(
   return { status: "ok", count: data };
 }
 
+/**
+ * Publie d’un coup les brouillons du coach sur une période (après l’application d’un plan, par
+ * exemple) ; les brouillons personnels de l’athlète ne sont pas touchés.
+ */
+export async function publishDrafts(
+  athleteId: string,
+  from: string,
+  to: string,
+): Promise<{ status: "ok"; count: number } | { status: "error"; message: string }> {
+  if (!valid(uuid, athleteId) || !valid(isoDate, from) || !valid(isoDate, to) || from > to) return { status: "error", message: "Période invalide." };
+  const { supabase } = await sessionOrRedirect();
+  const { data, error } = await supabase
+    .from("planned_sessions")
+    .update({ state: "published" })
+    .eq("athlete_id", athleteId)
+    .eq("state", "draft")
+    .neq("created_by", athleteId)
+    .gte("scheduled_date", from)
+    .lte("scheduled_date", to)
+    .select("id");
+  if (error) return { status: "error", message: friendlyError(error, "La publication a échoué.") };
+  if (data?.length) await kickDeviceSync();
+  refresh();
+  return { status: "ok", count: data?.length ?? 0 };
+}
+
 export async function deleteSession(sessionId: string): Promise<{ status: "ok" } | { status: "error"; message: string }> {
   if (!valid(uuid, sessionId)) return { status: "error", message: "Séance invalide." };
   const { supabase } = await sessionOrRedirect();
