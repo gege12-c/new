@@ -14,6 +14,7 @@ import { createHash } from "node:crypto";
 import { decryptSecret, encryptSecret } from "@/lib/crypto/secret-box";
 import { addDays } from "@/lib/planning/dates";
 import type { AdminClient } from "@/lib/supabase/admin";
+import { missingColumn } from "@/lib/supabase/schema";
 import type { Json } from "@/lib/supabase/database.types";
 import { currentThresholds, toAthleteThresholds, type ThresholdRow } from "@/lib/thresholds";
 import { localDate } from "@/lib/utils";
@@ -291,17 +292,23 @@ const sessionUrl = (deps: SuuntoDeps, sessionId: string, date: string) =>
 async function desiredGuides(deps: SuuntoDeps, athleteId: string): Promise<Map<string, Desired>> {
   const { data: profile } = await deps.admin.from("profiles").select("timezone").eq("id", athleteId).maybeSingle();
   const today = localDate(profile?.timezone ?? "Europe/Paris", deps.now());
-  const [sessions, thresholds] = await Promise.all([
-    deps.admin
+  // Seulement les séances de TriCoach : celles reprises d'intervals.icu partent déjà par intervals.icu.
+  const published = (onlyOwn: boolean) => {
+    const query = deps.admin
       .from("planned_sessions")
       .select("id, scheduled_date, title, description, nutrition_notes, content, version")
       .eq("athlete_id", athleteId)
       .eq("state", "published")
       .gte("scheduled_date", today)
-      .lte("scheduled_date", addDays(today, GUIDE_WINDOW_DAYS - 1))
-      .order("scheduled_date"),
+      .lte("scheduled_date", addDays(today, GUIDE_WINDOW_DAYS - 1));
+    return (onlyOwn ? query.eq("source", "tricoach") : query).order("scheduled_date");
+  };
+  const [own, thresholds] = await Promise.all([
+    published(true),
     deps.admin.from("athlete_thresholds").select("sport, metric, value, effective_from").eq("athlete_id", athleteId),
   ]);
+  // Base pas encore à jour (pas de séances reprises d'intervals.icu) : toutes sont de TriCoach.
+  const sessions = own.error && missingColumn(own.error) ? await published(false) : own;
   if (sessions.error) throw new Error(`Séances illisibles : ${sessions.error.message}`);
   if (thresholds.error) throw new Error(`Seuils illisibles : ${thresholds.error.message}`);
 

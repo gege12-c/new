@@ -6,6 +6,7 @@ describe("messages d'erreur", () => {
   it("traduit les codes métier de la base", () => {
     expect(friendlyError({ message: "invitation_expired", code: "22023" })).toMatch(/expiré/);
     expect(friendlyError({ message: "athlete_can_only_reschedule" })).toMatch(/déplacer/);
+    expect(friendlyError({ message: "imported_session_read_only", code: "42501" })).toMatch(/intervals\.icu/);
   });
 
   it("explique un envoi d'email impossible", () => {

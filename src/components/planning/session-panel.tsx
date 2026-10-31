@@ -50,8 +50,8 @@ const STATUS_TONE: Record<string, string> = {
 const historyTime = (iso: string, timeZone: string) =>
   new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone }).format(new Date(iso));
 
-function describeEntry(entry: HistoryEntry): string {
-  if (entry.action === "insert") return "a créé la séance";
+function describeEntry(entry: HistoryEntry, imported = false): string {
+  if (entry.action === "insert") return imported && entry.system ? "a transmis la séance" : "a créé la séance";
   if (entry.action === "delete") return "a supprimé la séance";
   const changes = entry.changes as Record<string, unknown>;
   if ("state" in changes && Array.isArray(changes.state)) {
@@ -107,11 +107,14 @@ export async function SessionPanel({
     );
   }
   const exportable = detail.state !== "cancelled";
+  // Séance prévue dans intervals.icu : en lecture seule ici, et déjà sur la montre par intervals.icu.
+  const imported = detail.source === "intervals";
   // Contenu normalisé (valeurs par défaut du format) : c'est lui que le téléchargement convertit.
   const parsedContent = exportable ? parseWorkout(detail.content) : null;
   // Envoi automatique sur la montre : relais intervals.icu, et Suunto en direct quand le site en a l'accès.
   const suuntoDirect = isSuuntoReady();
-  const watchProviders: DeviceProvider[] = parsedContent?.success ? [...(isIntervalsReady() ? (["intervals"] as const) : []), ...(suuntoDirect ? (["suunto"] as const) : [])] : [];
+  const watchProviders: DeviceProvider[] =
+    parsedContent?.success && !imported ? [...(isIntervalsReady() ? (["intervals"] as const) : []), ...(suuntoDirect ? (["suunto"] as const) : [])] : [];
   const [comments, history, realization, exportHistory, thresholdsOnDate, shared, deliveries, dayNotes] = await Promise.all([
     getSessionComments(supabase, sessionId),
     getSessionHistory(supabase, sessionId),
@@ -156,6 +159,7 @@ export async function SessionPanel({
               {STATUS_LABELS[status]}
             </span>
             {detail.pending ? <span className="rounded-[6px] bg-warning-soft px-2 py-[3px] text-[12px] font-semibold text-warning">Modifications non publiées</span> : null}
+            {imported ? <span className="rounded-[6px] bg-surface-3 px-2 py-[3px] text-[12px] font-semibold text-ink-soft">intervals.icu</span> : null}
           </div>
           <h2 className="display mt-3 text-[26px]">{detail.title}</h2>
           <p className="mt-1 text-[14px] text-ink-soft first-letter:uppercase">
@@ -194,16 +198,32 @@ export async function SessionPanel({
           </dl>
         </div>
 
-        <PanelActions
-          sessionId={detail.id}
-          date={detail.scheduled_date}
-          state={detail.state}
-          pending={detail.pending}
-          editHref={editHref && (canPlan || ownSession) ? editHref : null}
-          closeHref={closeHref}
-          canPlan={canPlan}
-          canMove={canMove}
-        />
+        {imported ? (
+          <Notice>
+            <p>
+              {viewer === "athlete" ? "Séance prévue dans votre calendrier intervals.icu" : "Séance prévue dans le calendrier intervals.icu de l’athlète"} : elle se modifie
+              là-bas, TriCoach suit à chaque réception.
+            </p>
+            {detail.import_notes?.length ? (
+              <ul className="mt-1.5 list-disc space-y-0.5 pl-5 text-[13px]">
+                {detail.import_notes.map((note) => (
+                  <li key={note}>{note}</li>
+                ))}
+              </ul>
+            ) : null}
+          </Notice>
+        ) : (
+          <PanelActions
+            sessionId={detail.id}
+            date={detail.scheduled_date}
+            state={detail.state}
+            pending={detail.pending}
+            editHref={editHref && (canPlan || ownSession) ? editHref : null}
+            closeHref={closeHref}
+            canPlan={canPlan}
+            canMove={canMove}
+          />
+        )}
 
         <section aria-labelledby="prescription-title">
           <h3 id="prescription-title" className="heading text-[16px]">
@@ -217,7 +237,7 @@ export async function SessionPanel({
         {detail.description ? (
           <section aria-labelledby="notes-title">
             <h3 id="notes-title" className="heading text-[16px]">
-              Consignes
+              {imported ? "Description dans intervals.icu" : "Consignes"}
             </h3>
             <p className="mt-2 whitespace-pre-line text-[14px] leading-relaxed text-ink-soft">{detail.description}</p>
           </section>
@@ -246,6 +266,7 @@ export async function SessionPanel({
             sports={parsedContent.data.segments.map((segment) => segment.sport)}
             timeZone={timeZone}
             suuntoDirect={suuntoDirect}
+            fromIntervals={imported}
             watchAuto={
               watchProviders.length
                 ? {
@@ -329,7 +350,8 @@ export async function SessionPanel({
             <ol className="space-y-2 border-t border-line px-3 py-3">
               {history.map((entry) => (
                 <li key={entry.id} className="text-[13px] leading-snug">
-                  <span className="font-semibold text-ink">{entry.actor_name}</span> <span className="text-ink-soft">{describeEntry(entry)}</span>
+                  <span className="font-semibold text-ink">{imported && entry.system ? "intervals.icu" : entry.actor_name}</span>{" "}
+                  <span className="text-ink-soft">{describeEntry(entry, imported)}</span>
                   <span className="block text-[12px] text-muted">{historyTime(entry.occurred_at, timeZone)}</span>
                 </li>
               ))}

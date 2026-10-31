@@ -18,6 +18,7 @@ const DB_MESSAGES: Record<string, string> = {
   invalid_permissions: "Permissions invalides.",
   invalid_timezone: "Fuseau horaire inconnu.",
   athlete_can_only_reschedule: "Vous pouvez déplacer cette séance, mais seul votre coach peut en modifier le contenu.",
+  imported_session_read_only: "Cette séance vient du calendrier intervals.icu : elle se modifie là-bas, TriCoach suit.",
   immutable_field: "Ce champ ne peut pas être modifié.",
   session_not_found: "Cette séance n’existe plus ou ne vous est plus accessible.",
   session_not_editable: "Vous n’avez pas le droit de modifier cette séance.",

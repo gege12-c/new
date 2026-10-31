@@ -289,6 +289,7 @@ export function PlanningCalendar({
           onClose={() => setCopyOpen(false)}
           athleteId={athleteId}
           sourceMonday={startOfWeek(query.date)}
+          withImported={sessions.some((s) => s.source === "intervals" && startOfWeek(s.scheduled_date) === startOfWeek(query.date))}
           onDone={(text, tone) => setMessage({ text, tone })}
         />
       ) : null}
@@ -821,12 +822,15 @@ function CopyWeekDialog({
   onClose,
   athleteId,
   sourceMonday,
+  withImported,
   onDone,
 }: {
   open: boolean;
   onClose: () => void;
   athleteId: string;
   sourceMonday: ISODate;
+  /** La semaine compte des séances d’intervals.icu : elles ne sont pas copiées (elles se copient là-bas). */
+  withImported: boolean;
   onDone: (text: string, tone: "success" | "error") => void;
 }) {
   const [target, setTarget] = useState(addDays(sourceMonday, 7));
@@ -847,7 +851,9 @@ function CopyWeekDialog({
               onDone(
                 result.count
                   ? `${result.count} séance${result.count > 1 ? "s" : ""} copiée${result.count > 1 ? "s" : ""} vers la semaine du ${formatWeekRange(targetMonday)}${asDraft ? ", en brouillon" : ""}.`
-                  : "Aucune séance à copier dans cette semaine.",
+                  : withImported
+                    ? "Aucune séance de TriCoach à copier dans cette semaine : celles d’intervals.icu se copient là-bas."
+                    : "Aucune séance à copier dans cette semaine.",
                 "success",
               );
             } else {
@@ -858,8 +864,8 @@ function CopyWeekDialog({
         className="space-y-4"
       >
         <p className="text-[14px] text-ink-soft">
-          Toutes les séances de la semaine du <span className="font-semibold text-ink">{formatWeekRange(sourceMonday)}</span>, sauf les annulées, sont
-          recopiées jour pour jour.
+          Toutes les séances de la semaine du <span className="font-semibold text-ink">{formatWeekRange(sourceMonday)}</span>, sauf les annulées
+          {withImported ? " et celles d’intervals.icu (elles se copient là-bas)" : ""}, sont recopiées jour pour jour.
         </p>
         <div className="space-y-1.5">
           <label htmlFor="copy-target" className="block text-[13px] font-semibold text-ink-soft">

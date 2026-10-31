@@ -81,7 +81,10 @@ interface ChipProps {
 }
 
 /** Séance dans le calendrier : filet de discipline, titre, durée et forme de l’effort. */
-export function SessionChip({ session, href, today, thresholds, size = "regular", draggable = false, selected = false, onDragStart, onDragEnd }: ChipProps) {
+export function SessionChip({ session, href, today, thresholds, size = "regular", draggable: canDrag = false, selected = false, onDragStart, onDragEnd }: ChipProps) {
+  // Séance prévue dans intervals.icu : elle se déplace là-bas, pas ici.
+  const imported = session.source === "intervals";
+  const draggable = canDrag && !imported;
   const status = sessionStatus(session, today);
   const Icon = SPORT_ICONS[session.sport];
   const duration = durationLabel(session);
@@ -96,7 +99,7 @@ export function SessionChip({ session, href, today, thresholds, size = "regular"
       onDragStart={(event) => onDragStart?.(event, session)}
       onDragEnd={onDragEnd}
       aria-current={selected ? "true" : undefined}
-      aria-label={`${session.title}, ${STATUS_LABELS[status].toLowerCase()}${duration ? `, ${duration}` : ""}`}
+      aria-label={`${session.title}, ${STATUS_LABELS[status].toLowerCase()}${duration ? `, ${duration}` : ""}${imported ? ", prévue dans intervals.icu" : ""}`}
       className={cn(
         "group relative block overflow-hidden rounded-[8px] border bg-surface pl-[11px] text-left transition-[box-shadow,border-color] before:absolute before:inset-y-0 before:left-0 before:w-[4px]",
         SPORT_EDGE[session.sport],
@@ -119,6 +122,11 @@ export function SessionChip({ session, href, today, thresholds, size = "regular"
           {session.title}
         </span>
         {session.pending ? <span title="Modifications non publiées" className="mt-1 size-1.5 shrink-0 rounded-full bg-warning" /> : null}
+        {imported && size !== "compact" ? (
+          <span title="Prévue dans intervals.icu" className="mt-[1px] shrink-0 rounded-[4px] bg-surface-3 px-1 text-[10.5px] font-semibold leading-[16px] text-muted">
+            icu
+          </span>
+        ) : null}
         <StatusGlyph status={status} className={size === "compact" ? "mt-[1px]" : "mt-[2px]"} />
       </span>
       {size === "compact" ? (

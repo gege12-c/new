@@ -167,6 +167,22 @@ export class IntervalsApi {
     return new Map(rows.data.filter((e) => e.external_id).map((e) => [e.external_id!, e.id]));
   }
 
+  /**
+   * Séances prévues du calendrier entre deux dates locales (incluses), avec leur déroulé lu par
+   * intervals.icu (`workout_doc`) et les cibles aussi en valeurs absolues (`resolve=true`).
+   * Spécification OpenAPI d'intervals.icu (listEvents).
+   */
+  async plannedWorkouts(key: IntervalsAuth, oldest: string, newest: string): Promise<unknown[]> {
+    const body = await this.call(
+      key,
+      `/athlete/0/events?oldest=${encodeURIComponent(oldest)}&newest=${encodeURIComponent(newest)}&category=WORKOUT&resolve=true`,
+      {},
+      "Lecture des séances prévues",
+    );
+    if (!Array.isArray(body)) throw new IntervalsError("invalid_response", "Calendrier d'intervals.icu illisible.");
+    return body;
+  }
+
   /** Activités faites entre deux dates locales (incluses), telles qu'intervals.icu les résume. */
   async activities(key: IntervalsAuth, oldest: string, newest: string): Promise<unknown[]> {
     const body = await this.call(

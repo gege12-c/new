@@ -21,6 +21,10 @@ export interface CalendarSession {
   pending: boolean;
   /** Réalisé visible de l’utilisateur (les activités Strava ne le sont que de l’athlète). */
   realization?: SessionRealization;
+  /** « intervals » : séance prévue dans le calendrier intervals.icu, reprise en lecture seule. */
+  source?: "tricoach" | "intervals";
+  /** Ce qui n’a pas pu être repris tel quel du déroulé d’intervals.icu. */
+  import_notes?: string[] | null;
 }
 
 /** Activité réalisée, telle que l’utilisateur peut la voir. */
@@ -102,6 +106,8 @@ export interface HistoryEntry {
   occurred_at: string;
   action: "insert" | "update" | "delete";
   actor_name: string;
+  /** Écrite par le serveur (réception d’intervals.icu, tâche de fond), sans personne derrière. */
+  system: boolean;
   fields: string[];
   changes: Record<string, unknown>;
 }

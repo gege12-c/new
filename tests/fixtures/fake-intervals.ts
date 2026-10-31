@@ -5,7 +5,8 @@
  * réduites à une note, comme le fait intervals.icu), courbes et intervalles d'une activité (champs
  * `_streams` et `_intervals` de l'activité de test), réglages par sport (seuils) lus et modifiés,
  * connexion par « Autoriser » (page d'autorisation, échange du code avec PKCE, jeton « Bearer »,
- * retrait de l'autorisation), quota (429). Données entièrement fictives.
+ * retrait de l'autorisation), quota (429), séances prévues par le coach dans le calendrier (lues
+ * avec leur `workout_doc`, comme `GET /events?category=WORKOUT&resolve=true`). Données entièrement fictives.
  */
 import { createHash, randomBytes } from "node:crypto";
 import { createServer, type IncomingMessage, type Server } from "node:http";
@@ -47,6 +48,8 @@ export class FakeIntervals {
   readonly sportSettings = new Map<string, Record<string, unknown>[]>();
   /** Simule un intervals.icu qui remplacerait tout le réglage par le corps reçu (filet de sécurité). */
   replaceWholeSettings = false;
+  /** Séances prévues dans le calendrier par le coach (ou l'athlète), hors TriCoach, par athlète. */
+  readonly planned = new Map<string, Record<string, unknown>[]>();
   private counter = 1000;
 
   /** Réglages de l'athlète ; par défaut : FTP 230 W, FC seuil 176, FC max 195, 5:15 /km, CSS 1:40 /100 m. */
@@ -63,6 +66,14 @@ export class FakeIntervals {
 
   addActivity(athlete: string, activity: Record<string, unknown>) {
     this.activities.set(athlete, [...(this.activities.get(athlete) ?? []), activity]);
+  }
+
+  addPlanned(athlete: string, event: Record<string, unknown>) {
+    this.planned.set(athlete, [...(this.planned.get(athlete) ?? []).filter((e) => e.id !== event.id), event]);
+  }
+
+  removePlanned(athlete: string, id: number) {
+    this.planned.set(athlete, (this.planned.get(athlete) ?? []).filter((e) => e.id !== id));
   }
 
   removeActivity(athlete: string, id: string) {
@@ -165,6 +176,25 @@ export class FakeIntervals {
       return this.json(200, (this.wellness.get(athlete) ?? []).filter((w) => String(w.id) >= oldest && String(w.id) <= newest));
     }
 
+    // Calendrier : séances déposées par TriCoach et séances prévues par le coach, par date locale et catégorie.
+    if (url.pathname === "/api/v1/athlete/0/events" && method === "GET") {
+      const oldest = url.searchParams.get("oldest") ?? "";
+      const newest = url.searchParams.get("newest") ?? "9999";
+      const categories = (url.searchParams.get("category") ?? "").split(",").filter(Boolean);
+      const ours = this.eventsOf(athlete).map(({ athlete: _owner, updated, ...event }) => {
+        void _owner;
+        return { ...event, updated: new Date(updated).toISOString() } as Record<string, unknown>;
+      });
+      const all = [...ours, ...(this.planned.get(athlete) ?? [])];
+      return this.json(
+        200,
+        all.filter((e) => {
+          const day = String(e.start_date_local ?? "").slice(0, 10);
+          return day >= oldest && day <= newest && (!categories.length || categories.includes(String(e.category ?? "")));
+        }),
+      );
+    }
+
     if (url.pathname === "/api/v1/athlete/0/events/bulk" && method === "POST" && url.searchParams.get("upsert") === "true") {
       if (!Array.isArray(body)) return this.json(400, { error: "Expected an array" });
       for (const event of body) {
@@ -242,6 +272,7 @@ export class FakeIntervals {
           if (url.pathname === "/__control/authorize") this.authorizeAs = payload.athlete ?? null;
           if (url.pathname === "/__control/key") this.addKey(payload.key, payload.athlete);
           if (url.pathname === "/__control/activity") this.addActivity(payload.athlete, payload.activity);
+          if (url.pathname === "/__control/planned") this.addPlanned(payload.athlete, payload.event);
           const events = payload.athlete ? this.eventsOf(payload.athlete) : [];
           const settings = payload.athlete ? this.settingsOf(payload.athlete) : [];
           res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ ok: true, events, settings }));

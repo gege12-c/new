@@ -106,6 +106,29 @@ test("relier sa montre par intervals.icu : la séance publiée part, l'activité
   await panel.getByRole("button", { name: "Relier intervals.icu" }).click();
   await expect(panel.getByText(/intervals\.icu refuse cette clé/)).toBeVisible();
 
+  // Une séance prévue par le coach dans le calendrier intervals.icu, hors de TriCoach.
+  const coachDate = addDays(isoDay(0), 1);
+  const coachTitle = `Coach sweet spot ${Date.now()}`;
+  await control("planned", {
+    athlete: intervalsAthlete,
+    event: {
+      id: Math.floor(Math.random() * 1e8),
+      category: "WORKOUT",
+      start_date_local: `${coachDate}T00:00:00`,
+      type: "Ride",
+      name: coachTitle,
+      description: "- 15m 55-70%\n2x\n- 12m 88-93%\n- 4m 55%\n- 10m 50%",
+      moving_time: 3420,
+      workout_doc: {
+        steps: [
+          { duration: 900, warmup: true, power: { start: 55, end: 70, units: "%ftp" } },
+          { reps: 2, steps: [{ duration: 720, power: { start: 88, end: 93, units: "%ftp" } }, { duration: 240, power: { value: 55, units: "%ftp" } }] },
+          { duration: 600, cooldown: true, power: { value: 50, units: "%ftp" } },
+        ],
+      },
+    },
+  });
+
   // Clé valable : vérifiée, gardée chiffrée, puis les séances à venir partent seules.
   await control("key", { key, athlete: intervalsAthlete });
   await panel.getByLabel("Clé API intervals.icu").fill(key);
@@ -145,6 +168,17 @@ test("relier sa montre par intervals.icu : la séance publiée part, l'activité
   await expect(watch.getByText(/Déposée dans votre calendrier intervals\.icu/)).toBeVisible();
   await expect(watch.getByText(/séance complète, sans perte/i)).toBeVisible();
 
+  // La séance du coach est reprise dans le calendrier, en lecture seule ; elle n'est pas renvoyée à intervals.icu.
+  expect((await control("list", { athlete: intervalsAthlete })).events.map((e) => e.name)).not.toContain(coachTitle);
+  await page.goto(`/athlete/calendar?view=day&date=${coachDate}`);
+  const coachChip = page.getByRole("link", { name: new RegExp(`^${coachTitle}.*prévue dans intervals\\.icu`) });
+  await expect(coachChip).toBeVisible();
+  await coachChip.click();
+  await expect(page.getByText(/Séance prévue dans votre calendrier intervals\.icu : elle se modifie\s+là-bas/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Déplacer" })).toHaveCount(0);
+  await expect(page.locator('[data-export-provider="watch"]')).toContainText("par intervals.icu");
+  await expect(page.getByRole("heading", { name: "Prescription" })).toBeVisible();
+
   // L'activité faite avec la montre est revenue, rattachée à la séance d'hier.
   await page.goto(`/athlete/calendar?view=day&date=${yesterday}&session=${pastId}`);
   await expect(page.getByText("Montre, via intervals.icu").first()).toBeVisible();
@@ -183,6 +217,9 @@ test("relier sa montre par intervals.icu : la séance publiée part, l'activité
   expect((await control("list", { athlete: intervalsAthlete })).events).toEqual([]);
   await page.reload();
   await expect(panel.getByText("Non relié", { exact: true })).toBeVisible();
+  // La séance à venir reprise d'intervals.icu quitte aussi le calendrier de TriCoach.
+  await page.goto(`/athlete/calendar?view=day&date=${coachDate}`);
+  await expect(page.getByRole("link", { name: new RegExp(`^${coachTitle}`) })).toHaveCount(0);
   await page.context().close();
 });
 

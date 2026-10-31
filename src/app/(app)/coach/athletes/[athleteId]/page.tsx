@@ -86,7 +86,9 @@ async function CoachAthleteCalendar({ params, searchParams }: PageProps<"/coach/
         toolbarExtra={
           <>
             <PlanningLive athleteId={athleteId} strava={ctx.link.share_strava} className="order-first w-full sm:order-none sm:w-auto" />
-            {ctx.canPlan ? <SavePlanButton athleteId={athleteId} monday={startOfWeek(query.date)} /> : null}
+            {ctx.canPlan ? (
+              <SavePlanButton athleteId={athleteId} monday={startOfWeek(query.date)} withImported={sessions.some((s) => s.source === "intervals")} />
+            ) : null}
           </>
         }
       />

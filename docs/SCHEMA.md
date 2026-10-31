@@ -253,6 +253,25 @@ Migration `20261031000000_intervals_activities.sql`.
 | `private.rematch_window` | ignore désormais les doublons |
 | `schema_version()` | dernière migration inscrite dans l'historique Supabase, lisible sans compte : le contrôle de production (`/api/health`) dit si la base attend sa mise à jour |
 
+### Séances prévues dans intervals.icu
+
+Migration `20261031100000_intervals_planned.sql`. Fonctionnement : [WATCHES.md](WATCHES.md#séances-prévues-dans-intervalsicu).
+
+| Colonne | Rôle | Points clés |
+| --- | --- | --- |
+| `planned_sessions.source` | `tricoach` (planifiée dans TriCoach) ou `intervals` (reprise du calendrier intervals.icu) | `intervals` : écrite par le serveur seul, en lecture seule pour l'athlète comme pour ses coachs |
+| `planned_sessions.external_id` | identifiant de la séance chez intervals.icu | obligatoire pour `intervals`, nul pour `tricoach` (contrainte `planned_sessions_external_rules`) ; unique par athlète et source (index `planned_sessions_external`) ; ni `source` ni `external_id` ne changent ensuite |
+| `planned_sessions.external_updated_at` | dernière modification connue chez intervals.icu | la séance n'est réécrite que si quelque chose a changé |
+| `planned_sessions.import_notes` | ce qui n'a pas pu être repris tel quel du déroulé (20 au plus) | montré dans la fiche de la séance, jamais deviné |
+
+| Règle ou fonction | Changement |
+| --- | --- |
+| `private.guard_planned_session` | une séance `intervals` ne s'ajoute ni ne se modifie que par le serveur (`imported_session_read_only` pour un utilisateur) ; `source` et `external_id` immuables |
+| politique `planned_sessions_delete` | séances `tricoach` seulement : une séance d'intervals.icu disparaît quand elle est retirée là-bas (ou quand l'athlète délie intervals.icu, pour celles à venir) ; la suppression du compte passe par la cascade |
+| `duplicate_planned_session` | refuse une séance `intervals` (`imported_session_read_only`) |
+| `copy_planned_week`, `save_training_plan` | ne reprennent que les séances `tricoach` |
+| `private.notify_session_change`, `private.device_session_changed` | rien pour une séance `intervals` : ni notification de TriCoach, ni envoi vers la montre (intervals.icu s'en charge) |
+
 ### Courbes des activités
 
 Migration `20261031050000_activity_streams.sql`.

@@ -168,6 +168,7 @@ export function ExportSection({
   timeZone,
   watchAuto,
   suuntoDirect,
+  fromIntervals = false,
 }: {
   sessionId: string;
   version: number;
@@ -186,6 +187,8 @@ export function ExportSection({
   watchAuto: WatchAuto | null;
   /** Le site a l'accès partenaire de Suunto (envoi direct possible). */
   suuntoDirect: boolean;
+  /** Séance prévue dans intervals.icu : elle part sur la montre par intervals.icu, pas par TriCoach. */
+  fromIntervals?: boolean;
 }) {
   const router = useRouter();
   const [downloads, setDownloads] = useState<Record<string, Download>>({});
@@ -367,7 +370,17 @@ export function ExportSection({
       <h3 id="export-title" className="heading text-[16px]">
         Exporter vers mes appareils
       </h3>
-      {watchAuto ? (
+      {fromIntervals ? (
+        <div className="mt-2 rounded-[12px] border border-line p-3" data-export-provider="watch">
+          <p className="text-[14px] font-semibold text-ink">
+            Sur la montre <span className="font-normal text-muted">· par intervals.icu</span>
+          </p>
+          <p className="mt-1 text-[13px] leading-snug text-ink-soft">
+            Prévue dans intervals.icu : elle part sur la montre par intervals.icu, comme les autres séances de son calendrier (quand la montre y est reliée). TriCoach ne
+            l’envoie pas une seconde fois.
+          </p>
+        </div>
+      ) : watchAuto ? (
         <div className="mt-2 rounded-[12px] border border-line p-3" data-export-provider="watch">
           <p className="text-[14px] font-semibold text-ink">
             Sur la montre <span className="font-normal text-muted">· envoi automatique (Suunto, Garmin, COROS{hasBike ? ", Wahoo" : ""})</span>
@@ -389,8 +402,8 @@ export function ExportSection({
           )}
         </div>
       ) : null}
-      {watchAuto ? (
-        <details className="group/others mt-2" open={!autoActive || undefined} data-other-exports>
+      {watchAuto || fromIntervals ? (
+        <details className="group/others mt-2" open={(!autoActive && !fromIntervals) || undefined} data-other-exports>
           <summary className="flex cursor-pointer list-none gap-1.5 rounded-[10px] py-1.5 [&::-webkit-details-marker]:hidden">
             <ChevronDown aria-hidden className="mt-[3px] size-4 shrink-0 -rotate-90 text-muted transition-transform group-open/others:rotate-0" />
             <span className="min-w-0">

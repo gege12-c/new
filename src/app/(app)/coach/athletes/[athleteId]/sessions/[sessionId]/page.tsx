@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
 import { z } from "zod";
 import { SessionEditor } from "@/components/editor/session-editor";
@@ -26,6 +26,8 @@ async function EditSession({ params }: Pick<PageProps<"/coach/athletes/[athleteI
   const ctx = await loadCoachedAthlete(athleteId, `${basePath}/sessions/${sessionId}`);
   const detail = await getSessionDetail(ctx.supabase, sessionId, { withDraft: true });
   if (!detail || detail.athlete_id !== athleteId) notFound();
+  // Séance prévue dans intervals.icu : elle se modifie là-bas ; son détail est dans le calendrier.
+  if (detail.source === "intervals") redirect(calendarHref(basePath, { view: "day", date: detail.scheduled_date, session: detail.id }));
 
   const source = detail.draft?.payload ?? detail.snapshot;
   const thresholds = await getThresholdsOn(ctx.supabase, athleteId, source.scheduled_date);

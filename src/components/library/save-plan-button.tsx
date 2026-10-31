@@ -10,7 +10,7 @@ import { Field, Input, Select, Textarea } from "@/components/ui/field";
 import { formatWeekRange } from "@/lib/planning/dates";
 
 /** « Enregistrer en plan » : les semaines affichées du calendrier d’un athlète deviennent un plan réutilisable. */
-export function SavePlanButton({ athleteId, monday }: { athleteId: string; monday: string }) {
+export function SavePlanButton({ athleteId, monday, withImported = false }: { athleteId: string; monday: string; withImported?: boolean }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [weeks, setWeeks] = useState("4");
@@ -40,8 +40,8 @@ export function SavePlanButton({ athleteId, monday }: { athleteId: string; monda
           }}
         >
           <p className="text-[14px] text-ink-soft">
-            Les séances à partir de la semaine du {formatWeekRange(monday)} (publiées et brouillons, sans les séances annulées) deviennent un plan, à
-            appliquer ensuite à n’importe quel athlète depuis la bibliothèque.
+            Les séances à partir de la semaine du {formatWeekRange(monday)} (publiées et brouillons, sans les séances annulées
+            {withImported ? " ni celles d’intervals.icu" : ""}) deviennent un plan, à appliquer ensuite à n’importe quel athlète depuis la bibliothèque.
           </p>
           <Field label="Nom du plan" htmlFor="plan-name">
             <Input id="plan-name" required maxLength={120} value={name} onChange={(e) => setName(e.target.value)} placeholder="Bloc seuil, 4 semaines" />

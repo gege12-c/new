@@ -30,11 +30,13 @@ import type { Json } from "@/lib/supabase/database.types";
 import { currentThresholds, toAthleteThresholds, type ThresholdRow } from "@/lib/thresholds";
 import { localDate } from "@/lib/utils";
 import { missingColumn } from "@/lib/supabase/schema";
+import { computeTotals } from "@/lib/workout/compute";
 import { parseWorkout } from "@/lib/workout/schema";
 import { IntervalsApi, IntervalsError, type IntervalsAuth, type IntervalsEvent } from "./api";
 import { alignmentUpdates, appliedAsSent, compareThresholds, type SyncedThresholdKey, type ThresholdComparison } from "./thresholds";
 import { detailsUpToDate, INTERVALS_STREAM_TYPES, intervalsLaps, intervalsStreams, powerBests, reduceStreams, streamMetrics } from "@/lib/activities/streams";
 import { INTERVALS_FULL_HISTORY_DAYS, INTERVALS_HISTORY_DAYS, INTERVALS_RECENT_DAYS, normalizeIntervalsActivity, sameActivity } from "./activities";
+import { normalizePlannedEvent, PLANNED_FUTURE_DAYS, PLANNED_PAST_DAYS, type PlannedFields } from "./planned";
 import { missingMeasures, morningMeasures, WELLNESS_RECENT_DAYS, type MorningMeasures } from "./wellness";
 import { buildIntervalsEvents, intervalsExternalId, INTERVALS_FORMAT_VERSION, INTERVALS_WINDOW_DAYS, type IntervalsBuild } from "./workout";
 
@@ -215,6 +217,15 @@ export async function disconnectIntervals(deps: IntervalsDeps, athleteId: string
   await withKey(deps, connection, async (auth) => (typeof auth === "string" ? undefined : deps.api.disconnectApp(auth)), true).catch(() => undefined);
   // Cascade : clé et état des envois.
   await deps.admin.from("external_connections").delete().eq("id", connection.id);
+  // Séances reprises de son calendrier : celles à venir ne sont plus suivies, elles partent ; les passées
+  // restent (prévu contre réalisé). Base pas encore à jour : rien à retirer.
+  const { error: plannedError } = await deps.admin
+    .from("planned_sessions")
+    .delete()
+    .eq("athlete_id", athleteId)
+    .eq("source", "intervals")
+    .gte("scheduled_date", await todayOf(deps, athleteId));
+  if (plannedError && !missingColumn(plannedError)) throw new Error(`Séances reprises non retirées : ${plannedError.message}`);
   await deps.admin.from("sync_jobs").delete().eq("athlete_id", athleteId).eq("kind", "intervals_sync").in("status", ["pending", "failed"]);
   await log(deps, { level: "info", event: removed ? "intervals_disconnected" : "intervals_disconnected_events_left", athleteId });
   return { removed };
@@ -349,17 +360,23 @@ async function todayOf(deps: IntervalsDeps, athleteId: string) {
 }
 
 async function desiredEvents(deps: IntervalsDeps, athleteId: string, today: string): Promise<Map<string, Desired>> {
-  const [sessions, thresholds] = await Promise.all([
-    deps.admin
+  // Seulement les séances de TriCoach : celles reprises d'intervals.icu y sont déjà.
+  const published = (onlyOwn: boolean) => {
+    const query = deps.admin
       .from("planned_sessions")
       .select("id, scheduled_date, title, description, nutrition_notes, content, version")
       .eq("athlete_id", athleteId)
       .eq("state", "published")
       .gte("scheduled_date", today)
-      .lte("scheduled_date", addDays(today, INTERVALS_WINDOW_DAYS - 1))
-      .order("scheduled_date"),
+      .lte("scheduled_date", addDays(today, INTERVALS_WINDOW_DAYS - 1));
+    return (onlyOwn ? query.eq("source", "tricoach") : query).order("scheduled_date");
+  };
+  const [own, thresholds] = await Promise.all([
+    published(true),
     deps.admin.from("athlete_thresholds").select("sport, metric, value, effective_from").eq("athlete_id", athleteId),
   ]);
+  // Base pas encore à jour (pas de séances reprises d'intervals.icu) : toutes sont de TriCoach.
+  const sessions = own.error && missingColumn(own.error) ? await published(false) : own;
   if (sessions.error) throw new Error(`Séances illisibles : ${sessions.error.message}`);
   if (thresholds.error) throw new Error(`Seuils illisibles : ${thresholds.error.message}`);
 
@@ -407,6 +424,8 @@ export interface IntervalsSyncReport {
   wellness?: number;
   /** Activités dont les courbes ont été lues. */
   streams?: number;
+  /** Séances prévues dans intervals.icu, reprises (nouvelles ou modifiées) et retirées. */
+  planned?: { saved: number; removed: number };
 }
 
 /** Dépose les séances nouvelles ou modifiées, retire celles qui ne sont plus prévues. */
@@ -512,6 +531,7 @@ export async function syncIntervals(deps: IntervalsDeps, connection: DeviceConne
   if (stale.length) await deps.admin.from("device_workouts").delete().in("id", stale.map((r) => r.id));
 
   report.activities = await pullActivities(deps, connection, today);
+  report.planned = await pullPlannedWorkouts(deps, connection, today);
   report.wellness = await pullMorningMeasures(deps, connection, today);
   report.streams = await pullStreams(deps, connection, today);
 
@@ -572,6 +592,110 @@ async function pullMorningMeasures(deps: IntervalsDeps, connection: DeviceConnec
     if (markError) throw new Error(`État de la réception non enregistré : ${markError.message}`);
   }
   return written;
+}
+
+/** Même contenu JSON, quel que soit l'ordre des clés (la base range les clés à sa façon). */
+function sameJson(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (typeof a === "number" && typeof b === "number") return Math.abs(a - b) < 1e-9;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((value, i) => sameJson(value, b[i]));
+  }
+  if (a && b && typeof a === "object" && typeof b === "object") {
+    const left = Object.entries(a as Record<string, unknown>).filter(([, v]) => v !== undefined && v !== null);
+    const right = Object.entries(b as Record<string, unknown>).filter(([, v]) => v !== undefined && v !== null);
+    return left.length === right.length && left.every(([key, value]) => sameJson(value, (b as Record<string, unknown>)[key]));
+  }
+  return false;
+}
+
+const PLANNED_SELECT = "id, external_id, external_updated_at, scheduled_date, start_time, sport, title, description, content, planned_duration_s, planned_distance_m, import_notes";
+
+/**
+ * Séances prévues dans le calendrier intervals.icu (par le coach de l'athlète, ou par lui-même) :
+ * reprises en lecture seule, sur les 8 dernières et les 8 prochaines semaines. Une séance modifiée
+ * chez intervals.icu l'est ici, une séance retirée là-bas l'est aussi ; seules les séances nouvelles
+ * ou changées sont écrites (chaque écriture relance le rapprochement avec les activités).
+ */
+async function pullPlannedWorkouts(deps: IntervalsDeps, connection: DeviceConnection, today: string): Promise<{ saved: number; removed: number }> {
+  const oldest = addDays(today, -PLANNED_PAST_DAYS);
+  const newest = addDays(today, PLANNED_FUTURE_DAYS);
+  const [stored, thresholds] = await Promise.all([
+    deps.admin
+      .from("planned_sessions")
+      .select(PLANNED_SELECT)
+      .eq("athlete_id", connection.athlete_id)
+      .eq("source", "intervals")
+      .gte("scheduled_date", oldest)
+      .lte("scheduled_date", newest),
+    deps.admin.from("athlete_thresholds").select("sport, metric, value, effective_from").eq("athlete_id", connection.athlete_id),
+  ]);
+  // Base pas encore à jour : rien à reprendre pour l'instant.
+  if (stored.error && missingColumn(stored.error)) return { saved: 0, removed: 0 };
+  if (stored.error) throw new Error(`Séances reprises illisibles : ${stored.error.message}`);
+  if (thresholds.error) throw new Error(`Seuils illisibles : ${thresholds.error.message}`);
+
+  const listed = await withKey(deps, connection, (key) => deps.api.plannedWorkouts(key, oldest, newest));
+  const upstream = new Map<string, PlannedFields>();
+  for (const raw of listed) {
+    const outcome = normalizePlannedEvent(raw);
+    if (outcome.kind === "workout" && outcome.fields.scheduled_date >= oldest && outcome.fields.scheduled_date <= newest) upstream.set(outcome.fields.external_id, outcome.fields);
+  }
+
+  const rows = stored.data ?? [];
+  const storedByExternal = new Map(rows.map((row) => [row.external_id as string, row]));
+  const keep = (status: string) => status === "exact" || status === "estimated";
+  let saved = 0;
+  for (const fields of upstream.values()) {
+    // Durée et distance calculées par TriCoach avec les seuils de la date ; sinon celles d'intervals.icu.
+    const totals = computeTotals(fields.content, toAthleteThresholds(currentThresholds((thresholds.data ?? []) as ThresholdRow[], fields.scheduled_date)));
+    const values = {
+      external_updated_at: fields.external_updated_at,
+      scheduled_date: fields.scheduled_date,
+      start_time: fields.start_time,
+      sport: fields.sport,
+      title: fields.title,
+      description: fields.description,
+      content: fields.content as unknown as NonNullable<Json>,
+      planned_duration_s: keep(totals.duration.status) && totals.duration.value > 0 ? Math.round(totals.duration.value) : fields.moving_s,
+      planned_distance_m: keep(totals.distance.status) && totals.distance.value > 0 ? Math.round(totals.distance.value * 10) / 10 : fields.distance_m,
+      import_notes: fields.import_notes.length ? fields.import_notes : null,
+    };
+    const row = storedByExternal.get(fields.external_id);
+    if (!row) {
+      const { error } = await deps.admin
+        .from("planned_sessions")
+        .insert({ ...values, athlete_id: connection.athlete_id, source: "intervals", external_id: fields.external_id, state: "published" });
+      // Reprise en même temps par une autre réception : déjà là.
+      if (error && error.code !== "23505") throw new Error(`Séance d'intervals.icu non enregistrée : ${error.message}`);
+      if (!error) saved += 1;
+      continue;
+    }
+    const same =
+      row.scheduled_date === values.scheduled_date &&
+      (row.start_time ?? null)?.slice(0, 8) === (values.start_time ?? null)?.slice(0, 8) &&
+      row.sport === values.sport &&
+      row.title === values.title &&
+      (row.description ?? null) === values.description &&
+      (row.planned_duration_s ?? null) === (values.planned_duration_s ?? null) &&
+      (row.planned_distance_m === null ? null : Number(row.planned_distance_m)) === (values.planned_distance_m ?? null) &&
+      sameJson(row.import_notes ?? null, values.import_notes) &&
+      (row.external_updated_at === null ? null : Date.parse(row.external_updated_at)) === (values.external_updated_at === null ? null : Date.parse(values.external_updated_at)) &&
+      sameJson(row.content, fields.content);
+    if (same) continue;
+    const { error } = await deps.admin.from("planned_sessions").update(values).eq("id", row.id);
+    if (error) throw new Error(`Séance d'intervals.icu non mise à jour : ${error.message}`);
+    saved += 1;
+  }
+  const gone = rows.filter((row) => !upstream.has(row.external_id as string)).map((row) => row.id);
+  if (gone.length) {
+    const { error } = await deps.admin.from("planned_sessions").delete().in("id", gone);
+    if (error) throw new Error(`Séances retirées d'intervals.icu non effacées : ${error.message}`);
+  }
+  if (saved || gone.length) {
+    await log(deps, { level: "info", event: "intervals_planned", message: `${saved} séance(s) prévue(s) reprise(s), ${gone.length} retirée(s)`, athleteId: connection.athlete_id });
+  }
+  return { saved, removed: gone.length };
 }
 
 const ACTIVITY_SELECT =

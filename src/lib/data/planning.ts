@@ -10,12 +10,13 @@ import type { AthleteThresholds } from "@/lib/workout/zones";
 import { getThresholds } from "./athlete";
 
 const LIST_COLUMNS =
-  "id, athlete_id, scheduled_date, start_time, sport, title, objective, planned_duration_s, planned_distance_m, state, version, created_by, content";
+  "id, athlete_id, scheduled_date, start_time, sport, title, objective, planned_duration_s, planned_distance_m, state, version, created_by, content, source, import_notes";
 
 
-type ListRow = Omit<CalendarSession, "pending" | "planned_distance_m" | "content" | "sport" | "state"> & {
+type ListRow = Omit<CalendarSession, "pending" | "planned_distance_m" | "content" | "sport" | "state" | "source"> & {
   sport: string;
   state: string;
+  source?: string;
   content: unknown;
   planned_distance_m: number | string | null;
   pending?: { updated_at: string } | null;
@@ -35,6 +36,7 @@ function toCalendarSession(row: ListRow): CalendarSession {
     ...row,
     sport: row.sport as SessionSport,
     state: row.state as SessionState,
+    source: row.source === "intervals" ? "intervals" : "tricoach",
     content: normalizeContent(row.content),
     planned_distance_m: row.planned_distance_m === null ? null : Number(row.planned_distance_m),
     pending: Boolean(row.pending),
@@ -156,6 +158,7 @@ export async function getSessionHistory(supabase: ServerSupabase, sessionId: str
       occurred_at: entry.occurred_at,
       action: entry.action as HistoryEntry["action"],
       actor_name: entry.actor_id ? (names.get(entry.actor_id) ?? "Ancien coach") : "Système",
+      system: !entry.actor_id,
       fields: Object.keys(changes),
       changes,
     };
