@@ -37,7 +37,7 @@ Variables serveur des activités (phase 3), environnement **Production**, à sai
 
 Sans elles, Strava est affiché « non configuré » et seul l'import de fichiers FIT fonctionne. Après les avoir ajoutées, relancez un déploiement (Deployments, dernier déploiement, « Redeploy »).
 
-Séances sur la montre par intervals.icu ([docs/WATCHES.md](docs/WATCHES.md)) : aucune variable de plus, seulement `SUPABASE_SECRET_KEY` et `TOKEN_ENCRYPTION_KEY` ; chaque athlète colle sa propre clé intervals.icu dans son profil sportif. Envoi direct à Suunto, plus tard, après l'accord de Suunto : `SUUNTO_CLIENT_ID`, `SUUNTO_CLIENT_SECRET`, `SUUNTO_SUBSCRIPTION_KEY` et `SUUNTO_APP_NAME` (APIZone de Suunto).
+Séances sur la montre par intervals.icu ([docs/WATCHES.md](docs/WATCHES.md)) : `SUPABASE_SECRET_KEY` et `TOKEN_ENCRYPTION_KEY` suffisent, chaque athlète collant sa propre clé intervals.icu dans son profil sportif. Pour le bouton « Relier intervals.icu » (« Autoriser » chez intervals.icu, sans clé à copier, recommandé par intervals.icu dès plusieurs athlètes) : `INTERVALS_CLIENT_ID` et `INTERVALS_CLIENT_SECRET`, ceux de l'application TriCoach enregistrée chez intervals.icu (marche à suivre dans docs/WATCHES.md). Envoi direct à Suunto, plus tard, après l'accord de Suunto : `SUUNTO_CLIENT_ID`, `SUUNTO_CLIENT_SECRET`, `SUUNTO_SUBSCRIPTION_KEY` et `SUUNTO_APP_NAME` (APIZone de Suunto).
 
 Pour recréer le projet : importez le dépôt `gege12-c/new` sur [vercel.com](https://vercel.com), ajoutez les deux variables, puis vérifiez dans l'onglet Deployments qu'un déploiement a bien démarré (sans déploiement, l'adresse affiche « 404 DEPLOYMENT_NOT_FOUND »).
 
@@ -162,7 +162,7 @@ STRAVA_API_BASE_URL=http://127.0.0.1:4010/api/v3 STRAVA_OAUTH_BASE_URL=http://12
 TOKEN_ENCRYPTION_KEY="$(openssl rand -base64 32)" NEXT_PUBLIC_SITE_URL=http://localhost:3000 npm run dev
 ```
 
-et lancez `npm run test:e2e` avec `STRAVA_CLIENT_ID=4242` et `SUPABASE_SECRET_KEY` (le coach de test devient administrateur). Sans ces variables, les parcours Strava sont ignorés. Les tests lancent aussi un faux intervals.icu sur le port 4012 : démarrez l'application avec `INTERVALS_API_BASE_URL=http://127.0.0.1:4012` pour le parcours « séances sur la montre ».
+et lancez `npm run test:e2e` avec `STRAVA_CLIENT_ID=4242` et `SUPABASE_SECRET_KEY` (le coach de test devient administrateur). Sans ces variables, les parcours Strava sont ignorés. Les tests lancent aussi un faux intervals.icu sur le port 4012 : démarrez l'application avec `INTERVALS_API_BASE_URL=http://127.0.0.1:4012`, `INTERVALS_CLIENT_ID=e2e-client` et `INTERVALS_CLIENT_SECRET=e2e-secret` (application fictive du faux serveur) pour le parcours « séances sur la montre ».
 
 ## Documentation
 

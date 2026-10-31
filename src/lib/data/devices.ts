@@ -27,6 +27,8 @@ export interface DeviceAccount {
   failed: number;
   /** intervals.icu : activités reçues de la montre, dernière réception, et activités non transmises (venues de Strava). */
   activities?: { count: number; syncedAt: string | null; fromStrava: number };
+  /** Relié par « Autoriser » (OAuth) plutôt que par une clé API. */
+  authorized: boolean;
 }
 
 /** Comptes de montre de l'athlète connecté ; « schema_pending » tant que la base n'est pas à jour. */
@@ -34,7 +36,7 @@ export async function getDeviceAccounts(supabase: ServerSupabase, userId: string
   const [connections, workouts, received] = await Promise.all([
     supabase
       .from("external_connections")
-      .select("provider, status, external_athlete_id, connected_at, last_sync_at, last_error, activities_synced_at, activities_skipped")
+      .select("provider, status, external_athlete_id, connected_at, last_sync_at, last_error, activities_synced_at, activities_skipped, scopes")
       .in("provider", ["intervals", "suunto"]),
     supabase.from("device_workouts").select("provider, status").eq("athlete_id", userId),
     supabase.from("activities").select("id", { count: "exact", head: true }).eq("athlete_id", userId).eq("source", "intervals").is("duplicate_of", null),
@@ -53,6 +55,7 @@ export async function getDeviceAccounts(supabase: ServerSupabase, userId: string
       connectedAt: row.connected_at,
       lastSyncAt: row.last_sync_at,
       lastError: (row.last_error as DeviceLastError) ?? null,
+      authorized: provider === "intervals" && Array.isArray(row.scopes) && row.scopes.length > 0,
       sent: rows.filter((r) => r.status === "sent").length,
       failed: rows.filter((r) => r.status === "failed").length,
       ...(provider === "intervals"

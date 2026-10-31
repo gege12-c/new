@@ -14,6 +14,15 @@ import { z } from "zod";
 
 export type Fetcher = (input: string, init?: RequestInit) => Promise<Response>;
 
+/**
+ * Accès au compte de l'athlète : sa clé API personnelle (authentification « Basic », utilisateur
+ * API_KEY), ou le jeton reçu quand il a autorisé TriCoach chez intervals.icu (OAuth, « Bearer »).
+ */
+export type IntervalsAuth = string | { bearer: string };
+
+const authorization = (auth: IntervalsAuth) =>
+  typeof auth === "string" ? `Basic ${Buffer.from(`API_KEY:${auth}`).toString("base64")}` : `Bearer ${auth.bearer}`;
+
 export const INTERVALS_DEFAULT_BASE_URL = "https://intervals.icu";
 
 export type IntervalsErrorKind = "unauthorized" | "bad_request" | "rate_limited" | "server" | "network" | "invalid_response";
@@ -94,6 +103,7 @@ function readSportSettings(value: unknown): SportSettingsRead | null {
 }
 
 const AthleteSchema = z.object({ id: z.union([z.string(), z.number()]).transform(String), name: z.string().nullish() });
+const TokenSchema = z.object({ access_token: z.string().min(10), token_type: z.string().optional(), scope: z.string().nullish(), athlete: AthleteSchema });
 const EventSchema = z.object({ id: z.union([z.string(), z.number()]).transform(String), external_id: z.string().nullish() });
 
 export class IntervalsApi {
@@ -103,13 +113,13 @@ export class IntervalsApi {
     private readonly now: () => Date = () => new Date(),
   ) {}
 
-  private async call(key: string, path: string, init: RequestInit = {}, what = "Appel à intervals.icu"): Promise<unknown> {
+  private async call(key: IntervalsAuth, path: string, init: RequestInit = {}, what = "Appel à intervals.icu"): Promise<unknown> {
     let response: Response;
     try {
       response = await this.fetcher(`${this.baseUrl}/api/v1${path}`, {
         ...init,
         headers: {
-          Authorization: `Basic ${Buffer.from(`API_KEY:${key}`).toString("base64")}`,
+          Authorization: authorization(key),
           Accept: "application/json",
           // intervals.icu est derrière Cloudflare, qui peut bloquer les clients sans en-tête de navigateur.
           "User-Agent": "Mozilla/5.0 (compatible; TriCoach/1.0)",
@@ -143,14 +153,14 @@ export class IntervalsApi {
   }
 
   /** Athlète de la clé : sert à vérifier la clé et à reconnaître le compte. */
-  async athlete(key: string): Promise<{ id: string; name: string | null }> {
+  async athlete(key: IntervalsAuth): Promise<{ id: string; name: string | null }> {
     const parsed = AthleteSchema.safeParse(await this.call(key, "/athlete/0", {}, "Vérification de la clé"));
     if (!parsed.success) throw new IntervalsError("invalid_response", "Profil intervals.icu illisible.");
     return { id: parsed.data.id, name: parsed.data.name ?? null };
   }
 
   /** Crée ou met à jour les séances (par identifiant externe) ; renvoie leur identifiant chez intervals.icu. */
-  async upsertEvents(key: string, events: IntervalsEvent[]): Promise<Map<string, string>> {
+  async upsertEvents(key: IntervalsAuth, events: IntervalsEvent[]): Promise<Map<string, string>> {
     const body = await this.call(key, "/athlete/0/events/bulk?upsert=true", { method: "POST", body: JSON.stringify(events) }, "Dépôt des séances");
     const rows = z.array(EventSchema).safeParse(body);
     if (!rows.success) throw new IntervalsError("invalid_response", "Réponse du dépôt des séances illisible.");
@@ -158,7 +168,7 @@ export class IntervalsApi {
   }
 
   /** Activités faites entre deux dates locales (incluses), telles qu'intervals.icu les résume. */
-  async activities(key: string, oldest: string, newest: string): Promise<unknown[]> {
+  async activities(key: IntervalsAuth, oldest: string, newest: string): Promise<unknown[]> {
     const body = await this.call(
       key,
       `/athlete/0/activities?oldest=${encodeURIComponent(oldest)}&newest=${encodeURIComponent(newest)}`,
@@ -170,7 +180,7 @@ export class IntervalsApi {
   }
 
   /** Données de forme des jours d'une période (FC au repos, VFC, sommeil, poids…), telles que reçues des montres. */
-  async wellness(key: string, oldest: string, newest: string): Promise<unknown[]> {
+  async wellness(key: IntervalsAuth, oldest: string, newest: string): Promise<unknown[]> {
     const body = await this.call(
       key,
       `/athlete/0/wellness?oldest=${encodeURIComponent(oldest)}&newest=${encodeURIComponent(newest)}`,
@@ -185,17 +195,17 @@ export class IntervalsApi {
    * Courbes d'une activité (GET /activity/{id}/streams.json?types=…) : une liste { type, data },
    * une valeur par mesure enregistrée. Spécification OpenAPI d'intervals.icu (ActivityStream).
    */
-  async streams(key: string, activityId: string, types: string[]): Promise<unknown> {
+  async streams(key: IntervalsAuth, activityId: string, types: string[]): Promise<unknown> {
     return this.call(key, `/activity/${encodeURIComponent(activityId)}/streams.json?types=${types.map(encodeURIComponent).join(",")}`, {}, "Lecture des courbes");
   }
 
   /** Intervalles détectés d'une activité (GET /activity/{id}/intervals : { icu_intervals: […] }). */
-  async intervals(key: string, activityId: string): Promise<unknown> {
+  async intervals(key: IntervalsAuth, activityId: string): Promise<unknown> {
     return this.call(key, `/activity/${encodeURIComponent(activityId)}/intervals`, {}, "Lecture des intervalles");
   }
 
   /** Réglages par sport de l'athlète (GET /athlete/0/sport-settings). */
-  async sportSettings(key: string): Promise<SportSettingsRead[]> {
+  async sportSettings(key: IntervalsAuth): Promise<SportSettingsRead[]> {
     const body = await this.call(key, "/athlete/0/sport-settings", {}, "Lecture des seuils");
     if (!Array.isArray(body)) throw new IntervalsError("invalid_response", "Seuils d'intervals.icu illisibles.");
     const rows = body.map(readSportSettings);
@@ -207,15 +217,52 @@ export class IntervalsApi {
    * Met à jour un réglage par sport (PUT /athlete/0/sport-settings/{id}) avec les seuls champs
    * envoyés ; `recalcHrZones` recalcule ses zones de FC quand la FC seuil ou la FC max change.
    */
-  async updateSportSettings(key: string, id: string, body: Record<string, unknown>, recalcHrZones: boolean): Promise<SportSettingsRead> {
+  async updateSportSettings(key: IntervalsAuth, id: string, body: Record<string, unknown>, recalcHrZones: boolean): Promise<SportSettingsRead> {
     const path = `/athlete/0/sport-settings/${encodeURIComponent(id)}${recalcHrZones ? "?recalcHrZones=true" : ""}`;
     const read = readSportSettings(await this.call(key, path, { method: "PUT", body: JSON.stringify(body) }, "Mise à jour des seuils"));
     if (!read) throw new IntervalsError("invalid_response", "Réponse d'intervals.icu illisible après la mise à jour des seuils.");
     return read;
   }
 
+  /**
+   * Échange du code d'autorisation contre le jeton de l'athlète (POST /api/oauth/token, formulaire :
+   * client_id, client_secret, code, code_verifier), dans les 2 minutes ; pas de jeton de
+   * renouvellement chez intervals.icu.
+   */
+  async oauthToken(input: { clientId: string; clientSecret: string; code: string; verifier: string }): Promise<{ token: string; scope: string; athlete: { id: string; name: string | null } }> {
+    let response: Response;
+    try {
+      response = await this.fetcher(`${this.baseUrl}/api/oauth/token`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json", "User-Agent": "Mozilla/5.0 (compatible; TriCoach/1.0)" },
+        body: new URLSearchParams({ client_id: input.clientId, client_secret: input.clientSecret, code: input.code, code_verifier: input.verifier }).toString(),
+        signal: AbortSignal.timeout(20_000),
+      });
+    } catch {
+      throw new IntervalsError("network", "intervals.icu ne répond pas.");
+    }
+    const text = await response.text().catch(() => "");
+    if (!response.ok) {
+      throw new IntervalsError(response.status === 400 || response.status === 401 || response.status === 403 ? "unauthorized" : "server", `Autorisation refusée par intervals.icu (${response.status}).`, response.status, undefined, text.slice(0, 300));
+    }
+    const parsed = TokenSchema.safeParse((() => {
+      try {
+        return JSON.parse(text);
+      } catch {
+        return null;
+      }
+    })());
+    if (!parsed.success) throw new IntervalsError("invalid_response", "Réponse d'intervals.icu illisible après l'autorisation.");
+    return { token: parsed.data.access_token, scope: parsed.data.scope ?? "", athlete: { id: parsed.data.athlete.id, name: parsed.data.athlete.name ?? null } };
+  }
+
+  /** Retire l'autorisation donnée à TriCoach (DELETE /api/v1/disconnect-app, avec le jeton). */
+  async disconnectApp(auth: IntervalsAuth): Promise<void> {
+    await this.call(auth, "/disconnect-app", { method: "DELETE" }, "Retrait de l'autorisation");
+  }
+
   /** Retire des séances déposées par TriCoach ; celles qui n'existent plus sont ignorées. */
-  async deleteEvents(key: string, externalIds: string[]): Promise<void> {
+  async deleteEvents(key: IntervalsAuth, externalIds: string[]): Promise<void> {
     if (!externalIds.length) return;
     await this.call(
       key,

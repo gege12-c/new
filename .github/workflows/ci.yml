@@ -83,8 +83,11 @@ jobs:
       STRAVA_CLIENT_SECRET: fake-client-secret
       STRAVA_API_BASE_URL: http://127.0.0.1:4010/api/v3
       STRAVA_OAUTH_BASE_URL: http://127.0.0.1:4010/oauth
-      # Faux intervals.icu servi par la préparation des tests de bout en bout (données fictives).
+      # Faux intervals.icu servi par la préparation des tests de bout en bout (données fictives),
+      # avec une application OAuth de test (identifiants fictifs, connus du faux serveur seulement).
       INTERVALS_API_BASE_URL: http://127.0.0.1:4012
+      INTERVALS_CLIENT_ID: e2e-client
+      INTERVALS_CLIENT_SECRET: e2e-secret
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5

@@ -3,7 +3,7 @@ import { buttonClasses } from "@/components/ui/button";
 import { Notice } from "@/components/ui/feedback";
 import { Panel } from "@/components/ui/panel";
 import { getDeviceAccounts, type DeviceAccount, type DeviceLastError } from "@/lib/data/devices";
-import { isIntervalsReady } from "@/lib/intervals/config";
+import { isIntervalsOAuthReady, isIntervalsReady } from "@/lib/intervals/config";
 import { isSuuntoReady } from "@/lib/suunto/config";
 import { SCHEMA_PENDING_MESSAGE } from "@/lib/supabase/schema";
 import type { ServerSupabase } from "@/lib/supabase/server";
@@ -18,6 +18,16 @@ const SUUNTO_CALLBACK: Record<string, { tone: "success" | "error" | "warning"; t
   invalid_state: { tone: "error", text: "La connexion a expiré ou n’a pas été lancée depuis cette page : réessayez." },
   not_configured: { tone: "warning", text: "L’envoi direct vers Suunto n’est pas encore configuré sur ce site." },
   error: { tone: "error", text: "Suunto n’a pas répondu comme prévu : rien n’a été enregistré. Réessayez dans quelques minutes." },
+};
+
+const INTERVALS_CALLBACK: Record<string, { tone: "success" | "error" | "warning"; text: string }> = {
+  connected: { tone: "success", text: "intervals.icu est relié : vos séances publiées des 14 prochains jours y partent maintenant." },
+  denied: { tone: "warning", text: "Connexion annulée : TriCoach n’a pas été autorisé chez intervals.icu. Rien n’a été relié." },
+  already_linked: { tone: "error", text: "Ce compte intervals.icu est déjà relié à un autre compte TriCoach. Déliez-le d’abord de cet autre compte." },
+  invalid_state: { tone: "error", text: "La connexion a expiré ou n’a pas été lancée depuis cette page : touchez de nouveau « Relier intervals.icu »." },
+  not_configured: { tone: "warning", text: "La connexion par « Autoriser » n’est pas encore configurée sur ce site : utilisez la clé API." },
+  unreachable: { tone: "error", text: "intervals.icu ne répond pas pour l’instant : rien n’a été enregistré. Réessayez dans quelques minutes." },
+  error: { tone: "error", text: "intervals.icu n’a pas répondu comme prévu : rien n’a été enregistré. Réessayez dans quelques minutes." },
 };
 
 const ERRORS: Record<Exclude<DeviceLastError, null | "reauth_required">, string> = {
@@ -95,16 +105,19 @@ export async function WatchSyncPanel({
   userId,
   timeZone,
   suuntoCallback,
+  intervalsCallback,
 }: {
   supabase: ServerSupabase;
   userId: string;
   timeZone: string;
   suuntoCallback?: string;
+  intervalsCallback?: string;
 }) {
   const accounts = await getDeviceAccounts(supabase, userId);
   const intervalsReady = isIntervalsReady();
   const suuntoReady = isSuuntoReady();
-  const notice = suuntoCallback ? SUUNTO_CALLBACK[suuntoCallback] : undefined;
+  const oauthReady = isIntervalsOAuthReady();
+  const notice = suuntoCallback ? SUUNTO_CALLBACK[suuntoCallback] : intervalsCallback ? INTERVALS_CALLBACK[intervalsCallback] : undefined;
 
   return (
     <Panel
@@ -125,7 +138,15 @@ export async function WatchSyncPanel({
                 Suunto, Garmin, COROS, Wahoo, par intervals.icu
               </h3>
               <span className={accounts.intervals?.status === "active" ? "text-[12.5px] font-semibold text-success" : "text-[12.5px] text-muted"}>
-                {accounts.intervals ? (accounts.intervals.status === "active" ? "Relié" : "Clé à renouveler") : intervalsReady ? "Non relié" : "Non configuré"}
+                {accounts.intervals
+                  ? accounts.intervals.status === "active"
+                    ? "Relié"
+                    : accounts.intervals.authorized
+                      ? "Autorisation à renouveler"
+                      : "Clé à renouveler"
+                  : intervalsReady
+                    ? "Non relié"
+                    : "Non configuré"}
               </span>
             </div>
             {!intervalsReady ? (
@@ -135,6 +156,40 @@ export async function WatchSyncPanel({
                 <AccountState account={accounts.intervals} where="dans votre calendrier intervals.icu" timeZone={timeZone} />
                 <WatchSyncControls provider="intervals" />
                 <IntervalsThresholds />
+              </>
+            ) : oauthReady ? (
+              <>
+                {accounts.intervals ? (
+                  <Notice tone="warning">
+                    intervals.icu refuse l’accès enregistré (autorisation retirée ou clé changée) : autorisez TriCoach de nouveau pour que vos séances repartent.
+                  </Notice>
+                ) : (
+                  <p className="text-[13.5px] text-ink-soft">
+                    intervals.icu, partenaire officiel de Suunto, Garmin et COROS, transmet à votre montre (ou à votre compteur Wahoo) les séances que TriCoach dépose dans son calendrier, et
+                    renvoie à TriCoach les activités faites avec la montre. Gratuit, à faire une fois :
+                  </p>
+                )}
+                <ol className="list-decimal space-y-1 pl-5 text-[13.5px] text-ink-soft">
+                  <li>
+                    Créez un compte sur{" "}
+                    <a className="font-medium text-ink underline decoration-line-strong underline-offset-4 hover:decoration-ink" href="https://intervals.icu" target="_blank" rel="noreferrer">
+                      intervals.icu
+                    </a>{" "}
+                    ; dans ses réglages (Settings), reliez votre montre ou votre compteur et cochez l’envoi des séances prévues.
+                  </li>
+                  <li>Touchez « Relier intervals.icu », puis « Autoriser » chez intervals.icu : vous revenez ici, relié.</li>
+                </ol>
+                <a href="/api/intervals/connect" className={buttonClasses("primary", "sm")}>
+                  <Link2 aria-hidden />
+                  {accounts.intervals ? "Autoriser de nouveau" : "Relier intervals.icu"}
+                </a>
+                <details className="pt-1">
+                  <summary className="cursor-pointer text-[13px] font-medium text-ink-soft hover:text-ink">Ou avec une clé API</summary>
+                  <div className="mt-2 space-y-2">
+                    <p className="text-[13px] text-muted">intervals.icu, Settings, en bas, « Developer Settings » : copiez la clé API et collez-la ci-dessous.</p>
+                    <IntervalsKeyForm again={Boolean(accounts.intervals)} />
+                  </div>
+                </details>
               </>
             ) : (
               <>

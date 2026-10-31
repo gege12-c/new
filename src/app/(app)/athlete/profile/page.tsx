@@ -94,6 +94,7 @@ async function ProfileContent({ searchParams }: Pick<PageProps<"/athlete/profile
               userId={userId}
               timeZone={profile.timezone}
               suuntoCallback={typeof params.suunto === "string" ? params.suunto : undefined}
+              intervalsCallback={typeof params.intervals === "string" ? params.intervals : undefined}
             />
           </div>
           <div className="order-5 xl:order-none">

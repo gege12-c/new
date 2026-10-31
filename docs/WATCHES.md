@@ -23,7 +23,25 @@ TriCoach reste l'endroit où tout se fait : l'athlète n'utilise pas intervals.i
 2. Dans ses réglages (Settings), relier sa montre : Suunto, Garmin ou COROS, et cocher l'envoi des séances prévues (« Upload planned workouts ») ; pour un compteur Wahoo ELEMNT, relier Wahoo et cocher « Upload workouts » (les 7 prochains jours).
 3. Toujours dans Settings, en bas, « Developer Settings » : copier la clé API, puis la coller dans TriCoach, Profil sportif, « Séances sur la montre ». TriCoach la vérifie auprès d'intervals.icu, puis la garde chiffrée sur le serveur (AES-256-GCM, comme les jetons Strava) ; elle n'est plus jamais affichée.
 
-Délier intervals.icu retire de son calendrier les séances à venir déposées par TriCoach et efface la clé. Une clé changée ou supprimée chez intervals.icu est détectée au passage suivant : l'athlète est prévenu (notification « reconnexion ») et colle sa nouvelle clé.
+**Ou par « Autoriser »** (dès que l'application TriCoach est enregistrée chez intervals.icu, voir ci-dessous) : à l'étape 3, l'athlète touche « Relier intervals.icu », puis « Autoriser » chez intervals.icu, et revient sur son profil, relié, sans clé à copier. La clé API reste proposée, repliée, en solution de secours.
+
+Délier intervals.icu retire de son calendrier les séances à venir déposées par TriCoach et efface la clé (ou le jeton, après avoir retiré l'autorisation chez intervals.icu).
+
+## Connexion par « Autoriser » (OAuth)
+
+intervals.icu demande une application OAuth dès qu'un service sert plusieurs personnes ([API access to Intervals.icu](https://forum.intervals.icu/t/api-access-to-intervals-icu/609)). Fonctionnement, d'après [Intervals.icu OAuth support](https://forum.intervals.icu/t/intervals-icu-oauth-support/2759) :
+
+- `GET /api/intervals/connect` : jeton anti-CSRF et vérificateur PKCE dans un cookie (10 minutes, routes `/api/intervals`), puis `https://intervals.icu/oauth/authorize` avec `client_id`, `redirect_uri`, `scope=ACTIVITY:READ,WELLNESS:READ,CALENDAR:WRITE,SETTINGS:WRITE`, `state`, `code_challenge` (S256).
+- `GET /api/intervals/callback` : jeton vérifié, code échangé dans les 2 minutes (`POST https://intervals.icu/api/oauth/token` : `client_id`, `client_secret`, `code`, `code_verifier`), jeton gardé chiffré comme une clé, autorisations notées (`external_connections.scopes`), envoi des séances aussitôt. Pas de jeton de renouvellement chez intervals.icu : une autorisation retirée se voit au passage suivant (« Autorisation à renouveler », bouton « Autoriser de nouveau »).
+- Appels en `Authorization: Bearer` ; déliaison : `DELETE /api/v1/disconnect-app`.
+- Quotas des applications OAuth : 100 appels par athlète et par jour (5 000 au moins au total), un huitième sur 15 minutes glissantes (2 500 au moins), 10 appels par seconde ; réponse 429 avec Retry-After, respectée par la file d'envoi.
+
+Mise en place (propriétaire du site, une fois) :
+1. Connecté à intervals.icu, demander une application sur https://intervals.icu/oauth/apply (nom « TriCoach ») ; elle reste « Pending » jusqu'à son approbation par intervals.icu (notification par email).
+2. Une fois approuvée : Settings, « Apps », « Manage App » : ajouter l'adresse de retour `https://new-bay-one-76.vercel.app/api/intervals/callback`, puis noter l'identifiant (client_id) et le secret.
+3. Dans Vercel, Settings, Environment Variables : `INTERVALS_CLIENT_ID` et `INTERVALS_CLIENT_SECRET` (Production), puis relancer un déploiement. Sans elles, le profil propose la clé API seule (« non configuré »).
+
+Code : `src/lib/intervals/oauth.ts` (PKCE, adresse d'autorisation, cookie), `src/app/api/intervals/connect` et `callback`, `connectIntervalsOAuth` (`src/lib/intervals/service.ts`) ; tests : `src/lib/intervals/oauth.test.ts`, `tests/integration/intervals-oauth.test.ts`, `e2e/watch-sync.spec.ts` (refus, autorisation, déliaison, contre le faux intervals.icu). Une clé changée ou supprimée chez intervals.icu est détectée au passage suivant : l'athlète est prévenu (notification « reconnexion ») et colle sa nouvelle clé.
 
 ## Ce que reçoit la montre
 

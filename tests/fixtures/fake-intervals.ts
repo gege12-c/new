@@ -4,8 +4,10 @@
  * (création ou mise à jour), retrait en lot, activités faites d'une période (celles reçues de Strava
  * réduites à une note, comme le fait intervals.icu), courbes et intervalles d'une activité (champs
  * `_streams` et `_intervals` de l'activité de test), réglages par sport (seuils) lus et modifiés,
- * quota (429). Données entièrement fictives.
+ * connexion par « Autoriser » (page d'autorisation, échange du code avec PKCE, jeton « Bearer »,
+ * retrait de l'autorisation), quota (429). Données entièrement fictives.
  */
+import { createHash, randomBytes } from "node:crypto";
 import { createServer, type IncomingMessage, type Server } from "node:http";
 
 export interface FakeEvent {
@@ -25,6 +27,12 @@ const TYPES = new Set(["Ride", "Run", "Swim", "WeightTraining", "Workout"]);
 export class FakeIntervals {
   /** Clé API → athlète. */
   readonly keys = new Map<string, string>();
+  /** Connexion par « Autoriser » (OAuth) : applications (identifiant → secret), codes à usage unique, jetons. */
+  readonly clients = new Map<string, string>([["e2e-client", "e2e-secret"]]);
+  readonly codes = new Map<string, { athlete: string; challenge: string; scope: string; client: string }>();
+  readonly tokens = new Map<string, string>();
+  /** Athlète qui « autorise » sur la page d'autorisation (null : il refuse). */
+  authorizeAs: string | null = null;
   readonly events = new Map<number, FakeEvent>();
   readonly calls: string[] = [];
   /** Les N prochains appels reçoivent 429 (quota). */
@@ -65,6 +73,13 @@ export class FakeIntervals {
     this.keys.set(key, athlete);
   }
 
+  /** Comme la page d'autorisation d'intervals.icu : un code à usage unique pour cet athlète. */
+  authorize(athlete: string, challenge: string, scope = "ACTIVITY:READ,WELLNESS:READ,CALENDAR:WRITE,SETTINGS:WRITE", client = "e2e-client"): string {
+    const code = randomBytes(12).toString("hex");
+    this.codes.set(code, { athlete, challenge, scope, client });
+    return code;
+  }
+
   eventsOf(athlete: string) {
     return [...this.events.values()].filter((e) => e.athlete === athlete);
   }
@@ -78,9 +93,27 @@ export class FakeIntervals {
     const method = (init?.method ?? "GET").toUpperCase();
     const headers = new Headers(init?.headers);
     this.calls.push(`${method} ${url.pathname}${url.search}`);
+    // Échange du code contre le jeton (formulaire, sans authentification), PKCE vérifié, code à usage unique.
+    if (url.pathname === "/api/oauth/token" && method === "POST") {
+      const form = new URLSearchParams(typeof init?.body === "string" ? init.body : "");
+      const grant = this.codes.get(form.get("code") ?? "");
+      if (grant) this.codes.delete(form.get("code")!);
+      const verifier = form.get("code_verifier") ?? "";
+      const challengeOk = grant && createHash("sha256").update(verifier).digest("base64url") === grant.challenge;
+      const clientOk = grant && this.clients.get(form.get("client_id") ?? "") === form.get("client_secret") && form.get("client_id") === grant.client;
+      if (!grant || !challengeOk || !clientOk) return this.json(400, { error: "invalid_grant" });
+      const token = randomBytes(16).toString("hex");
+      this.tokens.set(token, grant.athlete);
+      return this.json(200, { token_type: "Bearer", access_token: token, scope: grant.scope, athlete: { id: grant.athlete, name: "Athlète de test" } });
+    }
     const auth = headers.get("authorization") ?? "";
-    const [user, key] = Buffer.from(auth.replace(/^Basic /, ""), "base64").toString("utf8").split(":");
-    const athlete = user === "API_KEY" ? this.keys.get(key ?? "") : undefined;
+    let athlete: string | undefined;
+    if (auth.startsWith("Bearer ")) {
+      athlete = this.tokens.get(auth.slice(7));
+    } else {
+      const [user, key] = Buffer.from(auth.replace(/^Basic /, ""), "base64").toString("utf8").split(":");
+      athlete = user === "API_KEY" ? this.keys.get(key ?? "") : undefined;
+    }
     if (!athlete) return this.json(401, { status: 401, error: "Unauthorized" });
     if (this.rateLimitNext > 0) {
       this.rateLimitNext -= 1;
@@ -89,6 +122,11 @@ export class FakeIntervals {
     const body = typeof init?.body === "string" && init.body ? JSON.parse(init.body) : null;
 
     if (url.pathname === "/api/v1/athlete/0" && method === "GET") return this.json(200, { id: athlete, name: "Athlète de test" });
+
+    if (url.pathname === "/api/v1/disconnect-app" && method === "DELETE") {
+      this.tokens.delete(auth.slice(7));
+      return this.json(200, {});
+    }
 
     if (url.pathname === "/api/v1/athlete/0/activities" && method === "GET") {
       const oldest = url.searchParams.get("oldest");
@@ -186,8 +224,22 @@ export class FakeIntervals {
       const url = new URL(req.url ?? "/", `http://127.0.0.1:${port}`);
       const body = await readBody(req);
       try {
+        // Page d'autorisation : l'athlète choisi « autorise » (ou refuse) aussitôt, retour vers redirect_uri.
+        if (url.pathname === "/oauth/authorize") {
+          const redirect = new URL(url.searchParams.get("redirect_uri") ?? "http://invalid");
+          const state = url.searchParams.get("state");
+          if (!this.authorizeAs || !this.clients.has(url.searchParams.get("client_id") ?? "")) {
+            redirect.searchParams.set("error", "access_denied");
+          } else {
+            redirect.searchParams.set("code", this.authorize(this.authorizeAs, url.searchParams.get("code_challenge") ?? "", url.searchParams.get("scope") ?? "", url.searchParams.get("client_id")!));
+            if (state) redirect.searchParams.set("state", state);
+          }
+          res.writeHead(302, { location: redirect.toString() }).end();
+          return;
+        }
         if (url.pathname.startsWith("/__control/")) {
           const payload = body ? JSON.parse(body) : {};
+          if (url.pathname === "/__control/authorize") this.authorizeAs = payload.athlete ?? null;
           if (url.pathname === "/__control/key") this.addKey(payload.key, payload.athlete);
           if (url.pathname === "/__control/activity") this.addActivity(payload.athlete, payload.activity);
           const events = payload.athlete ? this.eventsOf(payload.athlete) : [];

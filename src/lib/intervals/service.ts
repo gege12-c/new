@@ -31,7 +31,7 @@ import { currentThresholds, toAthleteThresholds, type ThresholdRow } from "@/lib
 import { localDate } from "@/lib/utils";
 import { missingColumn } from "@/lib/supabase/schema";
 import { parseWorkout } from "@/lib/workout/schema";
-import { IntervalsApi, IntervalsError, type IntervalsEvent } from "./api";
+import { IntervalsApi, IntervalsError, type IntervalsAuth, type IntervalsEvent } from "./api";
 import { alignmentUpdates, appliedAsSent, compareThresholds, type SyncedThresholdKey, type ThresholdComparison } from "./thresholds";
 import { INTERVALS_STREAM_TYPES, intervalsLaps, intervalsStreams, powerBests, reduceStreams, streamMetrics, STREAMS_VERSION } from "@/lib/activities/streams";
 import { INTERVALS_FULL_HISTORY_DAYS, INTERVALS_HISTORY_DAYS, INTERVALS_RECENT_DAYS, normalizeIntervalsActivity, sameActivity } from "./activities";
@@ -61,16 +61,24 @@ async function translate(deps: IntervalsDeps, connection: DeviceConnection, erro
   return error;
 }
 
-async function apiKey(deps: IntervalsDeps, connection: DeviceConnection, quiet = false): Promise<string> {
-  const { data } = await deps.admin.from("oauth_tokens").select("access_token").eq("connection_id", connection.id).maybeSingle();
+/**
+ * Accès au compte : la clé API collée par l'athlète, ou le jeton reçu quand il a autorisé TriCoach
+ * (connexion par « Autoriser », reconnue aux autorisations enregistrées).
+ */
+async function apiKey(deps: IntervalsDeps, connection: DeviceConnection, quiet = false): Promise<IntervalsAuth> {
+  const [{ data }, { data: link }] = await Promise.all([
+    deps.admin.from("oauth_tokens").select("access_token").eq("connection_id", connection.id).maybeSingle(),
+    deps.admin.from("external_connections").select("scopes").eq("id", connection.id).maybeSingle(),
+  ]);
   if (!data) {
     await markReauth(deps.admin, "intervals", connection, deps.now(), quiet);
     throw new DeviceReauthError("intervals");
   }
-  return decryptSecret(data.access_token, deps.key, `${connection.id}:access`);
+  const secret = decryptSecret(data.access_token, deps.key, `${connection.id}:access`);
+  return link?.scopes?.length ? { bearer: secret } : secret;
 }
 
-async function withKey<T>(deps: IntervalsDeps, connection: DeviceConnection, call: (key: string) => Promise<T>, quiet = false): Promise<T> {
+async function withKey<T>(deps: IntervalsDeps, connection: DeviceConnection, call: (key: IntervalsAuth) => Promise<T>, quiet = false): Promise<T> {
   const key = await apiKey(deps, connection, quiet);
   try {
     return await call(key);
@@ -95,12 +103,42 @@ export async function connectIntervals(deps: IntervalsDeps, athleteId: string, r
     if (error instanceof IntervalsError && (error.kind === "unauthorized" || error.kind === "bad_request")) return { status: "invalid_key" };
     return { status: "unreachable" };
   }
+  return saveConnection(deps, athleteId, account.id, key, []);
+}
 
+export type ConnectIntervalsOAuthResult = ConnectIntervalsResult | { status: "denied" };
+
+/**
+ * Retour de « Autoriser » chez intervals.icu : le code est échangé contre le jeton de l'athlète
+ * (dans les 2 minutes), gardé chiffré comme une clé, avec les autorisations accordées.
+ */
+export async function connectIntervalsOAuth(
+  deps: IntervalsDeps,
+  athleteId: string,
+  input: { code: string; verifier: string; clientId: string; clientSecret: string },
+): Promise<ConnectIntervalsOAuthResult> {
+  let granted: Awaited<ReturnType<IntervalsApi["oauthToken"]>>;
+  try {
+    granted = await deps.api.oauthToken(input);
+  } catch (error) {
+    if (error instanceof IntervalsError && error.kind === "unauthorized") return { status: "denied" };
+    return { status: "unreachable" };
+  }
+  const scopes = granted.scope
+    .split(",")
+    .map((scope) => scope.trim())
+    .filter(Boolean);
+  // Jeton sans autorisation lisible : on garde au moins une marque, pour l'envoyer en « Bearer ».
+  return saveConnection(deps, athleteId, granted.athlete.id, granted.token, scopes.length ? scopes : ["oauth"]);
+}
+
+/** Enregistre le compte relié (clé API : sans autorisation ; « Autoriser » : avec), puis lance l'envoi. */
+async function saveConnection(deps: IntervalsDeps, athleteId: string, accountId: string, secret: string, scopes: string[]): Promise<ConnectIntervalsResult> {
   const { data: taken } = await deps.admin
     .from("external_connections")
     .select("athlete_id")
     .eq("provider", "intervals")
-    .eq("external_athlete_id", account.id)
+    .eq("external_athlete_id", accountId)
     .maybeSingle();
   if (taken && taken.athlete_id !== athleteId) return { status: "already_linked" };
 
@@ -111,7 +149,7 @@ export async function connectIntervals(deps: IntervalsDeps, athleteId: string, r
     .eq("provider", "intervals")
     .maybeSingle();
   // Autre compte intervals.icu : les séances déposées dans l'ancien en sont retirées (si sa clé vaut encore).
-  if (previous && previous.external_athlete_id !== account.id) {
+  if (previous && previous.external_athlete_id !== accountId) {
     await removeAll(deps, previous).catch(() => undefined);
     await deps.admin.from("external_connections").delete().eq("id", previous.id);
   }
@@ -122,8 +160,8 @@ export async function connectIntervals(deps: IntervalsDeps, athleteId: string, r
       {
         athlete_id: athleteId,
         provider: "intervals",
-        external_athlete_id: account.id,
-        scopes: [],
+        external_athlete_id: accountId,
+        scopes,
         status: "active",
         connected_at: deps.now().toISOString(),
         last_error: null,
@@ -138,8 +176,8 @@ export async function connectIntervals(deps: IntervalsDeps, athleteId: string, r
   const { error: keyError } = await deps.admin.from("oauth_tokens").upsert(
     {
       connection_id: connection.id,
-      access_token: encryptSecret(key, deps.key, `${connection.id}:access`),
-      refresh_token: encryptSecret(key, deps.key, `${connection.id}:refresh`),
+      access_token: encryptSecret(secret, deps.key, `${connection.id}:access`),
+      refresh_token: encryptSecret(secret, deps.key, `${connection.id}:refresh`),
       expires_at: NEVER,
       revision: 1,
       updated_at: deps.now().toISOString(),
@@ -148,7 +186,7 @@ export async function connectIntervals(deps: IntervalsDeps, athleteId: string, r
   );
   if (keyError) throw new Error(`Enregistrement de la clé impossible : ${keyError.message}`);
   await enqueueDeviceSync(deps.admin, "intervals", athleteId);
-  await log(deps, { level: "info", event: "intervals_connected", athleteId });
+  await log(deps, { level: "info", event: scopes.length ? "intervals_authorized" : "intervals_connected", athleteId });
   return { status: "connected" };
 }
 
@@ -173,6 +211,8 @@ export async function disconnectIntervals(deps: IntervalsDeps, athleteId: string
     () => true,
     () => false,
   );
+  // Connexion par « Autoriser » : l'autorisation est aussi retirée chez intervals.icu (si elle vaut encore).
+  await withKey(deps, connection, async (auth) => (typeof auth === "string" ? undefined : deps.api.disconnectApp(auth)), true).catch(() => undefined);
   // Cascade : clé et état des envois.
   await deps.admin.from("external_connections").delete().eq("id", connection.id);
   await deps.admin.from("sync_jobs").delete().eq("athlete_id", athleteId).eq("kind", "intervals_sync").in("status", ["pending", "failed"]);

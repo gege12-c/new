@@ -98,6 +98,9 @@ test("relier sa montre par intervals.icu : la séance publiée part, l'activité
   // Suunto en direct attend l'accès partenaire : rien à relier pour l'instant.
   await expect(panel.getByText("Bientôt", { exact: true })).toBeVisible();
 
+  // « Relier intervals.icu » (Autoriser) en premier ; la clé API reste possible, repliée.
+  await expect(panel.getByRole("link", { name: "Relier intervals.icu" })).toBeVisible();
+  await panel.getByText("Ou avec une clé API").click();
   // Clé refusée par intervals.icu : rien n'est enregistré.
   await panel.getByLabel("Clé API intervals.icu").fill("cle-inconnue-0000");
   await panel.getByRole("button", { name: "Relier intervals.icu" }).click();
@@ -174,5 +177,33 @@ test("relier sa montre par intervals.icu : la séance publiée part, l'activité
   expect((await control("list", { athlete: intervalsAthlete })).events).toEqual([]);
   await page.reload();
   await expect(panel.getByText("Non relié", { exact: true })).toBeVisible();
+  await page.context().close();
+});
+
+test("relier intervals.icu par « Autoriser » : retour sur le profil, relié, puis délié", async ({ browser }) => {
+  const authorizedAthlete = `i${Math.floor(Math.random() * 1e7)}`;
+  const page = await signedIn(browser, "athlete");
+  await page.goto("/athlete/profile#montre-auto");
+  const panel = page.locator("#montre-auto");
+
+  // L'athlète refuse chez intervals.icu : rien n'est relié.
+  await control("authorize", { athlete: null });
+  await panel.getByRole("link", { name: "Relier intervals.icu" }).click();
+  await expect(page).toHaveURL(/intervals=denied/);
+  await expect(panel.getByText(/TriCoach n’a pas été autorisé chez intervals\.icu/)).toBeVisible();
+  await expect(panel.getByText("Non relié", { exact: true })).toBeVisible();
+
+  // Il autorise : retour sur le profil, compte relié par jeton.
+  await control("authorize", { athlete: authorizedAthlete });
+  await panel.getByRole("link", { name: "Relier intervals.icu" }).click();
+  await expect(page).toHaveURL(/intervals=connected/);
+  await expect(panel.getByText("intervals.icu est relié : vos séances publiées des 14 prochains jours y partent maintenant.")).toBeVisible();
+  await expect(panel.getByText(`Relié au compte ${authorizedAthlete}`, { exact: false })).toBeVisible();
+
+  // Délier : l'autorisation est retirée chez intervals.icu.
+  await panel.getByRole("button", { name: "Délier intervals.icu" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Délier" }).click();
+  await expect(panel.getByText("Non relié", { exact: true })).toBeVisible();
+  await control("authorize", { athlete: null });
   await page.context().close();
 });
