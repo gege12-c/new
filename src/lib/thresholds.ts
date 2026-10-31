@@ -22,9 +22,9 @@ export interface ThresholdDef {
 export const THRESHOLD_DEFS: readonly ThresholdDef[] = [
   { key: "bike.ftp_w", sport: "bike", metric: "ftp_w", group: "Vélo", label: "FTP", unit: "W", input: "number", min: 30, max: 700, help: "Puissance tenue environ une heure." },
   { key: "bike.lthr_bpm", sport: "bike", metric: "lthr_bpm", group: "Vélo", label: "FC au seuil", unit: "bpm", input: "number", min: 80, max: 220 },
-  { key: "run.threshold_pace_s_per_km", sport: "run", metric: "threshold_pace_s_per_km", group: "Course à pied", label: "Allure seuil", unit: "/km", input: "pace", min: 150, max: 900, help: "Format min:s, par exemple 4:10." },
+  { key: "run.threshold_pace_s_per_km", sport: "run", metric: "threshold_pace_s_per_km", group: "Course à pied", label: "Allure seuil", unit: "/km", input: "pace", min: 150, max: 900, help: "Minutes et secondes : 4,10 ou 410 pour 4:10." },
   { key: "run.lthr_bpm", sport: "run", metric: "lthr_bpm", group: "Course à pied", label: "FC au seuil", unit: "bpm", input: "number", min: 80, max: 220 },
-  { key: "swim.css_s_per_100m", sport: "swim", metric: "css_s_per_100m", group: "Natation", label: "CSS", unit: "/100 m", input: "pace", min: 50, max: 300, help: "Vitesse critique de nage, format min:s." },
+  { key: "swim.css_s_per_100m", sport: "swim", metric: "css_s_per_100m", group: "Natation", label: "CSS", unit: "/100 m", input: "pace", min: 50, max: 300, help: "Vitesse critique de nage : 1,35 ou 135 pour 1:35." },
   { key: "general.max_hr_bpm", sport: "general", metric: "max_hr_bpm", group: "Général", label: "FC max", unit: "bpm", input: "number", min: 100, max: 230 },
   { key: "general.resting_hr_bpm", sport: "general", metric: "resting_hr_bpm", group: "Général", label: "FC de repos", unit: "bpm", input: "number", min: 25, max: 120 },
   { key: "general.weight_kg", sport: "general", metric: "weight_kg", group: "Général", label: "Poids", unit: "kg", input: "number", min: 25, max: 250, step: 0.1 },
@@ -34,8 +34,8 @@ export const thresholdDef = (sport: string, metric: string) =>
   THRESHOLD_DEFS.find((d) => d.sport === sport && d.metric === metric);
 
 /**
- * « 4:35 » → 275 secondes, comme dans l'éditeur de séances. Un nombre seul est refusé : « 410 »
- * peut vouloir dire 4:10 aussi bien que 410 secondes (6:50), et rien n'est deviné.
+ * « 4:35 », « 4,35 » ou « 435 » → 275 secondes, comme dans l'éditeur de séances (clavier numérique
+ * du téléphone compris). Deux chiffres seuls (« 90 ») restent refusés : rien n'est deviné.
  */
 export const parsePace = parseClockPace;
 

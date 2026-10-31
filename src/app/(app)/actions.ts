@@ -113,7 +113,7 @@ export async function addThreshold(_prev: ActionState, formData: FormData): Prom
 
   const value = parseThresholdValue(def, parsed.data.value);
   if (value === null) {
-    return fail(def.input === "pace" ? "Allure illisible : utilisez le format min:s, par exemple 4:10." : "Valeur numérique attendue, par exemple 275 ou 72,5.");
+    return fail(def.input === "pace" ? "Allure illisible : minutes et secondes, par exemple 4,10 ou 410 pour 4:10." : "Valeur numérique attendue, par exemple 275 ou 72,5.");
   }
   if (value < def.min || value > def.max) return fail(`${def.label} : valeur hors limites.`);
 

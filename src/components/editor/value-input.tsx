@@ -5,7 +5,9 @@ import { cn } from "@/lib/utils";
 
 /**
  * Champ texte dont la valeur n’est validée qu’à la sortie (ou Entrée) : une saisie illisible
- * reste affichée en erreur, la valeur précédente est conservée, rien n’est deviné.
+ * reste affichée en erreur, avec l’explication sous le champ (visible au téléphone, où les
+ * infobulles n’existent pas), la valeur précédente est conservée, rien n’est deviné. Clavier
+ * numérique par défaut : les valeurs comprises sans deux-points (« 4,30 ») le permettent.
  */
 export function ValueInput({
   value,
@@ -35,6 +37,7 @@ export function ValueInput({
   };
 
   return (
+    <span className="relative inline-flex">
     <input
       {...props}
       value={shown}
@@ -65,5 +68,11 @@ export function ValueInput({
         className,
       )}
     />
+      {invalid ? (
+        <span role="alert" className="pointer-events-none absolute left-0 top-full z-20 mt-1 w-max max-w-[16rem] rounded-[6px] bg-ink px-2 py-1 text-[11.5px] font-medium leading-snug text-canvas shadow-sm">
+          {invalidMessage}
+        </span>
+      ) : null}
+    </span>
   );
 }

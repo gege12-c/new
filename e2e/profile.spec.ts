@@ -63,11 +63,12 @@ test("inviter une athlète, puis remplir chaque formulaire du profil sportif", a
   await thresholds.getByLabel("À partir du").fill(pastDay);
   await thresholds.getByLabel("Valeur (/km)").fill("4h10");
   await thresholds.getByRole("button", { name: "Enregistrer le seuil" }).click();
-  await expect(thresholds.getByText("Allure illisible : utilisez le format min:s, par exemple 4:10.")).toBeVisible();
+  await expect(thresholds.getByText("Allure illisible : minutes et secondes, par exemple 4,10 ou 410 pour 4:10.")).toBeVisible();
   // Rien de ce qui a été saisi n'est perdu après une erreur.
   await expect(thresholds.getByLabel("Valeur (/km)")).toHaveValue("4h10");
   await expect(thresholds.getByLabel("À partir du")).toHaveValue(pastDay);
-  await thresholds.getByLabel("Valeur (/km)").fill("4:10");
+  // Au clavier numérique du téléphone, sans deux-points : « 4,10 » vaut 4:10.
+  await thresholds.getByLabel("Valeur (/km)").fill("4,10");
   await thresholds.getByRole("button", { name: "Enregistrer le seuil" }).click();
   await expect(thresholds.getByText("Seuil enregistré : Allure seuil (course à pied).")).toBeVisible();
   await expect(thresholds.getByText("4:10 /km").first()).toBeVisible();

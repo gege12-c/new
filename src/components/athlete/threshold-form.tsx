@@ -66,9 +66,9 @@ export function ThresholdForm({ athleteId, today }: { athleteId: string; today: 
               required
               value={value}
               onChange={(e) => setValue(e.target.value)}
-              inputMode={def.input === "pace" ? "text" : "decimal"}
+              inputMode="decimal"
               autoComplete="off"
-              placeholder={def.input === "pace" ? "4:10" : undefined}
+              placeholder={def.input === "pace" ? "4,10" : undefined}
               className="tabular"
             />
           </Field>

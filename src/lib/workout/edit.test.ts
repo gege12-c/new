@@ -98,6 +98,29 @@ describe("saisie des valeurs", () => {
     expect(formatDurationInput(270)).toBe("4:30");
   });
 
+  it("clavier numérique du téléphone (sans deux-points) : la virgule ou le point suivis de deux chiffres valent des secondes", () => {
+    expect(parseDuration("0,20")).toBe(20);
+    expect(parseDuration("0.20")).toBe(20);
+    expect(parseDuration("4,30")).toBe(270);
+    expect(parseDuration("1,30,00")).toBe(5400);
+    // Sinon des minutes décimales, comme avant : un seul chiffre, ou deux qui ne sont pas des secondes.
+    expect(parseDuration("1,5")).toBe(90);
+    expect(parseDuration("0,75")).toBe(45);
+    expect(parsePace("4,30")).toBe(270);
+    expect(parsePace("4.30")).toBe(270);
+    expect(parsePace("4'30")).toBe(270);
+    expect(parsePace("4 30")).toBe(270);
+    expect(parsePace("430")).toBe(270);
+    expect(parsePace("1030")).toBe(630);
+    expect(parsePace("130")).toBe(90);
+    expect(parsePace("4:30 /km")).toBe(270);
+    // Ambigus, refusés plutôt que devinés : un chiffre de secondes, deux chiffres seuls, des secondes au-delà de 59.
+    expect(parsePace("4,5")).toBeNull();
+    expect(parsePace("90")).toBeNull();
+    expect(parsePace("460")).toBeNull();
+    expect(parsePace("4h30")).toBeNull();
+  });
+
   it("lit les distances, allures et nombres à la française", () => {
     expect(parseDistance("400")).toBe(400);
     expect(parseDistance("1,5 km")).toBe(1500);

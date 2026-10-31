@@ -2,13 +2,19 @@
  * Saisie des valeurs d’une séance : durées « 1:30:00 », « 45 », « 45 min », « 90 s » ;
  * distances « 400 », « 1,5 km » ; allures « 4:35 ». Renvoie null quand la saisie est illisible :
  * l’éditeur garde alors la valeur précédente et signale l’erreur, sans rien deviner.
+ *
+ * Le clavier numérique d’un téléphone n’a pas de deux-points : une virgule ou un point suivis de
+ * deux chiffres valent des secondes (« 4,30 » = 4:30, « 0,20 » = 20 s), et une allure s’écrit aussi
+ * d’un bloc (« 430 » = 4:30). La valeur comprise s’affiche aussitôt dans le champ.
  */
 
 const normalize = (raw: string) => raw.trim().toLowerCase().replace(",", ".").replace(/\s+/g, " ");
 
 /** Durée en secondes. Un nombre seul est lu en minutes. */
 export function parseDuration(raw: string): number | null {
-  const value = normalize(raw);
+  // Séparateurs du clavier numérique : « 4,30 » ou « 4.30 » comme « 4:30 », « 1,30,00 » comme « 1:30:00 ».
+  const keypad = raw.trim().match(/^(\d+)[.,'’]([0-5]\d)(?:[.,'’]([0-5]\d))?$/);
+  const value = keypad ? `${keypad[1]}:${keypad[2]}${keypad[3] ? `:${keypad[3]}` : ""}` : normalize(raw);
   if (!value) return null;
   const clock = value.match(/^(\d+):([0-5]?\d)(?::([0-5]\d))?$/);
   if (clock) {
@@ -55,9 +61,14 @@ export function formatDistanceInput(meters: number): string {
   return String(meters).replace(".", ",");
 }
 
-/** Allure « m:ss » en secondes (par km ou par 100 m selon le champ). */
+/**
+ * Allure en secondes (par km ou par 100 m selon le champ) : « 4:30 », « 4,30 », « 4.30 », « 4'30 »,
+ * « 4 30 » ou « 430 » (minutes puis deux chiffres de secondes). Les secondes ont toujours deux
+ * chiffres : « 4,5 » (4:05 ou 4:50 ?) et « 90 » (1:30 ou 0:90 ?) sont refusés plutôt que devinés.
+ */
 export function parsePace(raw: string): number | null {
-  const match = normalize(raw).match(/^(\d{1,2}):([0-5]\d)$/);
+  const value = raw.trim().toLowerCase().replace(/\s*\/\s*(km|100\s*m)$/, "");
+  const match = value.match(/^(\d{1,2})\s*[:.,'’ ]\s*([0-5]\d)$/) ?? value.match(/^(\d{1,2})([0-5]\d)$/);
   if (!match) return null;
   const seconds = Number(match[1]) * 60 + Number(match[2]);
   return seconds > 0 ? seconds : null;

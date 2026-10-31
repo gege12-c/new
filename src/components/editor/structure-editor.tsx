@@ -48,6 +48,7 @@ import {
   allowedTargetKeys,
   defaultTargetFor,
   formatTargetValue,
+  isPaceKey,
   parseTargetValue,
   resolvedHint,
   targetKey,
@@ -462,7 +463,7 @@ function LengthInput({ step, sport, onChange, disabled }: { step: Step; sport: S
   if (length.unit === "time") {
     return (
       <ValueInput
-        aria-label="Durée (min, m:ss ou h:mm:ss)"
+        aria-label="Durée (minutes, ou minutes virgule secondes)"
         value={length.seconds}
         format={formatDurationInput}
         parse={(raw) => {
@@ -472,7 +473,7 @@ function LengthInput({ step, sport, onChange, disabled }: { step: Step; sport: S
         onCommit={(seconds) => onChange({ unit: "time", seconds })}
         disabled={disabled}
         className="w-[5.5rem]"
-        invalidMessage="Durée illisible : 45, 4:30 ou 1:30:00"
+        invalidMessage="Durée illisible. Exemples : 45 (45 min), 4,30 (4 min 30 s), 0,20 (20 s), 1,30,00 (1 h 30)"
       />
     );
   }
@@ -543,6 +544,7 @@ function TargetRow({
   const options = allowedKeys.filter((k) => k === key || !usedMetrics.has(k.split(".")[0] as Target["metric"]));
   const parse = (raw: string) => parseTargetValue(key, raw);
   const format = (value: number) => formatTargetValue(key, value);
+  const invalidTarget = isPaceKey(key) ? "Allure illisible. Exemples : 4,30 ou 430 (4:30)" : "Valeur illisible : un nombre, par exemple 75 ou 92,5";
   const id = `${stepId}-${target.metric}`;
   return (
     <div className="flex flex-wrap items-center gap-1.5">
@@ -569,6 +571,7 @@ function TargetRow({
           value={target.min}
           format={format}
           parse={parse}
+          invalidMessage={invalidTarget}
           onCommit={(min) => onChange({ ...target, min, max: Math.max(min, target.max) })}
           disabled={disabled}
           className="w-[4.25rem] text-center"
@@ -581,6 +584,7 @@ function TargetRow({
           value={target.max}
           format={format}
           parse={parse}
+          invalidMessage={invalidTarget}
           onCommit={(max) => onChange({ ...target, max, min: Math.min(target.min, max) })}
           disabled={disabled}
           className="w-[4.25rem] text-center"

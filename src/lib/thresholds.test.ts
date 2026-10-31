@@ -9,8 +9,9 @@ describe("seuils", () => {
     expect(parsePace("4:75")).toBeNull();
     expect(parsePace("abc")).toBeNull();
     expect(parsePace("4h10")).toBeNull();
-    // Un nombre seul est ambigu (4:10 ou 410 secondes ?) : refusé plutôt que deviné.
-    expect(parsePace("410")).toBeNull();
+    // Clavier numérique du téléphone : « 4,10 » ou « 410 » valent 4:10 ; deux chiffres seuls restent ambigus.
+    expect(parsePace("410")).toBe(250);
+    expect(parsePace("4,10")).toBe(250);
     expect(parsePace("90")).toBeNull();
   });
 
